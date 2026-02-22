@@ -421,11 +421,11 @@ const WEAPON_REGISTRY = {
         onHitPlayer(player, enemy, game) { enemy.takeDamage(this.baseDamage, "magic", player, game); player.reverseWeapon(); },
         onHitWeapon(player, enemy, game) { player.reverseWeapon(); }
     },
-   "Shield": {
-        name: "Shield", 
+   "Holy Shield": {
+        name: "Holy Shield", 
         color: "#4682B4", 
-        width: 40, // 1. ทำให้โล่ใหญ่ขึ้น (จากเดิม 25)
-        length: 30, // เพิ่มความยาวด้านหน้า
+        width: 40, 
+        length: 30, 
         baseDamage: 8,
         
         init(player) { 
@@ -433,65 +433,72 @@ const WEAPON_REGISTRY = {
             player.custom.isDashing = false;
             player.custom.dashDuration = 0;
             
-            player.custom.parryChance = 0.10; // โอกาสเริ่มต้น 10%
-            player.custom.totalDamageTaken = 0; // เก็บดาเมจรวมสำหรับอัลติเมต
+            player.custom.parryChance = 0.10; 
+            player.custom.totalDamageTaken = 0; 
             player.custom.lastHp = player.hp; 
-            player.custom.pushedEnemies = []; // เก็บข้อมูลศัตรูที่ถูกกระแทกเพื่อเช็คชนกำแพง
+            player.custom.pushedEnemies = []; 
             
-            // 1. ทำให้ฮิตบล็อกกันดาเมจใหญ่ขึ้นตามขนาดโล่
+            // สถานะโล่ศักดิ์สิทธิ์
+            player.custom.hasHolyShield = false;
+            player.custom.holyShieldTimer = 0;
+            
             player.weaponHitboxRadius = 55; 
             
-            player.passiveText = "ทุก 3วิ พุ่งชน(ชนกำแพงสตั๊น+DoT) | โอกาส Parry 10% (+5% เมื่อตีโดน) สะท้อน 50% | โจมตี/โดนตี +Ulti 20% | อัลติ: คำรามสะท้อนดาเมจ 75% และฮีล 30% ของดาเมจที่รับมา"; 
+            player.passiveText = "ทุก 3วิ พุ่งชน | โอกาส Parry 10% (+5% เมื่อตีโดน) สะท้อน 50% | อัลติ: ปล่อยคลื่นศักดิ์สิทธิ์ ฮีล 30% และกางโล่อมตะ 2 วินาที"; 
         },
         
         onUpdate(player, closestEnemy, game) {
             let deltaMult = (game.delta / 16);
     
-            // ตรวจสอบการรับดาเมจปกติ
+            // ตรวจสอบการรับดาเมจปกติเพื่อเก็บสะสม (ไม่รวมตอนกางโล่อมตะ)
             let hpDiff = player.custom.lastHp - player.hp;
             if (hpDiff > 0) {
-                player.custom.totalDamageTaken += hpDiff; // เก็บสะสมดาเมจที่รับมาแบบเรียลไทม์
+                player.custom.totalDamageTaken += hpDiff; 
                 player.custom.lastHp = player.hp;
             } else {
                 player.custom.lastHp = player.hp;
             }
     
-            // ระบบพุ่งชน (Dash) ทุกๆ 3 วินาที
+            // เช็คเวลาของโล่ศักดิ์สิทธิ์ (อมตะ 2 วินาที)
+            if (player.custom.hasHolyShield) {
+                player.custom.holyShieldTimer -= game.delta;
+                if (player.custom.holyShieldTimer <= 0) {
+                    player.custom.hasHolyShield = false;
+                    // 3. เอฟเฟกต์ตอนโล่ศักดิ์สิทธิ์แตก
+                    game.spawnParticles(player.x, player.y, 60, "#FFD700");
+                    game.spawnParticles(player.x, player.y, 30, "#FFFFFF");
+                    game.triggerHitStop(100); // กระตุกจอเล็กน้อยตอนโล่แตก
+                }
+            }
+    
+            // ระบบพุ่งชน (Dash)
             if (!player.custom.isDashing) {
                 player.custom.dashTimer += game.delta;
                 if (player.custom.dashTimer >= 3000 && closestEnemy) {
-                    // เริ่มทำการพุ่ง
                     player.custom.isDashing = true;
                     player.custom.dashDuration = 350; 
                     player.custom.dashTimer = 0;
                     
-                    // ล็อคเป้าหมายมุมที่จะพุ่งไปหาศัตรู
                     let dx = closestEnemy.x - player.x;
                     let dy = closestEnemy.y - player.y;
                     player.custom.dashAngle = Math.atan2(dy, dx);
                 }
-                // หมุนโล่ตามปกติเมื่อไม่ได้พุ่ง
                 player.weaponRotation += 0.05 * player.weaponDir * deltaMult;
             } else {
-                // อยู่ในสถานะพุ่ง (Dash)
                 player.custom.dashDuration -= game.delta;
-                
-                // หันโล่ไปด้านหน้า (ทิศทางที่พุ่ง)
                 player.weaponRotation = player.custom.dashAngle;
                 
-                // เคลื่อนที่ด้วยความเร็วสูง
                 player.x += Math.cos(player.custom.dashAngle) * 25 * deltaMult;
                 player.y += Math.sin(player.custom.dashAngle) * 25 * deltaMult;
     
-                // เอฟเฟกต์ตอนพุ่ง
                 game.spawnParticles(player.x, player.y, 3, "#87CEFA");
     
                 if (player.custom.dashDuration <= 0) {
-                    player.custom.isDashing = false; // จบการพุ่ง
+                    player.custom.isDashing = false; 
                 }
             }
     
-            // ระบบเช็คศัตรูกระแทกกำแพง (Wall Slam)
+            // ระบบเช็คศัตรูกระแทกกำแพง
             for (let i = player.custom.pushedEnemies.length - 1; i >= 0; i--) {
                 let info = player.custom.pushedEnemies[i];
                 let enemy = info.entity;
@@ -502,7 +509,6 @@ const WEAPON_REGISTRY = {
                     continue;
                 }
     
-                // ถ้าระยะที่ศัตรูขยับได้น้อยมาก ทั้งๆ ที่โดนผลักแรง แปลว่าติดกำแพง
                 let movedDist = Math.hypot(enemy.x - info.lastX, enemy.y - info.lastY);
                 if (movedDist < 2 * deltaMult && info.timer < 350) { 
                     game.spawnParticles(enemy.x, enemy.y, 25, "#FFFF00");
@@ -521,7 +527,7 @@ const WEAPON_REGISTRY = {
                 }
             }
     
-            // ประมวลผล DoT (Damage over Time) จากการชนกำแพง
+            // ประมวลผล DoT
             let allEnemies = game.getEnemies(player);
             for (let e of allEnemies) {
                 if (e.custom && e.custom.shieldDotTimer > 0) {
@@ -535,35 +541,30 @@ const WEAPON_REGISTRY = {
         },
         
         render(ctx, player, game) { 
-            // 1. ทำให้รูปโล่สวยขึ้น (เพิ่ม Gradient เลียนแบบโลหะ)
             let grad = ctx.createLinearGradient(-this.width, -this.width, this.width, this.width);
-            grad.addColorStop(0, "#E0F7FA"); // แสงสะท้อนสว่าง
-            grad.addColorStop(0.5, this.color); // สีหลักของโล่
-            grad.addColorStop(1, "#006064"); // เงาเข้มด้านหลัง
+            grad.addColorStop(0, "#E0F7FA"); 
+            grad.addColorStop(0.5, this.color); 
+            grad.addColorStop(1, "#006064"); 
     
             ctx.fillStyle = grad;
             ctx.beginPath();
-            // วาดรูปทรงโล่แบบ Kite Shield (โล่อัศวิน) ที่มีรายละเอียดมากขึ้น
-            ctx.moveTo(this.length + 15, 0); // จุดแหลมด้านหน้าสุด
-            ctx.quadraticCurveTo(this.length, this.width, 0, this.width); // โค้งขอบขวา
-            ctx.lineTo(-10, this.width); // ฐานหลังขวา
-            ctx.lineTo(-10, -this.width); // ฐานหลังซ้าย
-            ctx.lineTo(0, -this.width); // ลากมาตรงกลางหลัง
-            ctx.quadraticCurveTo(this.length, -this.width, this.length + 15, 0); // โค้งขอบซ้ายกลับมาจุดแหลม
+            ctx.moveTo(this.length + 15, 0); 
+            ctx.quadraticCurveTo(this.length, this.width, 0, this.width); 
+            ctx.lineTo(-10, this.width); 
+            ctx.lineTo(-10, -this.width); 
+            ctx.lineTo(0, -this.width); 
+            ctx.quadraticCurveTo(this.length, -this.width, this.length + 15, 0); 
             ctx.closePath();
             ctx.fill();
             
-            // ขอบโล่สีทองสุดหรู
             ctx.strokeStyle = "#FFD700";
             ctx.lineWidth = 4;
             ctx.stroke();
     
-            // ลวดลายกางเขนตรงกลางโล่
             ctx.fillStyle = "#FFD700";
-            ctx.fillRect(-2, -this.width + 10, 8, this.width * 2 - 20); // เส้นแนวตั้ง
-            ctx.fillRect(-10, -4, this.length + 10, 8); // เส้นแนวนอน
+            ctx.fillRect(-2, -this.width + 10, 8, this.width * 2 - 20); 
+            ctx.fillRect(-10, -4, this.length + 10, 8); 
     
-            // เอฟเฟกต์เรืองแสงแสดงโอกาส Parry 
             if (player.custom.parryChance > 0.10) {
                 let glowAlpha = Math.min(0.8, player.custom.parryChance);
                 ctx.shadowColor = "#FFD700";
@@ -572,23 +573,17 @@ const WEAPON_REGISTRY = {
                 ctx.beginPath();
                 ctx.arc(this.length / 2, 0, this.width / 2, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.shadowBlur = 0; // รีเซ็ต
+                ctx.shadowBlur = 0; 
             }
         },
         
         onHitPlayer(player, target, game) {
-            // เพิ่มโอกาส Parry
             player.custom.parryChance = Math.min(1.0, player.custom.parryChance + 0.05);
-    
-            // 2. ทำให้อันติเมตเพิ่มทีละ 20% (เมื่อโจมตีโดน)
-            if (player.ultimateGauge !== undefined) {
-                player.ultimateGauge = Math.min(100, player.ultimateGauge + 20);
-            }
+            // 1. นำการเพิ่มอัลติเมตออก
     
             if (player.custom.isDashing) {
                 target.takeDamage(this.baseDamage * 1.5, "physical", player, game);
                 
-                // ผลักศัตรู
                 let dx = target.x - player.x;
                 let dy = target.y - player.y;
                 let dist = Math.hypot(dx, dy);
@@ -619,14 +614,16 @@ const WEAPON_REGISTRY = {
         onTakeDamage(player, source, game) {
             let dmgTaken = player.custom.lastHp - player.hp;
             if (dmgTaken <= 0) return; 
-            
-            // 2. ทำให้อันติเมตเพิ่มทีละ 20% (เมื่อถูกโจมตีและรับดาเมจ/ปัดป้อง)
-            if (player.ultimateGauge !== undefined) {
-                player.ultimateGauge = Math.min(100, player.ultimateGauge + 20);
+    
+            // 2. หากมีสถานะโล่ศักดิ์สิทธิ์อยู่ ให้ป้องกันดาเมจทั้งหมด (อมตะ)
+            if (player.custom.hasHolyShield) {
+                player.hp += dmgTaken; // ฮีลคืนทันทีที่โดนดาเมจ
+                player.custom.lastHp = player.hp;
+                game.spawnParticles(player.x, player.y, 10, "#FFFACD"); // เอฟเฟกต์กันดาเมจ
+                return; 
             }
             
             if (Math.random() < player.custom.parryChance) {
-                // ฮีลคืนส่วนที่โดนโจมตีมาในจังหวะ Parry
                 player.hp += dmgTaken;
                 if (player.hp > player.maxHp) player.hp = player.maxHp;
                 
@@ -687,43 +684,108 @@ const WEAPON_REGISTRY = {
                         });
                     }
                 }
-                
-                player.custom.parryChance = 0.10; // รีเซ็ตโอกาส
+                player.custom.parryChance = 0.10; 
             }
             
             player.custom.lastHp = player.hp;
         },
         
         onUltimateActivate(player, game) {
-            game.spawnParticles(player.x, player.y, 80, "#FFD700");
-            game.triggerHitStop(500); 
-            
-            // 3. ฮีล 30% ของดาเมจที่รับทั้งหมดในการต่อสู้
+            // 2. ฮีล 30% จากดาเมจสะสมที่เคยได้รับทั้งหมด
             let healAmount = player.custom.totalDamageTaken * 0.30;
             player.hp += healAmount;
             if (player.hp > player.maxHp) player.hp = player.maxHp;
             
-            // เอฟเฟกต์ฮีลสีเขียวผสมทอง
-            game.spawnParticles(player.x, player.y, 40, "#32CD32");
-    
-            // ทำดาเมจ 75% ของดาเมจที่รับมาทั้งหมดใส่ศัตรูรอบๆ
-            let ultDamage = player.custom.totalDamageTaken * 0.75;
-            let enemies = game.getEnemies(player);
-            
-            for (let enemy of enemies) {
-                let dist = Math.hypot(enemy.x - player.x, enemy.y - player.y);
-                if (dist < 180) { // รัศมีค่อนข้างใกล้
-                    enemy.takeDamage(ultDamage, "true", player, game);
-                    
-                    let angle = Math.atan2(enemy.y - player.y, enemy.x - player.x);
-                    enemy.applyForce(Math.cos(angle) * 25, Math.sin(angle) * 25);
-                    
-                    game.spawnParticles(enemy.x, enemy.y, 15, "#FFF8DC");
-                }
-            }
-            
-            // 3. รีเซ็ตค่าดาเมจสะสมหลังจากใช้สกิลไปแล้ว
+            // รีเซ็ตค่าดาเมจ
             player.custom.totalDamageTaken = 0; 
+            
+            // กางโล่ศักดิ์สิทธิ์ (อมตะ) 2 วินาที
+            player.custom.hasHolyShield = true;
+            player.custom.holyShieldTimer = 2000;
+    
+            game.triggerHitStop(400); 
+            game.spawnParticles(player.x, player.y, 50, "#32CD32"); // เอฟเฟกต์ฮีลสีเขียว
+            
+            // 3. สร้างคลื่นสีทองศักดิ์สิทธิ์กระจายออกไป
+            game.spawn({
+                x: player.x,
+                y: player.y,
+                radius: 10,
+                maxRadius: 300,
+                life: 600, // ขยายวงและคงอยู่ 600ms
+                maxLife: 600,
+                team: player.team,
+                hitEnemies: [], // บันทึกศัตรูที่โดนคลื่นไปแล้ว
+                onUpdate(wave, g) {
+                    if (wave.dead) return;
+                    let dMult = (g.delta / 16);
+                    
+                    // ขยายขนาดคลื่น
+                    wave.radius += 12 * dMult;
+                    wave.life -= g.delta;
+    
+                    // ผลักศัตรูออกไปเล็กน้อยเมื่อโดนคลื่น
+                    let enemies = g.getEnemies(player);
+                    for (let e of enemies) {
+                        if (!wave.hitEnemies.includes(e)) {
+                            let dist = Math.hypot(e.x - wave.x, e.y - wave.y);
+                            // เช็คว่าวงคลื่นไปแตะตัวศัตรูหรือยัง
+                            if (dist < wave.radius + e.radius && dist > wave.radius - 30) {
+                                wave.hitEnemies.push(e);
+                                let angle = Math.atan2(e.y - wave.y, e.x - wave.x);
+                                e.applyForce(Math.cos(angle) * 15, Math.sin(angle) * 15); // คลื่นผลักเบาๆ
+                                g.spawnParticles(e.x, e.y, 8, "#FFD700");
+                            }
+                        }
+                    }
+                    
+                    if (wave.life <= 0) wave.dead = true;
+                },
+                render(ctx) {
+                    if (this.dead) return;
+                    let alpha = this.life / this.maxLife;
+                    ctx.strokeStyle = `rgba(255, 215, 0, ${alpha})`;
+                    ctx.lineWidth = 15 * alpha; // ความหนาของคลื่นลดลงตามเวลา
+                    ctx.shadowColor = "#FFF";
+                    ctx.shadowBlur = 20;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+                }
+            });
+    
+            // 3. สร้าง Entity ภาพวิชวลโล่โดมทองคำครอบตัวผู้เล่นไว้ 2 วินาที
+            game.spawn({
+                playerRef: player,
+                life: 2000,
+                team: player.team,
+                onUpdate(shieldVisual, g) {
+                    // อัปเดตตำแหน่งให้ตามตัวผู้เล่นตลอดเวลา
+                    shieldVisual.x = shieldVisual.playerRef.x;
+                    shieldVisual.y = shieldVisual.playerRef.y;
+                    shieldVisual.life -= g.delta;
+                    
+                    // ถ้าหมดเวลา หรือ บัฟโดนหักล้างไปก่อน ให้ปิดการแสดงผล
+                    if (shieldVisual.life <= 0 || !shieldVisual.playerRef.custom.hasHolyShield) {
+                        shieldVisual.dead = true;
+                    }
+                },
+                render(ctx) {
+                    if (this.dead) return;
+                    // วาดโดมแสงสีทอง
+                    ctx.fillStyle = "rgba(255, 215, 0, 0.2)";
+                    ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+                    ctx.lineWidth = 2;
+                    ctx.shadowColor = "#FFD700";
+                    ctx.shadowBlur = 15;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.playerRef.radius + 15, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+                }
+            });
         }
     }
 };
