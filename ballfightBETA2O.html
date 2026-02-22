@@ -580,7 +580,183 @@ const WEAPON_REGISTRY = {
         onHitWeapon(player, enemy, game) {
             player.reverseWeapon();
         }
+    },
+    "Axe": {
+    name: "Axe",
+    color: "#8B4513", // Brown wooden handle
+    width: 25,
+    length: 75,
+    baseDamage: 10,
+    
+    init(player) {
+        // Initialize tracking variables
+        player.custom.currentDamage = this.baseDamage;
+        player.passiveText = "Axe: Slow, +1 Dmg/hit. 25% chance to Chop (Knockback + 10% Wall Slam Dmg). Ult: Slowing Rift.";
+    },
+    
+    onUpdate(player, enemy, game) {
+        // Axe is heavy, so it rotates slower than the default 0.08
+        player.weaponRotation += 0.04 * player.weaponDir * (game.delta / 16);
+    },
+    
+    render(ctx, player, game) {
+        // Draw the Handle
+        ctx.fillStyle = this.color;
+        ctx.fillRect(-this.width * 0.2, -this.width, this.width * 0.4, this.width * 2.5);
+        
+        // Draw the Axe Blade
+        ctx.fillStyle = "#A9A9A9"; // Silver/Grey
+        ctx.beginPath();
+        // Create a curved blade shape
+        ctx.arc(this.width * 0.2, -this.width * 0.2, this.width * 1.2, -Math.PI / 2, Math.PI / 2);
+        ctx.lineTo(this.width * 0.2, -this.width * 0.8);
+        ctx.fill();
+        
+        // Add a slight metallic highlight to the blade
+        ctx.strokeStyle = "#FFFFFF";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    },
+    
+    onHitPlayer(player, enemy, game) {
+        // 1. Increase damage progressively per hit
+        player.custom.currentDamage += 1;
+        
+        // 2. Roll 25% chance for the "Chop" attack
+        if (Math.random() <= 0.25) {
+            // Deal current physical damage
+            enemy.takeDamage(player.custom.currentDamage, "physical", player, game);
+            
+            // Apply massive knockback force
+            let dir = MathUtils.normalize(enemy.x - player.x, enemy.y - player.y);
+            enemy.applyForce(dir.x * 25, dir.y * 25);
+            
+            // Dramatic hit effects
+            game.spawnParticles(enemy.x, enemy.y, 25, "#FFA500");
+            game.triggerHitStop(80); // Heavier hitstop for the chop
+            
+            // Spawn an invisible tracker entity to detect if they hit a wall
+            game.spawn({
+                target: enemy,
+                source: player,
+                lifetime: 1000, // Check for 1 second
+                bonusDamage: player.custom.currentDamage * 0.10, // 10% of total damage
+                update(g) {
+                    this.lifetime -= g.delta;
+                    if (this.lifetime <= 0) return;
+                    
+                    // Assuming a standard 800x600 arena for edge detection.
+                    // If your arena size is dynamic, replace these hardcoded bounds with your canvas limits.
+                    let hitWall = (this.target.x <= 30 || this.target.x >= 770 || 
+                                   this.target.y <= 30 || this.target.y >= 570);
+                                   
+                    if (hitWall) {
+                        // Apply the bonus damage when hitting the wall
+                        this.target.takeDamage(this.bonusDamage, "blunt", this.source, g);
+                        g.spawnParticles(this.target.x, this.target.y, 15, "#FF0000"); // Red burst on wall slam
+                        this.lifetime = 0; // Destroy tracker after it procs
+                    }
+                },
+                render(ctx) { /* Invisible entity */ }
+            });
+            
+        } else {
+            // Normal attack
+            enemy.takeDamage(player.custom.currentDamage, "physical", player, game);
+            game.triggerHitStop(30);
+        }
+        
+        // Axe bounces off after hitting the body
+        player.reverseWeapon();
+    },
+    
+    onHitWeapon(player, enemy, game) {
+        // Standard clash
+        game.spawnParticles(player.weaponX, player.weaponY, 8, "#CCCCCC");
+        player.reverseWeapon();
+        
+        // Axe is heavy, pushing the enemy slightly even on a blocked attack
+        let dir = MathUtils.normalize(enemy.x - player.x, enemy.y - player.y);
+        enemy.applyForce(dir.x * 3, dir.y * 3);
+    },
+    
+    onTakeDamage(player, source, game) {
+        // No special passive when taking damage
+    },
+    
+    onUltimateActivate(player, game) {
+        // Visual effects for smashing the ground
+        game.triggerHitStop(150);
+        game.spawnParticles(player.x, player.y, 40, "#4B0082");
+        
+        // Spawn the Rift Entity at the player's current location
+        game.spawn({
+            x: player.x,
+            y: player.y,
+            radius: 120,
+            lifetime: 4000, // Rift stays on the field for 4 seconds
+            
+            update(g) {
+                this.lifetime -= g.delta;
+                
+                // Find and slow enemies caught in the rift
+                for (let p of g.players) {
+                    if (p !== player) { // Don't slow the caster
+                        let dist = MathUtils.distance(this.x, this.y, p.x, p.y);
+                        if (dist < this.radius) {
+                            // Apply a continuously refreshing slow effect
+                            p.addStatus({
+                                type: "slow_rift",
+                                duration: 200, // Short duration so it wears off quickly once they leave the rift
+                                update(pTarget, gameCtx) {
+                                    // Drastically reduce velocity to simulate heavy slow
+                                    pTarget.vx *= 0.70;
+                                    pTarget.vy *= 0.70;
+                                }
+                            });
+                            
+                            // Visual indicator that they are being slowed
+                            if (Math.random() < 0.3) {
+                                g.spawnParticles(p.x, p.y, 1, "#8A2BE2");
+                            }
+                        }
+                    }
+                }
+            },
+            
+            render(ctx) {
+                // Draw the rift area
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                
+                // Pulsing animation based on time
+                let pulse = Math.sin(Date.now() * 0.005) * 5;
+                let alphaMultiplier = this.lifetime / 4000; // Fade out as it expires
+                
+                // Outer slowing aura
+                ctx.globalAlpha = 0.3 * alphaMultiplier;
+                ctx.fillStyle = "#4B0082"; // Indigo dark magic
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius + pulse, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Inner cracked ground visual
+                ctx.globalAlpha = 0.8 * alphaMultiplier;
+                ctx.strokeStyle = "#8A2BE2"; // Glowing purple crack
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                // Draw a jagged crack
+                ctx.moveTo(-40, -20);
+                ctx.lineTo(-10, 10);
+                ctx.lineTo(20, -5);
+                ctx.lineTo(50, 25);
+                ctx.stroke();
+                
+                ctx.restore();
+            }
+        });
     }
+}
 };
 
 /**
