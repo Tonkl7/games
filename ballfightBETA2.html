@@ -3,855 +3,982 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auto Weapon Ball Fight - Modular</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Auto-Battler Arena Engine</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
-        
-        body, html {
+        body {
             margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #0f172a; 
-            font-family: 'Poppins', sans-serif;
-            scroll-behavior: smooth;
+            overflow: hidden;
+            background-color: #111;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
         }
 
-        #game-container {
-            position: relative;
-            width: 100%;
-            min-height: 100vh;
+        /* Menu Scene */
+        #menu {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
-            background: linear-gradient(to bottom, #020617, #0f172a);
-            padding: 20px; 
+            justify-content: center;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            z-index: 100;
         }
+        .menu-box {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+            border: 2px solid #e94560;
+            box-shadow: 0 0 20px rgba(233, 69, 96, 0.4);
+        }
+        h1 { margin-top: 0; color: #e94560; font-size: 2.5em; text-transform: uppercase; letter-spacing: 2px; }
+        .selector { margin: 20px 0; display: flex; justify-content: space-between; align-items: center; gap: 20px;}
+        select {
+            padding: 10px;
+            font-size: 16px;
+            background: #222;
+            color: #fff;
+            border: 1px solid #e94560;
+            border-radius: 6px;
+            outline: none;
+            cursor: pointer;
+        }
+        button {
+            margin-top: 30px;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            background: #e94560;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+        button:hover { background: #ff5c77; transform: scale(1.05); }
 
-        #gameCanvas {
+        /* Arena UI */
+        #game-ui {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none;
+            display: none;
+            z-index: 10;
+        }
+        
+        /* Top HUD */
+        #header {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            letter-spacing: 1px;
+        }
+        .p1-text { color: #4facfe; }
+        .p2-text { color: #ff0844; }
+
+        /* Bottom HUD */
+        #footer {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-end;
+            padding: 0 20px;
+            box-sizing: border-box;
+        }
+        .player-panel {
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #333;
+            border-radius: 10px;
+            padding: 15px;
+            width: 300px;
+            backdrop-filter: blur(5px);
+        }
+        #p1-panel { border-color: #4facfe; }
+        #p2-panel { border-color: #ff0844; }
+
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 14px;}
+        .passive-text { font-style: italic; color: #ddd; margin-bottom: 10px; font-size: 13px; height: 18px;}
+        
+        /* Bars */
+        .bar-container { width: 100%; height: 12px; background: #222; border-radius: 6px; overflow: hidden; margin-bottom: 8px; border: 1px solid #000; }
+        .hp-bar { height: 100%; transition: width 0.2s; }
+        #p1-hp { background: linear-gradient(90deg, #00c6ff, #0072ff); }
+        #p2-hp { background: linear-gradient(90deg, #ff0844, #ffb199); }
+        
+        .ult-bar { height: 100%; background: linear-gradient(90deg, #f6d365, #fda085); transition: width 0.2s; width: 0%; }
+        
+        /* Canvas */
+        canvas {
             display: block;
-        }
-        
-        .hidden { display: none !important; }
-        
-        .glass-panel {
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-        }
-        .text-gradient {
-            background: linear-gradient(to right, #00f2fe, #4facfe, #f093fb, #f5576c);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            width: 100vw;
+            height: 100vh;
         }
 
-        #menu-btn {
-            position: fixed;
-            top: 1.5rem;
-            right: 1.5rem;
-        }
-
-        #ui-overlay {
-            position: fixed;
-            inset: 0;
-            background-color: rgba(15, 23, 42, 0.8);
-            backdrop-filter: blur(12px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 50;
+        /* Visual Feedback */
+        #flash-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: white; opacity: 0; pointer-events: none; z-index: 20;
+            transition: opacity 0.1s;
         }
     </style>
 </head>
 <body>
 
-    <div id="game-container">
-        <canvas id="gameCanvas"></canvas>
-    </div>
-
-    <button id="menu-btn" class="hidden bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-semibold py-3 px-6 rounded-full shadow-lg z-40 border border-white/20 transition-all duration-300 hover:scale-105">
-        ⚙️ SETTINGS
-    </button>
-
-    <div id="ui-overlay">
-        <div class="glass-panel flex flex-col items-center gap-6 p-8 rounded-3xl w-11/12 max-w-3xl max-h-[90vh] overflow-y-auto">
-            <h1 class="text-4xl md:text-5xl font-extrabold text-gradient drop-shadow-lg text-center tracking-tight leading-tight">
-                AUTO WEAPON BALL
-            </h1>
-            <p class="text-slate-300 text-base md:text-lg text-center">Select your weapon and start the fight!</p>
-            
-            <div class="flex flex-col sm:flex-row justify-between w-full gap-6 mt-4">
-                <div class="flex flex-col items-center bg-gradient-to-b from-slate-800/40 to-slate-900/40 p-6 rounded-2xl border border-slate-500/30 flex-1 shadow-lg transition-transform hover:-translate-y-1">
-                    <h2 class="text-slate-200 font-bold mb-4 text-xl tracking-wide">PLAYER 1</h2>
-                    <!-- เพิ่ม <option> ตรงนี้ได้ในอนาคตเมื่อ AI สร้างอาวุธใหม่ -->
-                    <select id="p1-weapon" class="text-white px-4 py-3 rounded-xl w-full outline-none font-semibold bg-slate-950/80 border border-slate-400/50 focus:ring-2 focus:ring-cyan-400 appearance-none text-center cursor-pointer">
-                        <option value="sword">Sword</option>
-                        <option value="bow">Bow</option>
-                    </select>
-                </div>
-
-                <div class="flex flex-col items-center bg-gradient-to-b from-slate-800/40 to-slate-900/40 p-6 rounded-2xl border border-slate-500/30 flex-1 shadow-lg transition-transform hover:-translate-y-1">
-                    <h2 class="text-slate-200 font-bold mb-4 text-xl tracking-wide">PLAYER 2</h2>
-                    <select id="p2-weapon" class="text-white px-4 py-3 rounded-xl w-full outline-none font-semibold bg-slate-950/80 border border-slate-400/50 focus:ring-2 focus:ring-cyan-400 appearance-none text-center cursor-pointer">
-                        <option value="sword">Sword</option>
-                        <option value="bow">Bow</option>
-                    </select>
-                </div>
+    <!-- Scene 1: Main Menu -->
+    <div id="menu">
+        <div class="menu-box">
+            <h1>Auto-Battler Engine</h1>
+            <div class="selector">
+                <label style="color:#4facfe; font-weight:bold;">Player 1 Weapon:</label>
+                <select id="p1-weapon"></select>
             </div>
-
-            <button id="start-btn" class="mt-4 bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-300 hover:to-teal-400 text-slate-900 font-extrabold text-xl py-4 px-12 rounded-full shadow-[0_0_30px_rgba(52,211,153,0.4)] transition-all duration-300 transform hover:scale-105 tracking-wider">
-                FIGHT
-            </button>
+            <div class="selector">
+                <label style="color:#ff0844; font-weight:bold;">Player 2 Weapon:</label>
+                <select id="p2-weapon"></select>
+            </div>
+            <button id="start-btn">Enter Arena</button>
         </div>
     </div>
 
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const uiOverlay = document.getElementById('ui-overlay');
-        const menuBtn = document.getElementById('menu-btn');
-        const startBtn = document.getElementById('start-btn');
+    <!-- Scene 2: Game UI -->
+    <div id="game-ui">
+        <div id="header">
+            <span class="p1-text" id="p1-title">P1: Sword</span> <span style="color:#777">vs</span> <span class="p2-text" id="p2-title">P2: Bow</span>
+        </div>
         
-        let gameRunning = false;
-        let p1, p2;
-        let projectiles = []; // เปลี่ยนจาก arrows เป็น projectiles รองรับอาวุธระยะไกลทุกชนิด
-        let particles = [];
+        <div id="footer">
+            <div class="player-panel" id="p1-panel">
+                <div class="stat-row"><span>HP</span><span id="p1-hp-text">100/100</span></div>
+                <div class="bar-container"><div class="hp-bar" id="p1-hp" style="width: 100%"></div></div>
+                <div class="stat-row"><span style="color:#f6d365">Ultimate</span><span id="p1-ult-text">0%</span></div>
+                <div class="bar-container"><div class="ult-bar" id="p1-ult"></div></div>
+                <div class="passive-text" id="p1-passive">Passive: --</div>
+            </div>
+
+            <div class="player-panel" id="p2-panel">
+                <div class="stat-row"><span>HP</span><span id="p2-hp-text">100/100</span></div>
+                <div class="bar-container"><div class="hp-bar" id="p2-hp" style="width: 100%"></div></div>
+                <div class="stat-row"><span style="color:#f6d365">Ultimate</span><span id="p2-ult-text">0%</span></div>
+                <div class="bar-container"><div class="ult-bar" id="p2-ult"></div></div>
+                <div class="passive-text" id="p2-passive">Passive: --</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="flash-overlay"></div>
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+/**
+ * ------------------------------------------------------------------
+ * UTILITIES & MATH
+ * ------------------------------------------------------------------
+ */
+const MathUtils = {
+    distance: (x1, y1, x2, y2) => Math.hypot(x2 - x1, y2 - y1),
+    randRange: (min, max) => Math.random() * (max - min) + min,
+    clamp: (val, min, max) => Math.max(min, Math.min(max, val)),
+    normalize: (vx, vy) => {
+        let len = Math.hypot(vx, vy);
+        if (len === 0) return {x: 0, y: 0};
+        return {x: vx / len, y: vy / len};
+    }
+};
+
+/**
+ * ------------------------------------------------------------------
+ * WEAPON REGISTRY (MODDABLE SYSTEM)
+ * ------------------------------------------------------------------
+ * To add a new weapon, just define it here. The engine will handle the rest.
+ */
+const WEAPON_REGISTRY = {
+    "Sword": {
+        name: "Sword",
+        color: "#ccc",
+        width: 8,
+        length: 50,
+        baseDamage: 8,
         
-        const FIXED_ARENA_SIZE = 450; 
-        const PADDING_X = 60; 
-        const PADDING_TOP = 60;
-        const PADDING_BOTTOM = 110; 
-        let arenaSize, arenaX, arenaY;
-
-        // ========================================================
-        // 🛠️ UTILITY FUNCTIONS
-        // ========================================================
-        function dist(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); }
-        function distToSegment(px, py, vx, vy, wx, wy) {
-            let l2 = (wx - vx) ** 2 + (wy - vy) ** 2;
-            if (l2 === 0) return dist(px, py, vx, vy);
-            let t = ((px - vx) * (wx - vx) + (py - vy) * (wy - vy)) / l2;
-            t = Math.max(0, Math.min(1, t));
-            return dist(px, py, vx + t * (wx - vx), vy + t * (wy - vy));
-        }
-        function segmentsIntersect(x1, y1, x2, y2, x3, y3, x4, y4) {
-            let det = (x2 - x1) * (y4 - y3) - (x4 - x3) * (y2 - y1);
-            if (det === 0) return false;
-            let lambda = ((y4 - y3) * (x4 - x1) + (x3 - x4) * (y4 - y1)) / det;
-            let gamma = ((y1 - y2) * (x4 - x1) + (x2 - x1) * (y4 - y1)) / det;
-            return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
-        }
-
-        // ========================================================
-        // ⚔️ WEAPON SYSTEM (FOR AI EXTENSIBILITY)
-        // AI: To create a new weapon, extend BaseWeapon and add to WeaponFactory
-        // ========================================================
+        // Custom init state
+        init(player) {
+            player.custom.dmgBonus = 0;
+            player.custom.spinSpeed = 0.08;
+            player.passiveText = `DMG Bonus: +0`;
+        },
         
-        class BaseWeapon {
-            constructor(player) {
-                this.player = player;
-                this.name = "Unknown";
-                this.damage = 1; // อาวุธทุกชิ้นเริ่มต้นดาเมจ 1
-                this.theme = { light: '#ffffff', dark: '#64748b', glow: '#94a3b8' }; // สีพื้นฐาน
-                this.spinAngle = Math.random() * Math.PI * 2;
-                this.spinSpeed = 0.12;
-                this.cooldown = 0;
-
-                // ⚡ Ultimate System Properties
-                this.ultName = "ULTIMATE SKILL"; 
-                this.ultCharge = 0;              
-                this.ultMaxCharge = 100;         
-                this.ultActive = false;          
-                this.ultDuration = 180;          // 3 วินาที (60fps * 3)
-                this.ultTimer = 0;               
-                this.ultCooldown = 120;          // คูลดาวน์ 2 วินาที
-                this.ultCooldownTimer = 0;       
-            }
-
-            // Framework Update Hook
-            update(opponent) {
-                this.spinAngle += this.spinSpeed;
-                if (this.cooldown > 0) this.cooldown--;
-                
-                this.updateUltimate();
-                
-                this.weaponLogic(opponent); // เรียกใช้ Logic เฉพาะของอาวุธ
-
-                if (this.ultActive) {
-                    this.onUltActive(opponent);
-                }
-            }
-
-            // ⚡ จัดการระบบหลอด Ultimate อัตโนมัติ
-            updateUltimate() {
-                if (this.ultActive) {
-                    this.ultTimer--;
-                    this.ultCharge = (this.ultTimer / this.ultDuration) * this.ultMaxCharge; 
-                    if (this.ultTimer <= 0) {
-                        this.deactivateUltimate();
-                    }
-                } else if (this.ultCooldownTimer > 0) {
-                    this.ultCooldownTimer--;
-                }
-            }
-
-            // ⚡ เติมหลอด Ultimate
-            addUltCharge(amount) {
-                if (this.ultActive || this.ultCooldownTimer > 0) return; 
-                this.ultCharge = Math.min(this.ultCharge + amount, this.ultMaxCharge);
-                if (this.ultCharge >= this.ultMaxCharge) {
-                    this.activateUltimate();
-                }
-            }
-
-            activateUltimate() {
-                this.ultActive = true;
-                this.ultTimer = this.ultDuration;
-                createExplosion(this.player.x, this.player.y, '#facc15'); 
-                this.onUltStart(); 
-            }
-
-            deactivateUltimate() {
-                this.ultActive = false;
-                this.ultCharge = 0;
-                this.ultCooldownTimer = this.ultCooldown;
-                this.onUltEnd(); 
-            }
-
-            // ---- Methods for Override by Specific Weapons ----
-            weaponLogic(opponent) {} // AI Override
-            draw(ctx) {}             // AI Override
-            getHitbox() { return null; } // AI Override (return {x1, y1, x2, y2} for melee clash)
-            onMeleeHit(opponent) {}  // AI Override
-            onProjectileHit(projectile, opponent) {} // AI Override
+        // Runs every frame
+        onUpdate(player, enemy, game) {
+            // Apply rotation
+            player.weaponRotation += player.custom.spinSpeed * player.weaponDir * (game.delta / 16);
             
-            // AI Override เพื่อแสดงข้อความสกิลที่ด้านล่าง (ถ้าคืนค่าว่าง จะไม่แสดงอะไร)
-            getUIStats() { 
-                return `DMG : ${this.damage}`; 
-            } 
-
-            // ⚡ Ultimate Hooks (สำหรับให้ AI เขียนทับ)
-            onUltStart() {}           
-            onUltActive(opponent) {}  
-            onUltEnd() {}             
+            // Ultimate logic (faster spin, larger range)
+            if (player.ultimateActive) {
+                player.weaponReach = 90;
+                player.custom.spinSpeed = 0.2;
+                player.custom.dmgBonus += 0.01; // Scale during ult
+            } else {
+                player.weaponReach = 50;
+                player.custom.spinSpeed = 0.08;
+            }
+            player.passiveText = `DMG Bonus: +${Math.floor(player.custom.dmgBonus)}`;
+        },
+        
+        onHitPlayer(player, enemy, game) {
+            // Passive: Increase damage on every successful hit
+            player.custom.dmgBonus += 2;
+            let dmg = this.baseDamage + player.custom.dmgBonus;
+            enemy.takeDamage(dmg, "physical", player, game);
+            
+            // Slight knockback
+            let dx = enemy.x - player.x;
+            let dy = enemy.y - player.y;
+            let n = MathUtils.normalize(dx, dy);
+            enemy.applyForce(n.x * 10, n.y * 10);
+            
+            player.reverseWeapon();
+        },
+        
+        onHitWeapon(player, enemy, game) {
+            // Clash effect
+            game.spawnParticles(player.weaponX, player.weaponY, 5, "#fff");
+            player.reverseWeapon();
+        },
+        
+        onUltimateActivate(player, game) {
+            // Instant heal on ult
+            player.hp = Math.min(player.maxHp, player.hp + 20);
         }
+    },
 
-        // 🗡️ SWORD CLASS
-        class Sword extends BaseWeapon {
-            constructor(player) {
-                super(player);
-                this.name = "Sword";
-                this.length = 90;
-                this.theme = { light: '#fca5a5', dark: '#991b1b', glow: '#ef4444' }; // สีแดงเพลิง
+    "Bow": {
+        name: "Bow",
+        color: "#8b5a2b",
+        width: 10,
+        length: 30,
+        baseDamage: 5,
 
-                this.ultName = "BLADE STORM";
-                this.ultMaxCharge = 100;
-                this.ultDuration = 180; 
-                this.baseLength = 90;
+        init(player) {
+            player.custom.arrowCount = 1;
+            player.custom.shootTimer = 0;
+            player.custom.shotsFired = 0;
+            player.passiveText = `Arrows per shot: 1`;
+        },
+
+        onUpdate(player, enemy, game) {
+            // Rotate to aim generally towards enemy, but with some drift
+            let dx = enemy.x - player.x;
+            let dy = enemy.y - player.y;
+            let targetAngle = Math.atan2(dy, dx);
+            
+            // Interpolate rotation
+            let diff = targetAngle - player.weaponRotation;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            player.weaponRotation += diff * 0.05 * (game.delta/16);
+
+            player.weaponReach = 40;
+
+            // Shoot logic
+            player.custom.shootTimer -= game.delta;
+            let fireRate = player.ultimateActive ? 100 : 800;
+            
+            if (player.custom.shootTimer <= 0) {
+                player.custom.shootTimer = fireRate;
+                
+                // Spawn arrows
+                let count = player.ultimateActive ? player.custom.arrowCount + 2 : player.custom.arrowCount;
+                let spread = 0.2; // radians
+                let startAngle = player.weaponRotation - (spread * (count - 1)) / 2;
+
+                for(let i=0; i<count; i++) {
+                    let angle = startAngle + (i * spread);
+                    game.spawn(this.createArrow(player, angle));
+                }
+                
+                player.custom.shotsFired++;
+                // Passive: Every 5 shots, increase arrow count
+                if (player.custom.shotsFired % 5 === 0 && player.custom.arrowCount < 5) {
+                    player.custom.arrowCount++;
+                    player.passiveText = `Arrows per shot: ${player.custom.arrowCount}`;
+                }
+            }
+        },
+
+        createArrow(owner, angle) {
+            return {
+                x: owner.weaponX,
+                y: owner.weaponY,
+                vx: Math.cos(angle) * 12,
+                vy: Math.sin(angle) * 12,
+                radius: 4,
+                lifetime: 2000,
+                owner: owner,
+                type: "projectile",
+                
+                update(game) {
+                    this.x += this.vx * (game.delta/16);
+                    this.y += this.vy * (game.delta/16);
+                    this.lifetime -= game.delta;
+                    
+                    // Collision with enemy
+                    let enemy = game.players.find(p => p !== this.owner);
+                    if (MathUtils.distance(this.x, this.y, enemy.x, enemy.y) < this.radius + enemy.radius) {
+                        enemy.takeDamage(5, "pierce", this.owner, game);
+                        game.spawnParticles(this.x, this.y, 3, "#fff");
+                        this.lifetime = 0; // destroy
+                    }
+                },
+                render(ctx) {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(Math.atan2(this.vy, this.vx));
+                    ctx.fillStyle = "#fff";
+                    ctx.fillRect(-6, -2, 12, 4);
+                    ctx.restore();
+                }
+            };
+        },
+
+        onHitPlayer(player, enemy, game) {
+            // Bow melee hit (weak)
+            enemy.takeDamage(2, "blunt", player, game);
+            player.reverseWeapon();
+        },
+        
+        onHitWeapon(player, enemy, game) {
+            player.reverseWeapon();
+        }
+    },
+
+    "Magic Orb": {
+        name: "Magic Orb",
+        color: "#9d4edd",
+        width: 15, // Used as radius for orb
+        length: 60, // Distance from player
+        baseDamage: 3,
+
+        init(player) {
+            player.custom.zoneTimer = 0;
+            player.custom.burnStacksApplied = 0;
+            player.passiveText = `Burn Stacks Applied: 0`;
+        },
+
+        onUpdate(player, enemy, game) {
+            player.weaponRotation += 0.04 * player.weaponDir * (game.delta/16);
+            player.weaponReach = 60;
+
+            // Spawn damaging zones periodically
+            player.custom.zoneTimer -= game.delta;
+            let zoneInterval = player.ultimateActive ? 300 : 1500;
+
+            if (player.custom.zoneTimer <= 0) {
+                player.custom.zoneTimer = zoneInterval;
+                game.spawn(this.createZone(player));
             }
 
-            getHitbox() {
-                let px = this.player.x;
-                let py = this.player.y;
-                return {
-                    x1: px, y1: py,
-                    x2: px + Math.cos(this.spinAngle) * this.length,
-                    y2: py + Math.sin(this.spinAngle) * this.length
-                };
+            // Ultimate: Pull enemy
+            if (player.ultimateActive) {
+                let dx = player.x - enemy.x;
+                let dy = player.y - enemy.y;
+                let n = MathUtils.normalize(dx, dy);
+                enemy.applyForce(n.x * 0.5, n.y * 0.5); // Gravity pull
             }
+        },
 
-            weaponLogic(opponent) {
-                if (this.cooldown === 0 && opponent.invulnerableTimer === 0) {
-                    let box = this.getHitbox();
-                    let hitDist = distToSegment(opponent.x, opponent.y, box.x1, box.y1, box.x2, box.y2);
-                    if (hitDist < opponent.radius) {
-                        if (opponent.takeDamage(this.damage)) {
-                            this.onMeleeHit(opponent);
+        createZone(owner) {
+            return {
+                x: owner.weaponX,
+                y: owner.weaponY,
+                radius: 1,
+                maxRadius: 40,
+                lifetime: 4000,
+                owner: owner,
+                type: "zone",
+                tickTimer: 0,
+                
+                update(game) {
+                    // Expand
+                    if (this.radius < this.maxRadius) this.radius += 1 * (game.delta/16);
+                    this.lifetime -= game.delta;
+                    this.tickTimer -= game.delta;
+
+                    // Apply burn to enemy inside
+                    if (this.tickTimer <= 0) {
+                        this.tickTimer = 500; // tick every 0.5s
+                        let enemy = game.players.find(p => p !== this.owner);
+                        if (MathUtils.distance(this.x, this.y, enemy.x, enemy.y) < this.radius + enemy.radius) {
+                            enemy.addStatus({
+                                type: "burn",
+                                duration: 2000,
+                                tickTimer: 0,
+                                update(p, g) {
+                                    this.tickTimer -= g.delta;
+                                    if(this.tickTimer <= 0) {
+                                        this.tickTimer = 400;
+                                        p.takeDamage(2, "magic", null, g);
+                                        // Visual tick
+                                        g.spawnParticles(p.x, p.y + Math.random()*20-10, 1, "#ff5500");
+                                    }
+                                }
+                            });
+                            this.owner.custom.burnStacksApplied++;
+                            this.owner.passiveText = `Burn Stacks Applied: ${this.owner.custom.burnStacksApplied}`;
                         }
                     }
-                }
-            }
-
-            onMeleeHit(opponent) {
-                this.addUltCharge(25); // โจมตี 4 ครั้ง อัลติเต็ม
-
-                this.damage += 1; // สกิลดาบ: ยิ่งฟันโดน ดาเมจยิ่งแรงทีละ 1
-                this.spinSpeed *= -1; 
-                this.cooldown = 15;
-                createExplosion(opponent.x, opponent.y, this.theme.glow);
-                
-                opponent.vx += Math.cos(this.spinAngle) * 10;
-                opponent.vy += Math.sin(this.spinAngle) * 10;
-            }
-
-            onUltStart() {
-                this.length = 150; // ดาบยาวขึ้นเมื่อใช้อัลติ
-                this.spinSpeed = this.spinSpeed > 0 ? 0.3 : -0.3; // หมุนเร็วขึ้นมาก
-            }
-
-            onUltEnd() {
-                this.length = this.baseLength; // กลับเป็นปกติ
-                this.spinSpeed = this.spinSpeed > 0 ? 0.12 : -0.12;
-            }
-
-            draw(ctx) {
-                let box = this.getHitbox();
-                ctx.beginPath();
-                ctx.moveTo(box.x1, box.y1);
-                ctx.lineTo(box.x2, box.y2);
-                
-                ctx.strokeStyle = this.cooldown > 0 ? 'rgba(255,255,255,0.3)' : '#ffffff'; 
-                ctx.lineWidth = 6;
-                ctx.lineCap = 'round';
-                
-                if (this.cooldown === 0) {
-                    ctx.shadowBlur = 15;
-                    ctx.shadowColor = this.theme.glow;
-                }
-                ctx.stroke();
-                ctx.shadowBlur = 0;
-            }
-
-            getUIStats() {
-                return `DMG : ${this.damage}`; // โชว์แค่ดาเมจ
-            }
-        }
-
-        // 🏹 BOW CLASS
-        class Bow extends BaseWeapon {
-            constructor(player) {
-                super(player);
-                this.name = "Bow";
-                this.length = 70;
-                this.theme = { light: '#86efac', dark: '#166534', glow: '#22c55e' }; // สีเขียวมรกต
-                this.arrowCount = 1;
-                this.timer = 0;
-                this.fireRate = 60; // ความเร็วการยิงพื้นฐาน
-
-                this.ultName = "ARROW RAIN";
-                this.ultMaxCharge = 100;
-                this.ultDuration = 120; // ยิงรัว 2 วิ
-            }
-
-            weaponLogic(opponent) {
-                this.timer++;
-                if (this.timer > this.fireRate) { 
-                    let spread = 0.2; 
-                    let startAngle = this.spinAngle - (spread * (this.arrowCount - 1)) / 2;
-                    let endX = this.player.x + Math.cos(this.spinAngle) * this.length;
-                    let endY = this.player.y + Math.sin(this.spinAngle) * this.length;
-                    
-                    for(let i = 0; i < this.arrowCount; i++) {
-                        let angle = startAngle + (i * spread);
-                        // ยิง Projectile ประเภท "arrow"
-                        projectiles.push(new Projectile(endX, endY, angle, this.player, this.damage, this.theme.glow, 'arrow'));
-                    }
-                    this.timer = 0;
-                }
-            }
-
-            onProjectileHit(projectile, opponent) {
-                this.addUltCharge(20); // ยิงโดน 5 ครั้ง อัลติเต็ม
-                this.arrowCount++; // สกิลธนู: ยิ่งยิงโดน จำนวนลูกธนูยิ่งเยอะ
-            }
-
-            onUltStart() {
-                this.fireRate = 10; // ยิงรัวแบบปืนกล
-            }
-
-            onUltEnd() {
-                this.fireRate = 60; // กลับมาเป็นปกติ
-            }
-
-            draw(ctx) {
-                ctx.save();
-                ctx.translate(this.player.x, this.player.y);
-                ctx.rotate(this.spinAngle);
-                
-                ctx.beginPath();
-                ctx.arc(this.length - 15, 0, 25, -Math.PI/2.2, Math.PI/2.2);
-                ctx.strokeStyle = this.theme.light; 
-                ctx.lineWidth = 5;
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = this.theme.glow;
-                ctx.stroke();
-                
-                ctx.beginPath();
-                ctx.moveTo(this.length - 15, -23);
-                ctx.lineTo(this.length - 15, 23);
-                ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-                ctx.lineWidth = 2;
-                ctx.shadowBlur = 0;
-                ctx.stroke();
-                
-                ctx.restore();
-            }
-
-            getUIStats() {
-                // เอา DMG ออกตามคำขอ แสดงแค่ ARROW
-                return `ARROW : ${this.arrowCount}`;
-            }
-        }
-
-        // โรงงานสร้างอาวุธ (สำหรับ AI เพิ่มอาวุธ)
-        class WeaponFactory {
-            static create(type, player) {
-                switch(type.toLowerCase()) {
-                    case 'sword': return new Sword(player);
-                    case 'bow': return new Bow(player);
-                    // AI: Add new weapons here -> case 'axe': return new Axe(player);
-                    default: return new Sword(player);
-                }
-            }
-        }
-
-        // ========================================================
-        // 🚀 PROJECTILE & PARTICLE SYSTEM
-        // ========================================================
-        class Projectile {
-            constructor(x, y, angle, owner, damage, color, type) {
-                this.x = x; this.y = y;
-                let speed = 15;
-                this.vx = Math.cos(angle) * speed;
-                this.vy = Math.sin(angle) * speed;
-                this.owner = owner;
-                this.damage = damage;
-                this.color = color;
-                this.type = type; // e.g., 'arrow', 'fireball' (for AI)
-                this.active = true;
-            }
-
-            update() {
-                this.x += this.vx; this.y += this.vy;
-                if (this.x < arenaX || this.x > arenaX + arenaSize || this.y < arenaY || this.y > arenaY + arenaSize) {
-                    this.active = false;
-                    createExplosion(this.x, this.y, this.color); 
-                }
-
-                let opponent = this.owner === p1 ? p2 : p1;
-                if (dist(this.x, this.y, opponent.x, opponent.y) < opponent.radius + 5) {
-                    let hitSuccess = opponent.takeDamage(this.damage); 
-                    if (hitSuccess) {
-                        // แจ้งเตือนกลับไปยังอาวุธว่า Projectile ทำดาเมจสำเร็จ
-                        if(this.owner.weapon.onProjectileHit) {
-                            this.owner.weapon.onProjectileHit(this, opponent);
-                        }
-                        opponent.vx += this.vx * 0.4;
-                        opponent.vy += this.vy * 0.4;
-                    }
-                    this.active = false;
-                    createExplosion(this.x, this.y, this.color);
-                }
-            }
-
-            draw() {
-                if(this.type === 'arrow') {
+                },
+                render(ctx) {
                     ctx.beginPath();
-                    ctx.moveTo(this.x, this.y);
-                    ctx.lineTo(this.x - this.vx*1.2, this.y - this.vy*1.2); 
-                    ctx.strokeStyle = '#ffffff'; 
-                    ctx.lineWidth = 5;
-                    ctx.lineCap = 'round';
-                    ctx.shadowBlur = 10;
-                    ctx.shadowColor = this.color;
-                    ctx.stroke();
-                    ctx.shadowBlur = 0;
-                }
-            }
-        }
-
-        class Particle {
-            constructor(x, y, color) {
-                this.x = x; this.y = y;
-                let angle = Math.random() * Math.PI * 2;
-                let speed = Math.random() * 8 + 2;
-                this.vx = Math.cos(angle) * speed;
-                this.vy = Math.sin(angle) * speed;
-                this.life = 1.0;
-                this.decay = Math.random() * 0.05 + 0.02;
-                this.color = color;
-                this.size = Math.random() * 4 + 2;
-            }
-            update() {
-                this.x += this.vx; this.y += this.vy;
-                this.life -= this.decay;
-            }
-            draw() {
-                ctx.globalAlpha = Math.max(0, this.life);
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI*2);
-                ctx.fill();
-                ctx.globalAlpha = 1.0;
-            }
-        }
-
-        function createExplosion(x, y, color) {
-            for(let i=0; i<15; i++) {
-                particles.push(new Particle(x, y, color));
-            }
-        }
-
-        // ========================================================
-        // 🟢 PLAYER CLASS
-        // ========================================================
-        class Player {
-            constructor(x, y, weaponType, playerNumber) {
-                this.x = x; this.y = y;
-                let angle = Math.random() * Math.PI * 2;
-                let speed = 7 + Math.random() * 3;
-                this.vx = Math.cos(angle) * speed;
-                this.vy = Math.sin(angle) * speed;
-                
-                this.radius = 35; 
-                this.hp = 100;
-                this.playerNumber = playerNumber; // เก็บไว้เพื่อระบุว่าเป็น P1 หรือ P2
-                
-                this.stunTimer = 0; 
-                this.invulnerableTimer = 0; 
-                this.bounciness = 1; 
-
-                // ติดตั้งอาวุธ (Weapon ควบคุมสีและสแตททั้งหมด)
-                this.weapon = WeaponFactory.create(weaponType, this);
-            }
-
-            takeDamage(amount) {
-                if (this.invulnerableTimer > 0) return false; 
-                this.hp -= amount;
-                this.stunTimer = 15; 
-                this.invulnerableTimer = 90; // อมตะ 1.5 วิ (60fps * 1.5)
-                return true;
-            }
-
-            update(opponent) {
-                if (this.invulnerableTimer > 0) this.invulnerableTimer--;
-                if (this.stunTimer > 0) {
-                    this.stunTimer--;
-                    return; 
-                }
-
-                this.x += this.vx; this.y += this.vy;
-
-                let currentSpeed = Math.hypot(this.vx, this.vy);
-                if (currentSpeed < 5) {
-                    let mult = 5 / (currentSpeed || 1);
-                    this.vx *= mult; this.vy *= mult;
-                }
-                if (currentSpeed > 18) {
-                    let mult = 18 / currentSpeed;
-                    this.vx *= mult; this.vy *= mult;
-                }
-
-                if (this.x - this.radius < arenaX) { this.x = arenaX + this.radius; this.vx *= -this.bounciness; }
-                if (this.x + this.radius > arenaX + arenaSize) { this.x = arenaX + arenaSize - this.radius; this.vx *= -this.bounciness; }
-                if (this.y - this.radius < arenaY) { this.y = arenaY + this.radius; this.vy *= -this.bounciness; }
-                if (this.y + this.radius > arenaY + arenaSize) { this.y = arenaY + arenaSize - this.radius; this.vy *= -this.bounciness; }
-
-                // อัปเดตตรรกะของอาวุธ
-                this.weapon.update(opponent);
-            }
-
-            draw() {
-                let isStunned = (this.stunTimer > 0 && this.stunTimer % 4 < 2);
-                let isInvulnerable = (this.invulnerableTimer > 0 && this.invulnerableTimer % 10 < 5);
-
-                ctx.save();
-                if (isInvulnerable && !isStunned) ctx.globalAlpha = 0.5;
-
-                // วาดตัวผู้เล่น (สีตามอาวุธที่ถือ)
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                
-                if (isStunned) {
-                    ctx.fillStyle = '#ffffff';
-                    ctx.shadowBlur = 30;
-                    ctx.shadowColor = '#ffffff';
-                } else {
-                    let grad = ctx.createRadialGradient(this.x - this.radius*0.3, this.y - this.radius*0.3, this.radius*0.1, this.x, this.y, this.radius);
-                    grad.addColorStop(0, this.weapon.theme.light);
-                    grad.addColorStop(1, this.weapon.theme.dark);
-                    ctx.fillStyle = grad;
-                    ctx.shadowBlur = 20;
-                    ctx.shadowColor = this.weapon.theme.glow;
-                }
-                
-                ctx.fill();
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-                ctx.stroke();
-                
-                // ระบุข้อความตัวเลข P1/P2 เล็กๆ บนหัวและเลือด
-                ctx.shadowBlur = 0;
-                ctx.fillStyle = isStunned ? '#000000' : '#ffffff';
-                ctx.font = '800 24px Poppins, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(Math.max(0, Math.floor(this.hp)), this.x, this.y + 6); 
-                
-                ctx.font = '600 10px Poppins, sans-serif';
-                ctx.fillText(`P${this.playerNumber}`, this.x, this.y - 15);
-
-                // วาดอาวุธ
-                this.weapon.draw(ctx);
-
-                ctx.restore();
-            }
-        }
-
-        // ========================================================
-        // 🎮 GAME ENGINE CORE
-        // ========================================================
-        function resolveBallCollision(ball1, ball2) {
-            let dx = ball2.x - ball1.x;
-            let dy = ball2.y - ball1.y;
-            let distance = Math.hypot(dx, dy);
-
-            if (distance < ball1.radius + ball2.radius) {
-                let overlap = (ball1.radius + ball2.radius - distance) / 2;
-                let nx = dx / distance;
-                let ny = dy / distance;
-                
-                ball1.x -= nx * overlap; ball1.y -= ny * overlap;
-                ball2.x += nx * overlap; ball2.y += ny * overlap;
-
-                let kx = (ball1.vx - ball2.vx);
-                let ky = (ball1.vy - ball2.vy);
-                let p = 2 * (nx * kx + ny * ky) / 2; 
-
-                let restitution = 1.05; 
-                ball1.vx = ball1.vx - p * nx * restitution;
-                ball1.vy = ball1.vy - p * ny * restitution;
-                ball2.vx = ball2.vx + p * nx * restitution;
-                ball2.vy = ball2.vy + p * ny * restitution;
-                
-                createExplosion((ball1.x + ball2.x)/2, (ball1.y + ball2.y)/2, '#ffffff');
-            }
-        }
-
-        function setupCanvasSize() {
-            arenaSize = FIXED_ARENA_SIZE;
-            canvas.width = arenaSize + (PADDING_X * 2);
-            canvas.height = arenaSize + PADDING_TOP + PADDING_BOTTOM;
-            arenaX = PADDING_X; arenaY = PADDING_TOP;
-        }
-
-        function initGame() {
-            setupCanvasSize();
-            
-            let w1 = document.getElementById('p1-weapon').value;
-            let w2 = document.getElementById('p2-weapon').value;
-            
-            p1 = new Player(arenaX + arenaSize * 0.25, arenaY + arenaSize * 0.5, w1, 1); 
-            p2 = new Player(arenaX + arenaSize * 0.75, arenaY + arenaSize * 0.5, w2, 2); 
-            
-            projectiles = [];
-            particles = [];
-            
-            uiOverlay.classList.add('hidden');
-            menuBtn.classList.remove('hidden');
-            
-            canvas.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
-            gameRunning = true;
-            if(window.gameLoopRequest) cancelAnimationFrame(window.gameLoopRequest);
-            gameLoop();
-        }
-
-        function stopGame() {
-            gameRunning = false;
-            uiOverlay.classList.remove('hidden');
-            menuBtn.classList.add('hidden');
-        }
-
-        function drawArenaUI() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Background & Grid
-            ctx.fillStyle = 'rgba(30, 41, 59, 0.7)';
-            ctx.fillRect(arenaX, arenaY, arenaSize, arenaSize);
-            
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            let step = arenaSize / 15;
-            for(let i = arenaX; i <= arenaX + arenaSize; i += step) { ctx.moveTo(i, arenaY); ctx.lineTo(i, arenaY + arenaSize); }
-            for(let j = arenaY; j <= arenaY + arenaSize; j += step) { ctx.moveTo(arenaX, j); ctx.lineTo(arenaX + arenaSize, j); }
-            ctx.stroke();
-
-            // Border
-            ctx.strokeStyle = '#38bdf8'; 
-            ctx.lineWidth = 4;
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = '#0ea5e9';
-            ctx.strokeRect(arenaX, arenaY, arenaSize, arenaSize);
-            ctx.shadowBlur = 0; 
-
-            // Header Top
-            ctx.fillStyle = '#f8fafc';
-            ctx.font = '800 24px Poppins, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'bottom';
-            let headerText = `${p1.weapon.name}  VS  ${p2.weapon.name}`;
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = '#ffffff';
-            ctx.fillText(headerText, canvas.width / 2, arenaY - 15);
-            ctx.shadowBlur = 0;
-
-            // ⚡ ULTIMATE BARS ⚡
-            let barWidth = (arenaSize / 2) - 15;
-            let barHeight = 22;
-            let barY = arenaY + arenaSize + 15;
-
-            // P1 Ultimate Bar
-            let p1UltRatio = Math.max(0, p1.weapon.ultCharge / p1.weapon.ultMaxCharge);
-            let p1Color = p1.weapon.ultActive ? '#facc15' : (p1.weapon.ultCooldownTimer > 0 ? '#475569' : p1.weapon.theme.light);
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
-            ctx.fillRect(arenaX, barY, barWidth, barHeight); // Background
-            ctx.fillStyle = p1Color;
-            ctx.shadowBlur = p1.weapon.ultActive ? 15 : 0;
-            ctx.shadowColor = p1Color;
-            ctx.fillRect(arenaX, barY, barWidth * p1UltRatio, barHeight); // Fill
-            ctx.shadowBlur = 0;
-            
-            ctx.fillStyle = '#ffffff';
-            ctx.font = '700 12px Poppins, sans-serif';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'middle';
-            let p1UltText = p1.weapon.ultCooldownTimer > 0 ? "COOLDOWN" : p1.weapon.ultName;
-            ctx.fillText(p1UltText, arenaX + 10, barY + barHeight / 2);
-
-            // P2 Ultimate Bar
-            let p2UltRatio = Math.max(0, p2.weapon.ultCharge / p2.weapon.ultMaxCharge);
-            let p2Color = p2.weapon.ultActive ? '#facc15' : (p2.weapon.ultCooldownTimer > 0 ? '#475569' : p2.weapon.theme.light);
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
-            ctx.fillRect(arenaX + arenaSize - barWidth, barY, barWidth, barHeight); // Background
-            ctx.fillStyle = p2Color;
-            ctx.shadowBlur = p2.weapon.ultActive ? 15 : 0;
-            ctx.shadowColor = p2Color;
-            ctx.fillRect(arenaX + arenaSize - (barWidth * p2UltRatio), barY, barWidth * p2UltRatio, barHeight); // Fill from right
-            ctx.shadowBlur = 0;
-            
-            ctx.fillStyle = '#ffffff';
-            ctx.textAlign = 'right';
-            let p2UltText = p2.weapon.ultCooldownTimer > 0 ? "COOLDOWN" : p2.weapon.ultName;
-            ctx.fillText(p2UltText, arenaX + arenaSize - 10, barY + barHeight / 2);
-
-
-            // Footer Bottom (Dynamic UI Stats based on weapon)
-            let statsY = barY + barHeight + 15;
-            ctx.textBaseline = 'top';
-            ctx.font = '800 20px Poppins, sans-serif';
-            
-            // P1 Stats
-            ctx.fillStyle = p1.weapon.theme.light; 
-            ctx.textAlign = 'left';
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = p1.weapon.theme.glow;
-            let p1Text = `P1 ${p1.weapon.name.toUpperCase()}`;
-            let p1Skill = p1.weapon.getUIStats();
-            if(p1Skill) p1Text += `  |  ${p1Skill}`;
-            ctx.fillText(p1Text, arenaX, statsY);
-            
-            // P2 Stats
-            ctx.fillStyle = p2.weapon.theme.light; 
-            ctx.textAlign = 'right';
-            ctx.shadowColor = p2.weapon.theme.glow;
-            let p2Text = `P2 ${p2.weapon.name.toUpperCase()}`;
-            let p2Skill = p2.weapon.getUIStats();
-            if(p2Skill) p2Text += `  |  ${p2Skill}`;
-            ctx.fillText(p2Text, arenaX + arenaSize, statsY);
-            ctx.shadowBlur = 0;
-        }
-
-        function gameLoop() {
-            if (!gameRunning) return;
-
-            drawArenaUI();
-
-            // ตรวจสอบการปะทะกันของอาวุธระยะประชิด (Clash System)
-            let box1 = p1.weapon.getHitbox();
-            let box2 = p2.weapon.getHitbox();
-            
-            if (box1 && box2 && p1.weapon.cooldown === 0 && p2.weapon.cooldown === 0 && p1.stunTimer === 0 && p2.stunTimer === 0) {
-                if (segmentsIntersect(box1.x1, box1.y1, box1.x2, box1.y2, box2.x1, box2.y1, box2.x2, box2.y2)) {
-                    p1.weapon.spinSpeed *= -1; p2.weapon.spinSpeed *= -1;
-                    p1.weapon.cooldown = 15;   p2.weapon.cooldown = 15;
-                    
-                    let clashX = (box1.x2 + box2.x2)/2;
-                    let clashY = (box1.y2 + box2.y2)/2;
-                    
-                    ctx.beginPath();
-                    ctx.arc(clashX, clashY, 40, 0, Math.PI*2);
-                    let clashGrad = ctx.createRadialGradient(clashX, clashY, 0, clashX, clashY, 40);
-                    clashGrad.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
-                    clashGrad.addColorStop(1, 'rgba(250, 204, 21, 0)');
-                    ctx.fillStyle = clashGrad;
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(157, 78, 221, ${this.lifetime / 4000 * 0.4})`;
                     ctx.fill();
-                    
-                    createExplosion(clashX, clashY, '#fde047');
+                    ctx.strokeStyle = `rgba(157, 78, 221, ${this.lifetime / 4000})`;
+                    ctx.stroke();
+                }
+            };
+        },
+
+        onHitPlayer(player, enemy, game) {
+            enemy.takeDamage(this.baseDamage, "magic", player, game);
+            player.reverseWeapon();
+        },
+        
+        onHitWeapon(player, enemy, game) {
+            player.reverseWeapon();
+        }
+    }
+};
+
+/**
+ * ------------------------------------------------------------------
+ * ENGINE CLASSES
+ * ------------------------------------------------------------------
+ */
+
+class Player {
+    constructor(id, x, y, color, weaponName) {
+        this.id = id;
+        this.x = x;
+        this.y = y;
+        this.vx = (Math.random() - 0.5) * 10;
+        this.vy = (Math.random() - 0.5) * 10;
+        this.radius = 20;
+        this.color = color;
+        
+        this.maxHp = 100;
+        this.hp = this.maxHp;
+        
+        // Weapon System
+        this.weaponDef = WEAPON_REGISTRY[weaponName];
+        this.weaponRotation = Math.random() * Math.PI * 2;
+        this.weaponDir = 1; // 1 or -1
+        this.weaponReach = this.weaponDef.length;
+        this.weaponHitboxRadius = this.weaponDef.width;
+        this.weaponCooldown = 0; // Prevent multi-hit spam
+        
+        this.custom = {}; // For modder weapon specific data
+        this.passiveText = "";
+        
+        // Status & Ultimate
+        this.statusEffects = [];
+        this.ultimateGauge = 0;
+        this.ultimateActive = false;
+        this.ultimateTimer = 0;
+        this.iFrames = 0;
+
+        // Init weapon hook
+        if(this.weaponDef.init) this.weaponDef.init(this);
+    }
+
+    // Computed weapon position
+    get weaponX() { return this.x + Math.cos(this.weaponRotation) * this.weaponReach; }
+    get weaponY() { return this.y + Math.sin(this.weaponRotation) * this.weaponReach; }
+
+    update(game) {
+        let dtMod = game.delta / 16;
+
+        // Apply velocities
+        this.x += this.vx * dtMod;
+        this.y += this.vy * dtMod;
+
+        // Friction / Air resistance
+        this.vx *= 0.99;
+        this.vy *= 0.99;
+
+        // Constrain speed
+        let speed = Math.hypot(this.vx, this.vy);
+        if (speed > 15) {
+            this.vx = (this.vx / speed) * 15;
+            this.vy = (this.vy / speed) * 15;
+        } else if (speed < 2) {
+            // Force minimum speed to keep action going
+            if(speed === 0) { this.vx = 1; this.vy = 1; }
+            let n = MathUtils.normalize(this.vx, this.vy);
+            this.vx += n.x * 0.2;
+            this.vy += n.y * 0.2;
+        }
+
+        // Timers
+        if (this.iFrames > 0) this.iFrames -= game.delta;
+        if (this.weaponCooldown > 0) this.weaponCooldown -= game.delta;
+
+        // Process Status Effects
+        for (let i = this.statusEffects.length - 1; i >= 0; i--) {
+            let effect = this.statusEffects[i];
+            effect.duration -= game.delta;
+            if (effect.update) effect.update(this, game);
+            if (effect.duration <= 0) this.statusEffects.splice(i, 1);
+        }
+
+        // Ultimate Logic
+        if (this.ultimateActive) {
+            this.ultimateTimer -= game.delta;
+            this.ultimateGauge = (this.ultimateTimer / 5000) * 100; // 5 sec duration
+            if (this.ultimateTimer <= 0) {
+                this.ultimateActive = false;
+                this.ultimateGauge = 0;
+            }
+        }
+
+        // Update Weapon
+        let enemy = game.players.find(p => p !== this);
+        if (this.weaponDef.onUpdate) {
+            this.weaponDef.onUpdate(this, enemy, game);
+        }
+
+        // Engine-level Arena Bounds Collision
+        this.handleWallCollision(game.arena);
+    }
+
+    handleWallCollision(arena) {
+        const bounce = 0.8;
+        const perturb = () => (Math.random() - 0.5) * 2; // Anti-infinite loop
+        
+        if (this.x - this.radius < arena.x) {
+            this.x = arena.x + this.radius;
+            this.vx = Math.abs(this.vx) * bounce + perturb();
+            this.vy += perturb();
+        } else if (this.x + this.radius > arena.x + arena.size) {
+            this.x = arena.x + arena.size - this.radius;
+            this.vx = -Math.abs(this.vx) * bounce + perturb();
+            this.vy += perturb();
+        }
+        
+        if (this.y - this.radius < arena.y) {
+            this.y = arena.y + this.radius;
+            this.vy = Math.abs(this.vy) * bounce + perturb();
+            this.vx += perturb();
+        } else if (this.y + this.radius > arena.y + arena.size) {
+            this.y = arena.y + arena.size - this.radius;
+            this.vy = -Math.abs(this.vy) * bounce + perturb();
+            this.vx += perturb();
+        }
+    }
+
+    render(ctx) {
+        // Draw Status Auras
+        if (this.statusEffects.some(e => e.type === "burn")) {
+            ctx.shadowColor = "#ff5500";
+            ctx.shadowBlur = 10;
+        }
+
+        // Draw Player Body
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = this.iFrames > 0 ? "#fff" : this.color;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = this.ultimateActive ? "#f6d365" : "#fff";
+        ctx.stroke();
+
+        ctx.shadowBlur = 0; // reset
+
+        // Draw Weapon
+        let wx = this.weaponX;
+        let wy = this.weaponY;
+
+        ctx.save();
+        ctx.translate(wx, wy);
+        ctx.rotate(this.weaponRotation);
+        
+        ctx.fillStyle = this.weaponDef.color;
+        
+        // Shape based on weapon for flair
+        if (this.weaponDef.name === "Magic Orb") {
+            ctx.beginPath();
+            ctx.arc(0, 0, this.weaponHitboxRadius, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            // Rectangle
+            ctx.fillRect(-this.weaponHitboxRadius, -this.weaponHitboxRadius, this.weaponHitboxRadius*2, this.weaponHitboxRadius*2);
+            // Weapon trail/line connection to player
+            ctx.restore();
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(wx, wy);
+            ctx.strokeStyle = this.weaponDef.color;
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.5;
+            ctx.stroke();
+        }
+        
+        ctx.restore();
+    }
+
+    applyForce(fx, fy) {
+        this.vx += fx;
+        this.vy += fy;
+    }
+
+    takeDamage(amount, type, source, game) {
+        if (this.iFrames > 0) return; // Invincible
+        
+        this.hp = Math.max(0, this.hp - amount);
+        this.iFrames = 200; // 0.2 seconds i-frames
+        game.triggerHitStop(50); // 50ms freeze
+        game.flashScreen();
+        game.spawnParticles(this.x, this.y, 10, source ? source.color : "#fff");
+
+        // Source gains ultimate gauge
+        if (source && !source.ultimateActive && source.id) {
+            source.ultimateGauge += amount * 2;
+            if (source.ultimateGauge >= 100) {
+                source.ultimateGauge = 100;
+                source.ultimateActive = true;
+                source.ultimateTimer = 5000;
+                if(source.weaponDef.onUltimateActivate) source.weaponDef.onUltimateActivate(source, game);
+                game.spawnParticles(source.x, source.y, 30, "#f6d365"); // Ult activation burst
+            }
+        }
+        
+        // Weapon event hook
+        if (this.weaponDef.onTakeDamage) {
+            this.weaponDef.onTakeDamage(this, source, game);
+        }
+    }
+
+    addStatus(effect) {
+        // Prevent stacking infinite burns, refresh duration if exists
+        let existing = this.statusEffects.find(e => e.type === effect.type);
+        if (existing) {
+            existing.duration = Math.max(existing.duration, effect.duration);
+        } else {
+            this.statusEffects.push(effect);
+        }
+    }
+
+    reverseWeapon() {
+        if (this.weaponCooldown <= 0) {
+            this.weaponDir *= -1;
+            this.weaponCooldown = 200; // 0.2s cooldown before changing dir again
+        }
+    }
+}
+
+/**
+ * ------------------------------------------------------------------
+ * MAIN ENGINE OBJECT
+ * ------------------------------------------------------------------
+ */
+const Engine = {
+    canvas: document.getElementById('gameCanvas'),
+    ctx: document.getElementById('gameCanvas').getContext('2d'),
+    width: window.innerWidth,
+    height: window.innerHeight,
+    
+    arena: { x: 0, y: 0, size: 0 }, // ตัวแปรเก็บตำแหน่งและขนาดของอารีนา
+    
+    players: [],
+    entities: [],
+    particles: [],
+    
+    lastTime: 0,
+    delta: 0,
+    hitStop: 0,
+    
+    state: 'MENU', // MENU, PLAYING, GAMEOVER
+    
+    init() {
+        // Resize handler
+        window.addEventListener('resize', () => {
+            this.width = window.innerWidth;
+            this.height = window.innerHeight;
+            this.canvas.width = this.width;
+            this.canvas.height = this.height;
+            
+            // คำนวณขนาดอารีนาให้เป็นสี่เหลี่ยมจัตุรัสและไม่ทับ UI
+            let headerH = 80;
+            let footerH = 180;
+            let maxArenaH = this.height - headerH - footerH;
+            let maxArenaW = this.width - 40; // เว้นขอบซ้ายขวา
+            
+            this.arena.size = Math.min(maxArenaW, maxArenaH);
+            // จัดกึ่งกลางหน้าจอ
+            this.arena.x = (this.width - this.arena.size) / 2;
+            this.arena.y = headerH + (maxArenaH - this.arena.size) / 2;
+        });
+        window.dispatchEvent(new Event('resize'));
+        
+        // Populate Dropdowns
+        const p1Select = document.getElementById('p1-weapon');
+        const p2Select = document.getElementById('p2-weapon');
+        for (let w in WEAPON_REGISTRY) {
+            p1Select.add(new Option(w, w));
+            p2Select.add(new Option(w, w));
+        }
+        p2Select.selectedIndex = 1; // Default P2 to Bow
+
+        // Start Button
+        document.getElementById('start-btn').addEventListener('click', () => {
+            let w1 = p1Select.value;
+            let w2 = p2Select.value;
+            this.startGame(w1, w2);
+        });
+
+        // Start Loop
+        requestAnimationFrame((t) => this.loop(t));
+    },
+
+    startGame(w1, w2) {
+        document.getElementById('menu').style.display = 'none';
+        document.getElementById('game-ui').style.display = 'block';
+        
+        // Update UI Text
+        document.getElementById('p1-title').innerText = `P1: ${w1}`;
+        document.getElementById('p2-title').innerText = `P2: ${w2}`;
+
+        // Reset state & เกิดในอารีนา
+        this.players = [
+            new Player("p1", this.arena.x + this.arena.size * 0.25, this.arena.y + this.arena.size / 2, "#4facfe", w1),
+            new Player("p2", this.arena.x + this.arena.size * 0.75, this.arena.y + this.arena.size / 2, "#ff0844", w2)
+        ];
+        
+        // Push towards each other initially
+        this.players[0].vx = 5;
+        this.players[1].vx = -5;
+
+        this.entities = [];
+        this.particles = [];
+        this.hitStop = 0;
+        this.state = 'PLAYING';
+    },
+
+    spawn(entity) {
+        this.entities.push(entity);
+    },
+
+    spawnParticles(x, y, count, color) {
+        for(let i=0; i<count; i++) {
+            let angle = Math.random() * Math.PI * 2;
+            let speed = Math.random() * 5 + 2;
+            this.particles.push({
+                x: x, y: y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                life: 1.0,
+                color: color
+            });
+        }
+    },
+
+    triggerHitStop(ms) {
+        this.hitStop = ms;
+    },
+    
+    flashScreen() {
+        const flash = document.getElementById('flash-overlay');
+        flash.style.opacity = '0.5';
+        setTimeout(() => flash.style.opacity = '0', 50);
+    },
+
+    updateUI() {
+        const p1 = this.players[0];
+        const p2 = this.players[1];
+
+        // HP
+        document.getElementById('p1-hp').style.width = `${(p1.hp / p1.maxHp) * 100}%`;
+        document.getElementById('p1-hp-text').innerText = `${Math.ceil(p1.hp)}/${p1.maxHp}`;
+        document.getElementById('p2-hp').style.width = `${(p2.hp / p2.maxHp) * 100}%`;
+        document.getElementById('p2-hp-text').innerText = `${Math.ceil(p2.hp)}/${p2.maxHp}`;
+
+        // Ult
+        document.getElementById('p1-ult').style.width = `${p1.ultimateGauge}%`;
+        document.getElementById('p1-ult').style.background = p1.ultimateActive ? "#fff" : "linear-gradient(90deg, #f6d365, #fda085)";
+        document.getElementById('p1-ult-text').innerText = p1.ultimateActive ? "ACTIVE" : `${Math.floor(p1.ultimateGauge)}%`;
+        
+        document.getElementById('p2-ult').style.width = `${p2.ultimateGauge}%`;
+        document.getElementById('p2-ult').style.background = p2.ultimateActive ? "#fff" : "linear-gradient(90deg, #f6d365, #fda085)";
+        document.getElementById('p2-ult-text').innerText = p2.ultimateActive ? "ACTIVE" : `${Math.floor(p2.ultimateGauge)}%`;
+
+        // Passives
+        document.getElementById('p1-passive').innerText = `Passive: ${p1.passiveText}`;
+        document.getElementById('p2-passive').innerText = `Passive: ${p2.passiveText}`;
+    },
+
+    checkCollisions() {
+        let p1 = this.players[0];
+        let p2 = this.players[1];
+
+        // 1. Player vs Player Body Collision (Elastic Bounce)
+        let dx = p2.x - p1.x;
+        let dy = p2.y - p1.y;
+        let dist = Math.hypot(dx, dy);
+        let minDist = p1.radius + p2.radius;
+        
+        if (dist < minDist) {
+            // Separate
+            let overlap = minDist - dist;
+            let nx = dx / dist;
+            let ny = dy / dist;
+            p1.x -= nx * overlap / 2;
+            p1.y -= ny * overlap / 2;
+            p2.x += nx * overlap / 2;
+            p2.y += ny * overlap / 2;
+            
+            // Exchange velocities (simple elastic)
+            let tx = p1.vx; let ty = p1.vy;
+            p1.vx = p2.vx; p1.vy = p2.vy;
+            p2.vx = tx; p2.vy = ty;
+        }
+
+        // 2. Weapon vs Player
+        [ [p1, p2], [p2, p1] ].forEach(([attacker, target]) => {
+            let wx = attacker.weaponX;
+            let wy = attacker.weaponY;
+            let wRadius = attacker.weaponHitboxRadius;
+            
+            if (MathUtils.distance(wx, wy, target.x, target.y) < wRadius + target.radius) {
+                if(attacker.weaponCooldown <= 0 && attacker.weaponDef.onHitPlayer) {
+                    attacker.weaponDef.onHitPlayer(attacker, target, this);
+                }
+            }
+        });
+
+        // 3. Weapon vs Weapon
+        let wDist = MathUtils.distance(p1.weaponX, p1.weaponY, p2.weaponX, p2.weaponY);
+        if (wDist < p1.weaponHitboxRadius + p2.weaponHitboxRadius) {
+            if(p1.weaponCooldown <= 0 && p1.weaponDef.onHitWeapon) p1.weaponDef.onHitWeapon(p1, p2, this);
+            if(p2.weaponCooldown <= 0 && p2.weaponDef.onHitWeapon) p2.weaponDef.onHitWeapon(p2, p1, this);
+        }
+    },
+
+    loop(timestamp) {
+        this.delta = timestamp - this.lastTime;
+        this.lastTime = timestamp;
+        
+        // Cap delta to prevent huge jumps on tab switch
+        if (this.delta > 100) this.delta = 16; 
+
+        if (this.state === 'PLAYING') {
+            
+            if (this.hitStop > 0) {
+                this.hitStop -= this.delta;
+            } else {
+                // Update Players
+                this.players.forEach(p => p.update(this));
+                
+                // Physics/Collisions Core
+                this.checkCollisions();
+
+                // Update Entities
+                for (let i = this.entities.length - 1; i >= 0; i--) {
+                    let e = this.entities[i];
+                    e.update(this);
+                    if (e.lifetime <= 0) this.entities.splice(i, 1);
+                }
+
+                // Update Particles
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    let p = this.particles[i];
+                    p.x += p.vx * (this.delta/16);
+                    p.y += p.vy * (this.delta/16);
+                    p.life -= 0.05 * (this.delta/16);
+                    if (p.life <= 0) this.particles.splice(i, 1);
+                }
+
+                this.updateUI();
+
+                // Win Condition
+                if (this.players[0].hp <= 0 || this.players[1].hp <= 0) {
+                    this.state = 'GAMEOVER';
+                    let winner = this.players[0].hp > 0 ? "Player 1" : "Player 2";
+                    setTimeout(() => {
+                        alert(`${winner} Wins! Engine resets.`);
+                        document.getElementById('menu').style.display = 'flex';
+                        document.getElementById('game-ui').style.display = 'none';
+                        this.state = 'MENU';
+                    }, 1000);
                 }
             }
 
-            // Game Over Check
-            if (p1.hp <= 0 || p2.hp <= 0) {
-                ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-                ctx.fillRect(arenaX, arenaY, arenaSize, arenaSize); 
-                
-                ctx.font = '800 48px Poppins, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                let winText = p1.hp <= 0 ? "PLAYER 2 WINS!" : "PLAYER 1 WINS!";
-                let winColor = p1.hp <= 0 ? p2.weapon.theme.light : p1.weapon.theme.light;
-
-                if (p1.hp <= 0 && p2.hp <= 0) { winText = "DRAW!"; winColor = "#facc15"; }
-                
-                ctx.fillStyle = '#ffffff';
-                ctx.shadowBlur = 20;
-                ctx.shadowColor = winColor;
-                ctx.fillText(winText, canvas.width/2, canvas.height/2);
-                ctx.shadowBlur = 0;
-                
-                setTimeout(stopGame, 3000); 
-                return;
-            }
-
-            p1.update(p2); p2.update(p1);
-            resolveBallCollision(p1, p2);
-
-            for (let i = projectiles.length - 1; i >= 0; i--) {
-                projectiles[i].update();
-                if (!projectiles[i].active) projectiles.splice(i, 1);
-            }
+            // Render
+            this.ctx.fillStyle = "#111"; // clear screen
+            this.ctx.fillRect(0, 0, this.width, this.height);
             
-            for (let i = particles.length - 1; i >= 0; i--) {
-                particles[i].update();
-                if (particles[i].life <= 0) particles.splice(i, 1);
+            // วาดพื้นหลังอารีนา
+            this.ctx.fillStyle = "#16161a";
+            this.ctx.fillRect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
+
+            // วาดตารางกริดเฉพาะในอารีนา
+            this.ctx.strokeStyle = "#222";
+            this.ctx.lineWidth = 1;
+            this.ctx.beginPath();
+            for(let i=0; i<=this.arena.size; i+=50) {
+                this.ctx.moveTo(this.arena.x + i, this.arena.y); 
+                this.ctx.lineTo(this.arena.x + i, this.arena.y + this.arena.size);
+                this.ctx.moveTo(this.arena.x, this.arena.y + i); 
+                this.ctx.lineTo(this.arena.x + this.arena.size, this.arena.y + i);
             }
+            this.ctx.stroke();
 
-            p1.draw(); p2.draw();
-            projectiles.forEach(proj => proj.draw());
-            particles.forEach(p => p.draw());
+            // วาดขอบอารีนา
+            this.ctx.strokeStyle = "#e94560";
+            this.ctx.lineWidth = 3;
+            this.ctx.strokeRect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
 
-            window.gameLoopRequest = requestAnimationFrame(gameLoop);
+            // ตัดขอบเขตการวาด (Clip) เพื่อไม่ให้อาวุธ/เอฟเฟกต์ล้นออกไปทับ UI
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.rect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
+            this.ctx.clip();
+
+            // Render Entities
+            this.entities.forEach(e => {
+                if(e.render) e.render(this.ctx);
+            });
+
+            // Render Players
+            this.players.forEach(p => p.render(this.ctx));
+
+            // Render Particles
+            this.particles.forEach(p => {
+                this.ctx.fillStyle = p.color;
+                this.ctx.globalAlpha = p.life;
+                this.ctx.beginPath();
+                this.ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+                this.ctx.fill();
+            });
+            
+            this.ctx.restore(); // ยกเลิกการ Clip ขอบเขต
+            this.ctx.globalAlpha = 1.0;
         }
 
-        setupCanvasSize();
-        
-        // Initial Background setup for menu
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = 'rgba(30, 41, 59, 0.7)';
-        ctx.fillRect(arenaX, arenaY, arenaSize, arenaSize);
-        ctx.strokeStyle = '#38bdf8'; 
-        ctx.lineWidth = 4;
-        ctx.strokeRect(arenaX, arenaY, arenaSize, arenaSize);
+        requestAnimationFrame((t) => this.loop(t));
+    }
+};
 
-        startBtn.addEventListener('click', () => { initGame(); });
-        menuBtn.addEventListener('click', () => { stopGame(); });
+// Start Engine
+Engine.init();
 
-    </script>
+</script>
 </body>
 </html>
