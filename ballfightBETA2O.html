@@ -583,148 +583,159 @@ const WEAPON_REGISTRY = {
     },
     "LaserGun": {
         name: "Laser Gun",
-        color: "#00FFFF", // Cyan Laser
+        color: "#00FFFF", 
         width: 10,
-        length: 250, // Very long beam
-        baseDamage: 3, // Low base damage but hits extremely fast
+        length: 25, // แก้เป็น 25 เพื่อให้ตัวปืนเกาะติดอยู่ที่ขอบของลูกบอลพอดี
+        baseDamage: 3, 
         
         init(player) {
-            player.custom.laserStacks = 0;   // Max 40
-            player.custom.hitTimer = 0;      // Cooldown between each damage tick
-            player.custom.decayTimer = 0;    // Time before stacks start dropping
-            player.custom.overheatTimer = 0; // Cooldown after ultimate
+            player.custom.laserStacks = 0;   // เก็บแต้มความรัว (สูงสุด 40)
+            player.custom.hitTimer = 0;      // คูลดาวน์ระหว่างฮิต
+            player.custom.decayTimer = 0;    // เวลาก่อนที่แต้มจะลด
+            player.custom.overheatTimer = 0; // คูลดาวน์หลังใช้อัลติเมต
+            player.custom.beamLength = 400;  // ความยาวของเส้นเลเซอร์
             
-            player.passiveText = "Laser Gun: ยิ่งจี้โดน ดาเมจยิ่งรัว (สะสม 40 ขั้น)\nUlt: ปลดปล่อยสแตคยิงลำแสงทำลายล้าง จากนั้นปืนจะ Overheat (ยิงไม่ได้ 4 วิ)";
+            player.passiveText = "Laser Gun: ยิ่งจี้โดน ดาเมจยิ่งรัว (สะสม 40 ขั้น)\nUlt: ยิงลำแสงทำลายล้าง ปืนจะ Overheat (ยิงไม่ได้ 4 วิ)";
         },
         
         onUpdate(player, enemy, game) {
-            // Laser sweeps at a consistent speed
+            // หมุนปืนด้วยความเร็วคงที่
             player.weaponRotation += 0.06 * player.weaponDir * (game.delta / 16);
             
-            // Handle Overheat Cooldown
+            // จัดการระบบ Overheat
             if (player.custom.overheatTimer > 0) {
                 player.custom.overheatTimer -= (game.delta / 16);
             }
             
-            // Handle Damage Tick Cooldown
+            // จัดการระบบ Cooldown การดึงดาเมจ
             if (player.custom.hitTimer > 0) {
                 player.custom.hitTimer -= (game.delta / 16);
             }
             
-            // Handle Stack Decay (if not hitting for a while, gun cools down)
+            // ลดแต้ม Stack หากไม่ได้ยิงโดนใครสักพัก
             if (player.custom.decayTimer > 0) {
                 player.custom.decayTimer -= (game.delta / 16);
             } else if (player.custom.laserStacks > 0) {
                 player.custom.laserStacks--;
-                player.custom.decayTimer = 15; // Decay rate
+                player.custom.decayTimer = 15;
+            }
+    
+            // ==========================================
+            // ระบบ Custom Hitbox สำหรับลำแสงเลเซอร์ (คำนวณเป็นเส้นตรง)
+            // ==========================================
+            if (player.custom.overheatTimer <= 0 && player.custom.hitTimer <= 0) {
+                let hitSomeone = false;
+                let startX = player.x + Math.cos(player.weaponRotation) * this.length;
+                let startY = player.y + Math.sin(player.weaponRotation) * this.length;
+                let endX = startX + Math.cos(player.weaponRotation) * player.custom.beamLength;
+                let endY = startY + Math.sin(player.weaponRotation) * player.custom.beamLength;
+                
+                let l2 = player.custom.beamLength * player.custom.beamLength;
+                
+                // เช็คศัตรูทุกคนในเกมว่าโดนเส้นเลเซอร์หรือไม่
+                for (let p of game.players) {
+                    if (p !== player) {
+                        // คำนวณจุดที่ใกล้ที่สุดบนเส้นเลเซอร์ (Point-to-Line Projection)
+                        let t = ((p.x - startX) * (endX - startX) + (p.y - startY) * (endY - startY)) / l2;
+                        t = MathUtils.clamp(t, 0, 1);
+                        
+                        let projX = startX + t * (endX - startX);
+                        let projY = startY + t * (endY - startY);
+                        let dist = MathUtils.distance(p.x, p.y, projX, projY);
+                        
+                        // ถ้าระยะห่างน้อยกว่าความกว้างเลเซอร์ + ขนาดศัตรู แปลว่าโดน!
+                        if (dist < this.width + p.radius) {
+                            hitSomeone = true;
+                            p.takeDamage(this.baseDamage, "magic", player, game);
+                            game.spawnParticles(p.x, p.y, 2, this.color);
+                        }
+                    }
+                }
+                
+                // ถ้าเลเซอร์โดนใครสักคน ให้เพิ่ม Stack และรีเซ็ตคูลดาวน์
+                if (hitSomeone) {
+                    if (player.custom.laserStacks < 40) player.custom.laserStacks += 1;
+                    
+                    // ยิ่งแต้มเยอะ ยิ่งฮิตถี่ (0 Stack = 15 เฟรม, 40 Stack = 2 เฟรม)
+                    let tickDelay = 15 - (player.custom.laserStacks * 0.325);
+                    player.custom.hitTimer = Math.max(2, tickDelay);
+                    player.custom.decayTimer = 45; // เลื่อนเวลา Decay ออกไป
+                }
             }
         },
         
         render(ctx, player, game) {
-            // 1. Draw Gun Body & Barrel (ถอยตัวปืนและจุดเริ่มเลเซอร์ไปที่ -30)
+            // วาดตัวปืน (จุด (0,0) ตอนนี้คือตำแหน่งขอบของลูกบอลผู้เล่นแล้ว)
             ctx.fillStyle = "#222222";
-            ctx.fillRect(-80, -12, 35, 24); // Main body
+            ctx.fillRect(-15, -12, 35, 24); // ตัวปืน
             ctx.fillStyle = "#555555";
-            ctx.fillRect(-45, -6, 15, 12);  // Gun tip
+            ctx.fillRect(20, -6, 15, 12);   // ปลายกระบอกปืน
             
-            // 2. Overheat State Check
+            // เช็คสถานะ Overheat (ถ้าร้อนอยู่จะไม่วาดเลเซอร์)
             if (player.custom.overheatTimer > 0) {
-                // Draw smoke / glowing hot barrel
                 ctx.fillStyle = "#FF3300";
                 ctx.globalAlpha = 0.6 + (Math.sin(Date.now() * 0.01) * 0.4);
-                ctx.fillRect(-45, -6, 15, 12);
+                ctx.fillRect(20, -6, 15, 12);
                 ctx.globalAlpha = 1.0;
-                return; // STOP RENDERING: No laser beam during overheat
+                return; 
             }
             
-            // 3. Draw Laser Beam (เริ่มจาก -30)
-            let beamLength = this.length + 30; // ชดเชยความยาวที่ถอยร่นมา 30
-            let stackIntensity = player.custom.laserStacks / 40; // 0.0 to 1.0
+            // วาดเส้นเลเซอร์ที่พุ่งออกจากปลายกระบอก (เริ่มวาดที่ x=30 ยืดไปจนสุดความยาว)
+            let stackIntensity = player.custom.laserStacks / 40;
             let flicker = Math.random() * 0.3;
             
-            // Outer Beam Glow
+            // แสงออร่ารอบนอก
             ctx.globalAlpha = 0.4 + flicker;
             ctx.fillStyle = this.color;
-            ctx.fillRect(-30, -this.width, beamLength, this.width * 2);
+            ctx.fillRect(35, -this.width, player.custom.beamLength, this.width * 2);
             
-            // Inner Bright Core (gets thicker with more stacks)
+            // แกนกลางแสงสว่าง (ยิ่ง Stack เยอะยิ่งหนา)
             ctx.globalAlpha = 0.8 + flicker / 2;
             ctx.fillStyle = "#FFFFFF";
             let coreWidth = this.width * (0.3 + 0.6 * stackIntensity);
-            ctx.fillRect(-30, -coreWidth, beamLength, coreWidth * 2);
+            ctx.fillRect(35, -coreWidth, player.custom.beamLength, coreWidth * 2);
             
             ctx.globalAlpha = 1.0;
         },
         
         onHitPlayer(player, enemy, game) {
-            // If overheated, laser is gone. Only the physical gun barrel can hit.
-            if (player.custom.overheatTimer > 0) {
-                let dist = MathUtils.distance(player.x, player.y, enemy.x, enemy.y);
-                if (dist < 20 + enemy.radius) { // ปรับระยะ hitbox ตอน overheat ให้ชิดตัวที่ 0,0
-                    enemy.takeDamage(2, "blunt", player, game);
-                    player.reverseWeapon();
-                }
-                return;
-            }
-            
-            // If Laser is active, check if ready to tick damage
-            if (player.custom.hitTimer <= 0) {
-                // Deal continuous magic damage
-                enemy.takeDamage(this.baseDamage, "magic", player, game);
-                
-                // Add Stacks
-                if (player.custom.laserStacks < 40) {
-                    player.custom.laserStacks += 1;
-                }
-                
-                // Calculate Next Tick Rate (Faster with more stacks)
-                // 0 Stacks = 15 frames (~250ms), 40 Stacks = 2 frames (~33ms)
-                let tickDelay = 15 - (player.custom.laserStacks * 0.325);
-                player.custom.hitTimer = Math.max(2, tickDelay);
-                
-                // Reset decay
-                player.custom.decayTimer = 45; // Wait before stacks drop
-                
-                // Impact Particles
-                game.spawnParticles(enemy.x, enemy.y, 2, this.color);
-            }
-            // NOTE: We deliberately DO NOT call player.reverseWeapon() here.
-            // This allows the laser to sweep cleanly THROUGH the enemy!
+            // ฟังก์ชันนี้จะทำงานก็ต่อเมื่อศัตรูเดินเข้ามาชน "ตัวปืน" ในระยะประชิดเท่านั้น
+            // (เลเซอร์จะทำดาเมจทะลุผ่าน onUpdate ไม่เด้งกลับ)
+            enemy.takeDamage(1, "blunt", player, game);
+            player.reverseWeapon();
         },
         
         onHitWeapon(player, enemy, game) {
             if (player.custom.overheatTimer > 0) {
-                player.reverseWeapon(); // Bounce normally if overheated
+                player.reverseWeapon(); 
             } else {
-                // Laser cuts through weapons without bouncing!
+                // เลเซอร์ทะลุอาวุธศัตรูไปเลย มีแค่เอฟเฟกต์ประกายไฟเล็กน้อย
                 game.spawnParticles(player.weaponX, player.weaponY, 1, this.color);
             }
         },
         
         onTakeDamage(player, source, game) {
-            // Getting hit interrupts focus, dropping some stacks
+            // เมื่อโดนโจมตี สมาธิหลุด Stack เลเซอร์จะลดลงนิดหน่อย
             player.custom.laserStacks = Math.max(0, player.custom.laserStacks - 5);
         },
         
         onUltimateActivate(player, game) {
-            // 1. Calculate Massive Burst Damage
-            let burstDamage = 30 + (player.custom.laserStacks * 3); // Max 150 damage
+            // คำนวณดาเมจระเบิดพลัง
+            let burstDamage = 30 + (player.custom.laserStacks * 3); 
             
-            // 2. Consume stacks and trigger Overheat (4 seconds = 240 frames)
+            // รีเซ็ตสแตคและติดสถานะ Overheat 4 วินาที
             player.custom.laserStacks = 0;
             player.custom.overheatTimer = 240; 
             
-            // 3. Massive Screen Hitstop for impact feel
             game.triggerHitStop(250);
             game.spawnParticles(player.x, player.y, 50, "#00FFFF");
             
-            // 4. Calculate beam end point (Screen wide)
-            let beamLength = 1000;
-            let endX = player.x + Math.cos(player.weaponRotation) * beamLength;
-            let endY = player.y + Math.sin(player.weaponRotation) * beamLength;
+            // อัลติเมตยิงกวาดจอ 1000 พิกเซล
+            let ultBeamLength = 1000;
+            let endX = player.x + Math.cos(player.weaponRotation) * ultBeamLength;
+            let endY = player.y + Math.sin(player.weaponRotation) * ultBeamLength;
             
-            // 5. Instant Hit Detection using Point-to-Line Projection Math
-            let l2 = beamLength * beamLength;
+            let l2 = ultBeamLength * ultBeamLength;
             for (let p of game.players) {
                 if (p !== player) {
                     let t = ((p.x - player.x) * (endX - player.x) + (p.y - player.y) * (endY - player.y)) / l2;
@@ -734,21 +745,20 @@ const WEAPON_REGISTRY = {
                     let projY = player.y + t * (endY - player.y);
                     let dist = MathUtils.distance(p.x, p.y, projX, projY);
                     
-                    if (dist < 40 + p.radius) { // 40 is the half-width of the giant ultimate beam
+                    // ถ้าระยะห่างน้อยกว่า 40 (ความกว้างลำแสงอัลติ) โดนดาเมจ
+                    if (dist < 40 + p.radius) { 
                         p.takeDamage(burstDamage, "magic", player, game);
-                        
-                        // Knockback away from the beam's center
                         let pushDir = MathUtils.normalize(p.x - projX, p.y - projY);
-                        if (pushDir.x === 0 && pushDir.y === 0) pushDir = {x: 1, y: 1}; // Fallback
-                        p.applyForce(pushDir.x * 20, pushDir.y * 20);
+                        if (pushDir.x === 0 && pushDir.y === 0) pushDir = {x: 1, y: 1}; 
+                        p.applyForce(pushDir.x * 20, pushDir.y * 20); // กระเด็นออกจากลำแสง
                     }
                 }
             }
             
-            // 6. Spawn Visual Entity for the Ultimate Beam (Fades out quickly)
+            // เสก Entity ลำแสงขนาดใหญ่โชว์บนจอ (จะค่อยๆ จางหายไป)
             game.spawn({
                 x: player.x, y: player.y, rot: player.weaponRotation,
-                lifetime: 400, // Lingers for 400ms
+                lifetime: 400,
                 update(g) { this.lifetime -= g.delta; },
                 render(ctx) {
                     ctx.save();
@@ -758,19 +768,18 @@ const WEAPON_REGISTRY = {
                     let alpha = Math.max(0, this.lifetime / 400);
                     ctx.globalAlpha = alpha;
                     
-                    // Giant outer beam (เปลี่ยนจุดเริ่มของลำแสงอัลติเมตมาที่ -30)
                     ctx.fillStyle = "#00FFFF";
-                    ctx.fillRect(-30, -40, beamLength + 30, 80);
+                    ctx.fillRect(0, -40, ultBeamLength, 80);
                     
-                    // Giant inner core (เปลี่ยนจุดเริ่มของลำแสงอัลติเมตมาที่ -30)
                     ctx.fillStyle = "#FFFFFF";
-                    ctx.fillRect(-30, -20, beamLength + 30, 40);
+                    ctx.fillRect(0, -20, ultBeamLength, 40);
                     
                     ctx.restore();
                 }
             });
         }
     }
+  
 };
 
 /**
