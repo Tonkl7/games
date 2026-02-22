@@ -464,7 +464,7 @@ const WEAPON_REGISTRY = {
                 player.custom.holyShieldTimer -= game.delta;
                 if (player.custom.holyShieldTimer <= 0) {
                     player.custom.hasHolyShield = false;
-                    // 3. เอฟเฟกต์ตอนโล่ศักดิ์สิทธิ์แตก
+                    // เอฟเฟกต์ตอนโล่ศักดิ์สิทธิ์แตก
                     game.spawnParticles(player.x, player.y, 60, "#FFD700");
                     game.spawnParticles(player.x, player.y, 30, "#FFFFFF");
                     game.triggerHitStop(100); // กระตุกจอเล็กน้อยตอนโล่แตก
@@ -488,8 +488,9 @@ const WEAPON_REGISTRY = {
                 player.custom.dashDuration -= game.delta;
                 player.weaponRotation = player.custom.dashAngle;
                 
-                player.x += Math.cos(player.custom.dashAngle) * 25 * deltaMult;
-                player.y += Math.sin(player.custom.dashAngle) * 25 * deltaMult;
+                // ล็อกความเร็วการพุ่ง ลดลงจาก 25 เหลือ 15 เพื่อไม่ให้เร็วเกินไปจนหลุดขอบ
+                player.x += Math.cos(player.custom.dashAngle) * 15 * deltaMult;
+                player.y += Math.sin(player.custom.dashAngle) * 15 * deltaMult;
     
                 game.spawnParticles(player.x, player.y, 3, "#87CEFA");
     
@@ -579,7 +580,6 @@ const WEAPON_REGISTRY = {
         
         onHitPlayer(player, target, game) {
             player.custom.parryChance = Math.min(1.0, player.custom.parryChance + 0.05);
-            // 1. นำการเพิ่มอัลติเมตออก
     
             if (player.custom.isDashing) {
                 target.takeDamage(this.baseDamage * 1.5, "physical", player, game);
@@ -588,7 +588,8 @@ const WEAPON_REGISTRY = {
                 let dy = target.y - player.y;
                 let dist = Math.hypot(dx, dy);
                 if (dist > 0) {
-                    target.applyForce((dx/dist) * 35, (dy/dist) * 35);
+                    // ปรับลดแรงผลักลงจาก 35 เหลือ 12 เพื่อไม่ให้ศัตรูกระเด็นหายไปจากสนาม
+                    target.applyForce((dx/dist) * 12, (dy/dist) * 12);
                 }
                 
                 player.custom.pushedEnemies.push({
@@ -615,7 +616,7 @@ const WEAPON_REGISTRY = {
             let dmgTaken = player.custom.lastHp - player.hp;
             if (dmgTaken <= 0) return; 
     
-            // 2. หากมีสถานะโล่ศักดิ์สิทธิ์อยู่ ให้ป้องกันดาเมจทั้งหมด (อมตะ)
+            // หากมีสถานะโล่ศักดิ์สิทธิ์อยู่ ให้ป้องกันดาเมจทั้งหมด (อมตะ)
             if (player.custom.hasHolyShield) {
                 player.hp += dmgTaken; // ฮีลคืนทันทีที่โดนดาเมจ
                 player.custom.lastHp = player.hp;
@@ -691,7 +692,7 @@ const WEAPON_REGISTRY = {
         },
         
         onUltimateActivate(player, game) {
-            // 2. ฮีล 30% จากดาเมจสะสมที่เคยได้รับทั้งหมด
+            // ฮีล 30% จากดาเมจสะสมที่เคยได้รับทั้งหมด
             let healAmount = player.custom.totalDamageTaken * 0.30;
             player.hp += healAmount;
             if (player.hp > player.maxHp) player.hp = player.maxHp;
@@ -706,7 +707,7 @@ const WEAPON_REGISTRY = {
             game.triggerHitStop(400); 
             game.spawnParticles(player.x, player.y, 50, "#32CD32"); // เอฟเฟกต์ฮีลสีเขียว
             
-            // 3. สร้างคลื่นสีทองศักดิ์สิทธิ์กระจายออกไป
+            // สร้างคลื่นสีทองศักดิ์สิทธิ์กระจายออกไป
             game.spawn({
                 x: player.x,
                 y: player.y,
@@ -733,7 +734,8 @@ const WEAPON_REGISTRY = {
                             if (dist < wave.radius + e.radius && dist > wave.radius - 30) {
                                 wave.hitEnemies.push(e);
                                 let angle = Math.atan2(e.y - wave.y, e.x - wave.x);
-                                e.applyForce(Math.cos(angle) * 15, Math.sin(angle) * 15); // คลื่นผลักเบาๆ
+                                // ลดแรงผลักของคลื่นลงจาก 15 เหลือ 8 ป้องกันการกระเด็นไกลเกินไป
+                                e.applyForce(Math.cos(angle) * 8, Math.sin(angle) * 8); 
                                 g.spawnParticles(e.x, e.y, 8, "#FFD700");
                             }
                         }
@@ -755,7 +757,7 @@ const WEAPON_REGISTRY = {
                 }
             });
     
-            // 3. สร้าง Entity ภาพวิชวลโล่โดมทองคำครอบตัวผู้เล่นไว้ 2 วินาที
+            // สร้าง Entity ภาพวิชวลโล่โดมทองคำครอบตัวผู้เล่นไว้ 2 วินาที
             game.spawn({
                 playerRef: player,
                 life: 2000,
