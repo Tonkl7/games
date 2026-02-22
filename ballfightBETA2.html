@@ -122,7 +122,9 @@
         let particles = [];
         
         const FIXED_ARENA_SIZE = 450; 
-        const PADDING = 60; 
+        const PADDING_X = 60; 
+        const PADDING_TOP = 60;
+        const PADDING_BOTTOM = 110; 
         let arenaSize, arenaX, arenaY;
 
         // ========================================================
@@ -158,13 +160,66 @@
                 this.spinAngle = Math.random() * Math.PI * 2;
                 this.spinSpeed = 0.12;
                 this.cooldown = 0;
+
+                // ⚡ Ultimate System Properties
+                this.ultName = "ULTIMATE SKILL"; 
+                this.ultCharge = 0;              
+                this.ultMaxCharge = 100;         
+                this.ultActive = false;          
+                this.ultDuration = 180;          // 3 วินาที (60fps * 3)
+                this.ultTimer = 0;               
+                this.ultCooldown = 120;          // คูลดาวน์ 2 วินาที
+                this.ultCooldownTimer = 0;       
             }
 
             // Framework Update Hook
             update(opponent) {
                 this.spinAngle += this.spinSpeed;
                 if (this.cooldown > 0) this.cooldown--;
+                
+                this.updateUltimate();
+                
                 this.weaponLogic(opponent); // เรียกใช้ Logic เฉพาะของอาวุธ
+
+                if (this.ultActive) {
+                    this.onUltActive(opponent);
+                }
+            }
+
+            // ⚡ จัดการระบบหลอด Ultimate อัตโนมัติ
+            updateUltimate() {
+                if (this.ultActive) {
+                    this.ultTimer--;
+                    this.ultCharge = (this.ultTimer / this.ultDuration) * this.ultMaxCharge; 
+                    if (this.ultTimer <= 0) {
+                        this.deactivateUltimate();
+                    }
+                } else if (this.ultCooldownTimer > 0) {
+                    this.ultCooldownTimer--;
+                }
+            }
+
+            // ⚡ เติมหลอด Ultimate
+            addUltCharge(amount) {
+                if (this.ultActive || this.ultCooldownTimer > 0) return; 
+                this.ultCharge = Math.min(this.ultCharge + amount, this.ultMaxCharge);
+                if (this.ultCharge >= this.ultMaxCharge) {
+                    this.activateUltimate();
+                }
+            }
+
+            activateUltimate() {
+                this.ultActive = true;
+                this.ultTimer = this.ultDuration;
+                createExplosion(this.player.x, this.player.y, '#facc15'); 
+                this.onUltStart(); 
+            }
+
+            deactivateUltimate() {
+                this.ultActive = false;
+                this.ultCharge = 0;
+                this.ultCooldownTimer = this.ultCooldown;
+                this.onUltEnd(); 
             }
 
             // ---- Methods for Override by Specific Weapons ----
@@ -178,6 +233,11 @@
             getUIStats() { 
                 return `DMG : ${this.damage}`; 
             } 
+
+            // ⚡ Ultimate Hooks (สำหรับให้ AI เขียนทับ)
+            onUltStart() {}           
+            onUltActive(opponent) {}  
+            onUltEnd() {}             
         }
 
         // 🗡️ SWORD CLASS
@@ -187,6 +247,11 @@
                 this.name = "Sword";
                 this.length = 90;
                 this.theme = { light: '#fca5a5', dark: '#991b1b', glow: '#ef4444' }; // สีแดงเพลิง
+
+                this.ultName = "BLADE STORM";
+                this.ultMaxCharge = 100;
+                this.ultDuration = 180; 
+                this.baseLength = 90;
             }
 
             getHitbox() {
@@ -212,6 +277,8 @@
             }
 
             onMeleeHit(opponent) {
+                this.addUltCharge(25); // โจมตี 4 ครั้ง อัลติเต็ม
+
                 this.damage += 1; // สกิลดาบ: ยิ่งฟันโดน ดาเมจยิ่งแรงทีละ 1
                 this.spinSpeed *= -1; 
                 this.cooldown = 15;
@@ -219,6 +286,16 @@
                 
                 opponent.vx += Math.cos(this.spinAngle) * 10;
                 opponent.vy += Math.sin(this.spinAngle) * 10;
+            }
+
+            onUltStart() {
+                this.length = 150; // ดาบยาวขึ้นเมื่อใช้อัลติ
+                this.spinSpeed = this.spinSpeed > 0 ? 0.3 : -0.3; // หมุนเร็วขึ้นมาก
+            }
+
+            onUltEnd() {
+                this.length = this.baseLength; // กลับเป็นปกติ
+                this.spinSpeed = this.spinSpeed > 0 ? 0.12 : -0.12;
             }
 
             draw(ctx) {
@@ -253,11 +330,16 @@
                 this.theme = { light: '#86efac', dark: '#166534', glow: '#22c55e' }; // สีเขียวมรกต
                 this.arrowCount = 1;
                 this.timer = 0;
+                this.fireRate = 60; // ความเร็วการยิงพื้นฐาน
+
+                this.ultName = "ARROW RAIN";
+                this.ultMaxCharge = 100;
+                this.ultDuration = 120; // ยิงรัว 2 วิ
             }
 
             weaponLogic(opponent) {
                 this.timer++;
-                if (this.timer > 60) { 
+                if (this.timer > this.fireRate) { 
                     let spread = 0.2; 
                     let startAngle = this.spinAngle - (spread * (this.arrowCount - 1)) / 2;
                     let endX = this.player.x + Math.cos(this.spinAngle) * this.length;
@@ -273,7 +355,16 @@
             }
 
             onProjectileHit(projectile, opponent) {
+                this.addUltCharge(20); // ยิงโดน 5 ครั้ง อัลติเต็ม
                 this.arrowCount++; // สกิลธนู: ยิ่งยิงโดน จำนวนลูกธนูยิ่งเยอะ
+            }
+
+            onUltStart() {
+                this.fireRate = 10; // ยิงรัวแบบปืนกล
+            }
+
+            onUltEnd() {
+                this.fireRate = 60; // กลับมาเป็นปกติ
             }
 
             draw(ctx) {
@@ -543,9 +634,9 @@
 
         function setupCanvasSize() {
             arenaSize = FIXED_ARENA_SIZE;
-            canvas.width = arenaSize + (PADDING * 2);
-            canvas.height = arenaSize + (PADDING * 2);
-            arenaX = PADDING; arenaY = PADDING;
+            canvas.width = arenaSize + (PADDING_X * 2);
+            canvas.height = arenaSize + PADDING_TOP + PADDING_BOTTOM;
+            arenaX = PADDING_X; arenaY = PADDING_TOP;
         }
 
         function initGame() {
@@ -610,7 +701,48 @@
             ctx.fillText(headerText, canvas.width / 2, arenaY - 15);
             ctx.shadowBlur = 0;
 
+            // ⚡ ULTIMATE BARS ⚡
+            let barWidth = (arenaSize / 2) - 15;
+            let barHeight = 22;
+            let barY = arenaY + arenaSize + 15;
+
+            // P1 Ultimate Bar
+            let p1UltRatio = Math.max(0, p1.weapon.ultCharge / p1.weapon.ultMaxCharge);
+            let p1Color = p1.weapon.ultActive ? '#facc15' : (p1.weapon.ultCooldownTimer > 0 ? '#475569' : p1.weapon.theme.light);
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+            ctx.fillRect(arenaX, barY, barWidth, barHeight); // Background
+            ctx.fillStyle = p1Color;
+            ctx.shadowBlur = p1.weapon.ultActive ? 15 : 0;
+            ctx.shadowColor = p1Color;
+            ctx.fillRect(arenaX, barY, barWidth * p1UltRatio, barHeight); // Fill
+            ctx.shadowBlur = 0;
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '700 12px Poppins, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            let p1UltText = p1.weapon.ultCooldownTimer > 0 ? "COOLDOWN" : p1.weapon.ultName;
+            ctx.fillText(p1UltText, arenaX + 10, barY + barHeight / 2);
+
+            // P2 Ultimate Bar
+            let p2UltRatio = Math.max(0, p2.weapon.ultCharge / p2.weapon.ultMaxCharge);
+            let p2Color = p2.weapon.ultActive ? '#facc15' : (p2.weapon.ultCooldownTimer > 0 ? '#475569' : p2.weapon.theme.light);
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+            ctx.fillRect(arenaX + arenaSize - barWidth, barY, barWidth, barHeight); // Background
+            ctx.fillStyle = p2Color;
+            ctx.shadowBlur = p2.weapon.ultActive ? 15 : 0;
+            ctx.shadowColor = p2Color;
+            ctx.fillRect(arenaX + arenaSize - (barWidth * p2UltRatio), barY, barWidth * p2UltRatio, barHeight); // Fill from right
+            ctx.shadowBlur = 0;
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'right';
+            let p2UltText = p2.weapon.ultCooldownTimer > 0 ? "COOLDOWN" : p2.weapon.ultName;
+            ctx.fillText(p2UltText, arenaX + arenaSize - 10, barY + barHeight / 2);
+
+
             // Footer Bottom (Dynamic UI Stats based on weapon)
+            let statsY = barY + barHeight + 15;
             ctx.textBaseline = 'top';
             ctx.font = '800 20px Poppins, sans-serif';
             
@@ -622,7 +754,7 @@
             let p1Text = `P1 ${p1.weapon.name.toUpperCase()}`;
             let p1Skill = p1.weapon.getUIStats();
             if(p1Skill) p1Text += `  |  ${p1Skill}`;
-            ctx.fillText(p1Text, arenaX, arenaY + arenaSize + 15);
+            ctx.fillText(p1Text, arenaX, statsY);
             
             // P2 Stats
             ctx.fillStyle = p2.weapon.theme.light; 
@@ -631,7 +763,7 @@
             let p2Text = `P2 ${p2.weapon.name.toUpperCase()}`;
             let p2Skill = p2.weapon.getUIStats();
             if(p2Skill) p2Text += `  |  ${p2Skill}`;
-            ctx.fillText(p2Text, arenaX + arenaSize, arenaY + arenaSize + 15);
+            ctx.fillText(p2Text, arenaX + arenaSize, statsY);
             ctx.shadowBlur = 0;
         }
 
