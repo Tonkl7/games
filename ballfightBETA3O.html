@@ -421,7 +421,7 @@ const WEAPON_REGISTRY = {
         onHitPlayer(player, enemy, game) { enemy.takeDamage(this.baseDamage, "magic", player, game); player.reverseWeapon(); },
         onHitWeapon(player, enemy, game) { player.reverseWeapon(); }
     },
-   "Holy Shield": {
+    "Holy Shield": {
         name: "Holy Shield", 
         color: "#4682B4", 
         width: 40, 
@@ -693,7 +693,7 @@ const WEAPON_REGISTRY = {
         
         onUltimateActivate(player, game) {
             // ฮีล 30% จากดาเมจสะสมที่เคยได้รับทั้งหมด
-            let healAmount = player.custom.totalDamageTaken * 0.30;
+            let healAmount = (player.custom.totalDamageTaken || 0) * 0.30;
             player.hp += healAmount;
             if (player.hp > player.maxHp) player.hp = player.maxHp;
             
@@ -704,38 +704,43 @@ const WEAPON_REGISTRY = {
             player.custom.hasHolyShield = true;
             player.custom.holyShieldTimer = 2000;
     
-            game.triggerHitStop(400); 
-            game.spawnParticles(player.x, player.y, 50, "#32CD32"); // เอฟเฟกต์ฮีลสีเขียว
+            game.triggerHitStop(200); // ลดเวลาจอหยุดกระตุกให้สั้นลง ป้องกันอาการค้าง
+            game.spawnParticles(player.x, player.y, 50, "#32CD32"); 
             
-            // สร้างคลื่นสีทองศักดิ์สิทธิ์กระจายออกไป
+            // สร้างคลื่นสีทองศักดิ์สิทธิ์กระจายออกไป (อัปเดตระบบป้องกัน Canvas Crash)
             game.spawn({
                 x: player.x,
                 y: player.y,
                 radius: 10,
-                maxRadius: 300,
-                life: 600, // ขยายวงและคงอยู่ 600ms
                 maxLife: 600,
+                life: 600,
                 team: player.team,
-                hitEnemies: [], // บันทึกศัตรูที่โดนคลื่นไปแล้ว
+                hitEnemies: [],
                 onUpdate(wave, g) {
                     if (wave.dead) return;
                     let dMult = (g.delta / 16);
                     
-                    // ขยายขนาดคลื่น
                     wave.radius += 12 * dMult;
                     wave.life -= g.delta;
     
-                    // ผลักศัตรูออกไปเล็กน้อยเมื่อโดนคลื่น
                     let enemies = g.getEnemies(player);
                     for (let e of enemies) {
                         if (!wave.hitEnemies.includes(e)) {
+                            // ป้องกันค่าเรเดียสศัตรูเป็น undefined จนคำนวณระยะพัง
+                            let eRadius = e.radius || 20; 
                             let dist = Math.hypot(e.x - wave.x, e.y - wave.y);
-                            // เช็คว่าวงคลื่นไปแตะตัวศัตรูหรือยัง
-                            if (dist < wave.radius + e.radius && dist > wave.radius - 30) {
+                            
+                            if (dist < wave.radius + eRadius && dist > wave.radius - 30) {
                                 wave.hitEnemies.push(e);
                                 let angle = Math.atan2(e.y - wave.y, e.x - wave.x);
-                                // ลดแรงผลักของคลื่นลงจาก 15 เหลือ 8 ป้องกันการกระเด็นไกลเกินไป
-                                e.applyForce(Math.cos(angle) * 8, Math.sin(angle) * 8); 
+                                
+                                // ป้องกัน Error หากศัตรูบางประเภท (เช่น บอส/สิ่งก่อสร้าง) ไม่มีคำสั่ง applyForce
+                                if (typeof e.applyForce === "function") {
+                                    e.applyForce(Math.cos(angle) * 8, Math.sin(angle) * 8); 
+                                } else {
+                                    e.vx = (e.vx || 0) + Math.cos(angle) * 8;
+                                    e.vy = (e.vy || 0) + Math.sin(angle) * 8;
+                                }
                                 g.spawnParticles(e.x, e.y, 8, "#FFD700");
                             }
                         }
@@ -745,44 +750,53 @@ const WEAPON_REGISTRY = {
                 },
                 render(ctx) {
                     if (this.dead) return;
-                    let alpha = this.life / this.maxLife;
+                    // ป้องกันค่า Alpha ติดลบ หรือคำนวณสีออกมาผิดพลาด
+                    let alpha = Math.max(0, this.life / this.maxLife);
+                    
                     ctx.strokeStyle = `rgba(255, 215, 0, ${alpha})`;
-                    ctx.lineWidth = 15 * alpha; // ความหนาของคลื่นลดลงตามเวลา
+                    ctx.lineWidth = Math.max(1, 15 * alpha);
                     ctx.shadowColor = "#FFF";
                     ctx.shadowBlur = 20;
                     ctx.beginPath();
-                    ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                    ctx.arc(0, 0, this.radius || 10, 0, Math.PI * 2);
                     ctx.stroke();
                     ctx.shadowBlur = 0;
                 }
             });
     
-            // สร้าง Entity ภาพวิชวลโล่โดมทองคำครอบตัวผู้เล่นไว้ 2 วินาที
+            // สร้าง Entity ภาพวิชวลโล่โดมทองคำครอบตัวผู้เล่นไว้ 2 วินาที (อัปเดตระบบอ้างอิง)
             game.spawn({
                 playerRef: player,
                 life: 2000,
                 team: player.team,
+                radius: 1, // กำหนด Radius จำลองป้องกันระบบชนพัง
                 onUpdate(shieldVisual, g) {
-                    // อัปเดตตำแหน่งให้ตามตัวผู้เล่นตลอดเวลา
+                    // ป้องกันกรณีผู้เล่นตาย หรือตัวละครหายไปขณะโล่ยังอยู่
+                    if (!shieldVisual.playerRef || !shieldVisual.playerRef.custom.hasHolyShield) {
+                        shieldVisual.dead = true;
+                        return;
+                    }
                     shieldVisual.x = shieldVisual.playerRef.x;
                     shieldVisual.y = shieldVisual.playerRef.y;
                     shieldVisual.life -= g.delta;
                     
-                    // ถ้าหมดเวลา หรือ บัฟโดนหักล้างไปก่อน ให้ปิดการแสดงผล
-                    if (shieldVisual.life <= 0 || !shieldVisual.playerRef.custom.hasHolyShield) {
+                    if (shieldVisual.life <= 0) {
                         shieldVisual.dead = true;
                     }
                 },
                 render(ctx) {
-                    if (this.dead) return;
-                    // วาดโดมแสงสีทอง
+                    if (this.dead || !this.playerRef) return;
+                    
+                    // (สำคัญมาก) ป้องกันค่าเรเดียสของผู้เล่นเป็น NaN ที่จะทำให้ระบบกราฟิก Canvas แครชและจอหายไปเลย
+                    let pRadius = this.playerRef.radius || 20; 
+                    
                     ctx.fillStyle = "rgba(255, 215, 0, 0.2)";
                     ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
                     ctx.lineWidth = 2;
                     ctx.shadowColor = "#FFD700";
                     ctx.shadowBlur = 15;
                     ctx.beginPath();
-                    ctx.arc(0, 0, this.playerRef.radius + 15, 0, Math.PI * 2);
+                    ctx.arc(0, 0, pRadius + 15, 0, Math.PI * 2);
                     ctx.fill();
                     ctx.stroke();
                     ctx.shadowBlur = 0;
