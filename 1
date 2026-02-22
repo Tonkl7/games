@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Weapon Ball Fight - Modern Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
+        
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #0f172a; 
+            overflow: hidden;
+            font-family: 'Poppins', sans-serif;
+        }
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .hidden { display: none !important; }
+        
+        /* Custom UI Styles */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .text-gradient {
+            background: linear-gradient(to right, #00f2fe, #4facfe, #f093fb, #f5576c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Game Canvas -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Menu Button -->
+    <button id="menu-btn" class="hidden absolute top-6 right-6 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-semibold py-3 px-6 rounded-full shadow-lg z-10 border border-white/20 transition-all duration-300 hover:scale-105">
+        ⚙️ การตั้งค่า
+    </button>
+
+    <!-- UI Overlay Section -->
+    <div id="ui-overlay" class="absolute inset-0 bg-slate-900/80 flex items-center justify-center z-20 backdrop-blur-md">
+        <div class="glass-panel flex flex-col items-center gap-6 p-8 rounded-3xl w-11/12 max-w-3xl">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-gradient drop-shadow-lg text-center tracking-tight">
+                AUTO WEAPON BALL
+            </h1>
+            <p class="text-slate-300 text-base md:text-lg text-center">เลือกอาวุธพลังงานแล้วปล่อยให้พวกมันห้ำหั่นกัน!</p>
+            
+            <div class="flex flex-col md:flex-row justify-between w-full gap-6 mt-4">
+                <!-- Player 1 Setup -->
+                <div class="flex flex-col items-center bg-gradient-to-b from-blue-900/40 to-blue-950/40 p-6 rounded-2xl border border-blue-500/30 flex-1 shadow-[0_0_30px_rgba(59,130,246,0.15)] transition-transform hover:-translate-y-1">
+                    <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-cyan-400 to-blue-600 shadow-[0_0_20px_rgba(6,182,212,0.6)] mb-4"></div>
+                    <h2 class="text-cyan-300 font-bold mb-4 text-xl tracking-wide">PLAYER 1</h2>
+                    <select id="p1-weapon" class="text-white px-4 py-3 rounded-xl w-full outline-none font-semibold bg-blue-950/80 border border-blue-400/50 focus:ring-2 focus:ring-cyan-400 appearance-none text-center cursor-pointer">
+                        <option value="sword">เลเซอร์เบลด (Sword)</option>
+                        <option value="bow">ธนูพลังงาน (Bow)</option>
+                    </select>
+                </div>
+
+                <!-- Player 2 Setup -->
+                <div class="flex flex-col items-center bg-gradient-to-b from-rose-900/40 to-rose-950/40 p-6 rounded-2xl border border-rose-500/30 flex-1 shadow-[0_0_30px_rgba(244,63,94,0.15)] transition-transform hover:-translate-y-1">
+                    <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-rose-400 to-red-600 shadow-[0_0_20px_rgba(244,63,94,0.6)] mb-4"></div>
+                    <h2 class="text-rose-300 font-bold mb-4 text-xl tracking-wide">PLAYER 2</h2>
+                    <select id="p2-weapon" class="text-white px-4 py-3 rounded-xl w-full outline-none font-semibold bg-rose-950/80 border border-rose-400/50 focus:ring-2 focus:ring-rose-400 appearance-none text-center cursor-pointer">
+                        <option value="sword">เลเซอร์เบลด (Sword)</option>
+                        <option value="bow">ธนูพลังงาน (Bow)</option>
+                    </select>
+                </div>
+            </div>
+
+            <button id="start-btn" class="mt-4 bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-300 hover:to-teal-400 text-slate-900 font-extrabold text-xl py-4 px-12 rounded-full shadow-[0_0_30px_rgba(52,211,153,0.4)] transition-all duration-300 transform hover:scale-105 tracking-wider">
+                เริ่มปะทะ (FIGHT)
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const uiOverlay = document.getElementById('ui-overlay');
+        const menuBtn = document.getElementById('menu-btn');
+        const startBtn = document.getElementById('start-btn');
+        
+        let gameRunning = false;
+        let p1, p2;
+        let arrows = [];
+        let particles = [];
+        
+        // Arena State
+        let arenaSize, arenaX, arenaY;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            // ขยายสนามเป็น 85%
+            arenaSize = Math.min(canvas.width, canvas.height) * 0.85;
+            arenaX = (canvas.width - arenaSize) / 2;
+            arenaY = (canvas.height - arenaSize) / 2;
+            
+            if (p1) keepInsideArena(p1);
+            if (p2) keepInsideArena(p2);
+        }
+        
+        function keepInsideArena(player) {
+            if (player.x < arenaX + player.radius) player.x = arenaX + player.radius;
+            if (player.x > arenaX + arenaSize - player.radius) player.x = arenaX + arenaSize - player.radius;
+            if (player.y < arenaY + player.radius) player.y = arenaY + player.radius;
+            if (player.y > arenaY + arenaSize - player.radius) player.y = arenaY + arenaSize - player.radius;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Math Utilities
+        function dist(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); }
+        function distToSegment(px, py, vx, vy, wx, wy) {
+            let l2 = (wx - vx) ** 2 + (wy - vy) ** 2;
+            if (l2 === 0) return dist(px, py, vx, vy);
+            let t = ((px - vx) * (wx - vx) + (py - vy) * (wy - vy)) / l2;
+            t = Math.max(0, Math.min(1, t));
+            return dist(px, py, vx + t * (wx - vx), vy + t * (wy - vy));
+        }
+        function segmentsIntersect(x1, y1, x2, y2, x3, y3, x4, y4) {
+            let det = (x2 - x1) * (y4 - y3) - (x4 - x3) * (y2 - y1);
+            if (det === 0) return false;
+            let lambda = ((y4 - y3) * (x4 - x1) + (x3 - x4) * (y4 - y1)) / det;
+            let gamma = ((y1 - y2) * (x4 - x1) + (x2 - x1) * (y4 - y1)) / det;
+            return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
+        }
+
+        // Particle System for clashes
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y;
+                let angle = Math.random() * Math.PI * 2;
+                let speed = Math.random() * 8 + 2;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.life = 1.0;
+                this.decay = Math.random() * 0.05 + 0.02;
+                this.color = color;
+                this.size = Math.random() * 4 + 2;
+            }
+            update() {
+                this.x += this.vx; this.y += this.vy;
+                this.life -= this.decay;
+            }
+            draw() {
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI*2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        function createExplosion(x, y, color) {
+            for(let i=0; i<15; i++) {
+                particles.push(new Particle(x, y, color));
+            }
+        }
+
+        class Player {
+            constructor(x, y, theme, weaponType) {
+                this.x = x; this.y = y;
+                let angle = Math.random() * Math.PI * 2;
+                let speed = 7 + Math.random() * 3;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                
+                this.radius = 35; 
+                this.theme = theme; // { light, dark, glow }
+                this.weaponType = weaponType;
+                this.hp = 100;
+                
+                this.weaponLength = this.weaponType === 'sword' ? 90 : 70;
+                this.weaponAngle = Math.random() * Math.PI * 2;
+                this.weaponSpinSpeed = 0.12; 
+                this.attackCooldown = 0;
+                this.bowTimer = 0;
+                this.stunTimer = 0; 
+                
+                this.damage = this.weaponType === 'sword' ? 10 : 12;
+                this.bounciness = 1; 
+            }
+
+            takeDamage(amount) {
+                this.hp -= amount;
+                this.stunTimer = 15; 
+            }
+
+            update(opponent) {
+                if (this.stunTimer > 0) {
+                    this.stunTimer--;
+                    return; 
+                }
+
+                this.x += this.vx; this.y += this.vy;
+
+                let currentSpeed = Math.hypot(this.vx, this.vy);
+                if (currentSpeed < 5) {
+                    let mult = 5 / (currentSpeed || 1);
+                    this.vx *= mult; this.vy *= mult;
+                }
+                if (currentSpeed > 18) {
+                    let mult = 18 / currentSpeed;
+                    this.vx *= mult; this.vy *= mult;
+                }
+
+                if (this.x - this.radius < arenaX) { this.x = arenaX + this.radius; this.vx *= -this.bounciness; }
+                if (this.x + this.radius > arenaX + arenaSize) { this.x = arenaX + arenaSize - this.radius; this.vx *= -this.bounciness; }
+                if (this.y - this.radius < arenaY) { this.y = arenaY + this.radius; this.vy *= -this.bounciness; }
+                if (this.y + this.radius > arenaY + arenaSize) { this.y = arenaY + arenaSize - this.radius; this.vy *= -this.bounciness; }
+
+                if (this.attackCooldown > 0) this.attackCooldown--;
+
+                this.weaponAngle += this.weaponSpinSpeed;
+                let weaponEndX = this.x + Math.cos(this.weaponAngle) * this.weaponLength;
+                let weaponEndY = this.y + Math.sin(this.weaponAngle) * this.weaponLength;
+
+                if (this.weaponType === 'sword') {
+                    if (this.attackCooldown === 0 && opponent.stunTimer === 0) {
+                        let hitDist = distToSegment(opponent.x, opponent.y, this.x, this.y, weaponEndX, weaponEndY);
+                        if (hitDist < opponent.radius) {
+                            opponent.takeDamage(this.damage);
+                            this.damage += 2;
+                            this.weaponSpinSpeed *= -1; 
+                            this.attackCooldown = 15;
+                            createExplosion(opponent.x, opponent.y, this.theme.glow);
+                            
+                            opponent.vx += Math.cos(this.weaponAngle) * 10;
+                            opponent.vy += Math.sin(this.weaponAngle) * 10;
+                        }
+                    }
+                } else if (this.weaponType === 'bow') {
+                    this.bowTimer++;
+                    if (this.bowTimer > 60) { 
+                        arrows.push(new Arrow(weaponEndX, weaponEndY, this.weaponAngle, this, this.damage, this.theme.glow));
+                        this.bowTimer = 0;
+                    }
+                }
+            }
+
+            draw() {
+                let isStunned = (this.stunTimer > 0 && this.stunTimer % 4 < 2);
+
+                // --- Draw Ball ---
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                
+                if (isStunned) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.shadowBlur = 30;
+                    ctx.shadowColor = '#ffffff';
+                } else {
+                    // 3D Gradient Sphere
+                    let grad = ctx.createRadialGradient(this.x - this.radius*0.3, this.y - this.radius*0.3, this.radius*0.1, this.x, this.y, this.radius);
+                    grad.addColorStop(0, this.theme.light);
+                    grad.addColorStop(1, this.theme.dark);
+                    ctx.fillStyle = grad;
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = this.theme.glow;
+                }
+                
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                ctx.stroke();
+                
+                // Reset shadow for text
+                ctx.shadowBlur = 0;
+
+                // --- Draw HP ---
+                ctx.fillStyle = isStunned ? '#000000' : '#ffffff';
+                ctx.font = '800 28px Poppins, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(Math.max(0, Math.floor(this.hp)), this.x, this.y + 2); // +2 for visual center
+
+                // --- Draw Weapon ---
+                let endX = this.x + Math.cos(this.weaponAngle) * this.weaponLength;
+                let endY = this.y + Math.sin(this.weaponAngle) * this.weaponLength;
+
+                if (this.weaponType === 'sword') {
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(endX, endY);
+                    
+                    // Energy blade effect
+                    ctx.strokeStyle = this.attackCooldown > 0 ? 'rgba(255,255,255,0.3)' : '#ffffff'; 
+                    ctx.lineWidth = 6;
+                    ctx.lineCap = 'round';
+                    
+                    if (this.attackCooldown === 0) {
+                        ctx.shadowBlur = 15;
+                        ctx.shadowColor = this.theme.glow;
+                    }
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+                    
+                } else if (this.weaponType === 'bow') {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(this.weaponAngle);
+                    
+                    // Energy Bow Arc
+                    ctx.beginPath();
+                    ctx.arc(this.weaponLength - 15, 0, 25, -Math.PI/2.2, Math.PI/2.2);
+                    ctx.strokeStyle = this.theme.light; 
+                    ctx.lineWidth = 5;
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = this.theme.glow;
+                    ctx.stroke();
+                    
+                    // Energy String
+                    ctx.beginPath();
+                    ctx.moveTo(this.weaponLength - 15, -23);
+                    ctx.lineTo(this.weaponLength - 15, 23);
+                    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+                    ctx.lineWidth = 2;
+                    ctx.shadowBlur = 0;
+                    ctx.stroke();
+                    
+                    ctx.restore();
+                }
+            }
+        }
+
+        class Arrow {
+            constructor(x, y, angle, owner, damage, color) {
+                this.x = x; this.y = y;
+                let speed = 15;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.owner = owner;
+                this.damage = damage;
+                this.color = color;
+                this.active = true;
+            }
+
+            update() {
+                this.x += this.vx; this.y += this.vy;
+                if (this.x < arenaX || this.x > arenaX + arenaSize || this.y < arenaY || this.y > arenaY + arenaSize) {
+                    this.active = false;
+                    createExplosion(this.x, this.y, this.color); // ชนขอบก็ระเบิดแสงเบาๆ
+                }
+
+                let opponent = this.owner === p1 ? p2 : p1;
+                if (dist(this.x, this.y, opponent.x, opponent.y) < opponent.radius + 5) {
+                    opponent.takeDamage(this.damage); 
+                    this.active = false;
+                    createExplosion(this.x, this.y, this.color);
+                    
+                    opponent.vx += this.vx * 0.4;
+                    opponent.vy += this.vy * 0.4;
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x - this.vx*1.2, this.y - this.vy*1.2); 
+                ctx.strokeStyle = '#ffffff'; 
+                ctx.lineWidth = 5;
+                ctx.lineCap = 'round';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.color;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        function resolveBallCollision(ball1, ball2) {
+            let dx = ball2.x - ball1.x;
+            let dy = ball2.y - ball1.y;
+            let distance = Math.hypot(dx, dy);
+
+            if (distance < ball1.radius + ball2.radius) {
+                let overlap = (ball1.radius + ball2.radius - distance) / 2;
+                let nx = dx / distance;
+                let ny = dy / distance;
+                
+                ball1.x -= nx * overlap; ball1.y -= ny * overlap;
+                ball2.x += nx * overlap; ball2.y += ny * overlap;
+
+                let kx = (ball1.vx - ball2.vx);
+                let ky = (ball1.vy - ball2.vy);
+                let p = 2 * (nx * kx + ny * ky) / 2; 
+
+                let restitution = 1.05; 
+                ball1.vx = ball1.vx - p * nx * restitution;
+                ball1.vy = ball1.vy - p * ny * restitution;
+                ball2.vx = ball2.vx + p * nx * restitution;
+                ball2.vy = ball2.vy + p * ny * restitution;
+                
+                // ประกายไฟตอนตัวกระแทกกัน
+                createExplosion((ball1.x + ball2.x)/2, (ball1.y + ball2.y)/2, '#ffffff');
+            }
+        }
+
+        function initGame() {
+            let w1 = document.getElementById('p1-weapon').value;
+            let w2 = document.getElementById('p2-weapon').value;
+            
+            // Themes: Cyan/Blue for P1, Rose/Red for P2
+            const theme1 = { light: '#22d3ee', dark: '#1e3a8a', glow: '#06b6d4' }; 
+            const theme2 = { light: '#fb7185', dark: '#881337', glow: '#f43f5e' };
+            
+            p1 = new Player(arenaX + arenaSize * 0.25, arenaY + arenaSize * 0.5, theme1, w1); 
+            p2 = new Player(arenaX + arenaSize * 0.75, arenaY + arenaSize * 0.5, theme2, w2); 
+            
+            arrows = [];
+            particles = [];
+            
+            uiOverlay.classList.add('hidden');
+            menuBtn.classList.remove('hidden');
+            gameRunning = true;
+            
+            if(window.gameLoopRequest) cancelAnimationFrame(window.gameLoopRequest);
+            gameLoop();
+        }
+
+        function stopGame() {
+            gameRunning = false;
+            uiOverlay.classList.remove('hidden');
+            menuBtn.classList.add('hidden');
+        }
+
+        function getWeaponName(type) {
+            return type === 'sword' ? 'เลเซอร์เบลด' : 'ธนูพลังงาน';
+        }
+
+        function drawArenaUI() {
+            // Background Gradient for outside arena
+            let bgGrad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            bgGrad.addColorStop(0, '#020617'); // Very dark blue
+            bgGrad.addColorStop(1, '#0f172a'); // Slate 900
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Arena Floor (Slightly lighter with glass effect)
+            ctx.fillStyle = 'rgba(30, 41, 59, 0.7)'; // Slate 800 with alpha
+            ctx.fillRect(arenaX, arenaY, arenaSize, arenaSize);
+            
+            // Arena Grid Pattern
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            let step = arenaSize / 15;
+            for(let i = arenaX; i <= arenaX + arenaSize; i += step) {
+                ctx.moveTo(i, arenaY); ctx.lineTo(i, arenaY + arenaSize);
+            }
+            for(let j = arenaY; j <= arenaY + arenaSize; j += step) {
+                ctx.moveTo(arenaX, j); ctx.lineTo(arenaX + arenaSize, j);
+            }
+            ctx.stroke();
+
+            // Glowing Arena Border
+            ctx.strokeStyle = '#38bdf8'; // Light blue
+            ctx.lineWidth = 4;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#0ea5e9';
+            ctx.strokeRect(arenaX, arenaY, arenaSize, arenaSize);
+            ctx.shadowBlur = 0; // reset
+
+            // Header (VS Text)
+            ctx.fillStyle = '#f8fafc';
+            ctx.font = '800 28px Poppins, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            let headerText = `${getWeaponName(p1.weaponType)}  VS  ${getWeaponName(p2.weaponType)}`;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#ffffff';
+            ctx.fillText(headerText, canvas.width / 2, arenaY - 25);
+            ctx.shadowBlur = 0;
+
+            // Footer (DMG Stats)
+            ctx.textBaseline = 'top';
+            ctx.font = '800 26px Poppins, sans-serif';
+            
+            // P1 DMG
+            ctx.fillStyle = '#22d3ee'; // Cyan
+            ctx.textAlign = 'left';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#06b6d4';
+            ctx.fillText(`P1 DMG : ${p1.damage}`, arenaX, arenaY + arenaSize + 25);
+            
+            // P2 DMG
+            ctx.fillStyle = '#fb7185'; // Rose
+            ctx.textAlign = 'right';
+            ctx.shadowColor = '#f43f5e';
+            ctx.fillText(`P2 DMG : ${p2.damage}`, arenaX + arenaSize, arenaY + arenaSize + 25);
+            ctx.shadowBlur = 0;
+        }
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            drawArenaUI();
+
+            // --- Weapon Clashing ---
+            if (p1.attackCooldown === 0 && p2.attackCooldown === 0 && p1.stunTimer === 0 && p2.stunTimer === 0) {
+                let p1EndX = p1.x + Math.cos(p1.weaponAngle) * p1.weaponLength;
+                let p1EndY = p1.y + Math.sin(p1.weaponAngle) * p1.weaponLength;
+                let p2EndX = p2.x + Math.cos(p2.weaponAngle) * p2.weaponLength;
+                let p2EndY = p2.y + Math.sin(p2.weaponAngle) * p2.weaponLength;
+
+                if (segmentsIntersect(p1.x, p1.y, p1EndX, p1EndY, p2.x, p2.y, p2EndX, p2EndY)) {
+                    p1.weaponSpinSpeed *= -1;
+                    p2.weaponSpinSpeed *= -1;
+                    p1.attackCooldown = 15;
+                    p2.attackCooldown = 15;
+                    
+                    // Clash Flash
+                    ctx.beginPath();
+                    ctx.arc((p1EndX + p2EndX)/2, (p1EndY + p2EndY)/2, 40, 0, Math.PI*2);
+                    let clashGrad = ctx.createRadialGradient((p1EndX + p2EndX)/2, (p1EndY + p2EndY)/2, 0, (p1EndX + p2EndX)/2, (p1EndY + p2EndY)/2, 40);
+                    clashGrad.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+                    clashGrad.addColorStop(1, 'rgba(250, 204, 21, 0)');
+                    ctx.fillStyle = clashGrad;
+                    ctx.fill();
+                    
+                    // Particles
+                    createExplosion((p1EndX + p2EndX)/2, (p1EndY + p2EndY)/2, '#fde047');
+                }
+            }
+
+            // Win Condition
+            if (p1.hp <= 0 || p2.hp <= 0) {
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+                ctx.fillRect(arenaX, arenaY, arenaSize, arenaSize); 
+                
+                ctx.font = '800 48px Poppins, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                let winText = p1.hp <= 0 ? "PLAYER 2 WINS!" : "PLAYER 1 WINS!";
+                let winColor = p1.hp <= 0 ? "#fb7185" : "#22d3ee";
+
+                if (p1.hp <= 0 && p2.hp <= 0) {
+                    winText = "DRAW!";
+                    winColor = "#facc15";
+                }
+                
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = winColor;
+                ctx.fillText(winText, canvas.width/2, canvas.height/2);
+                ctx.shadowBlur = 0;
+                
+                setTimeout(stopGame, 3000); 
+                return;
+            }
+
+            // Updates
+            p1.update(p2);
+            p2.update(p1);
+            resolveBallCollision(p1, p2);
+
+            for (let i = arrows.length - 1; i >= 0; i--) {
+                arrows[i].update();
+                if (!arrows[i].active) arrows.splice(i, 1);
+            }
+            
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                if (particles[i].life <= 0) particles.splice(i, 1);
+            }
+
+            // Draws
+            p1.draw();
+            p2.draw();
+            arrows.forEach(a => a.draw());
+            particles.forEach(p => p.draw());
+
+            window.gameLoopRequest = requestAnimationFrame(gameLoop);
+        }
+
+        // Event Listeners
+        startBtn.addEventListener('click', () => {
+            initGame();
+        });
+
+        menuBtn.addEventListener('click', () => {
+            stopGame();
+        });
+
+    </script>
+</body>
+</html>
