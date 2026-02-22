@@ -585,17 +585,17 @@ const WEAPON_REGISTRY = {
         name: "Laser Gun",
         color: "#00FFFF", 
         width: 10,
-        length: 25, // แก้เป็น 25 เพื่อให้ตัวปืนเกาะติดอยู่ที่ขอบของลูกบอลพอดี
-        baseDamage: 3, 
+        length: 25, // ให้ตัวปืนเกาะติดอยู่ที่ขอบของลูกบอลพอดี
+        baseDamage: 1, // ปรับดาเมจเหลือ 1 ตามที่ต้องการ
         
         init(player) {
-            player.custom.laserStacks = 0;   // เก็บแต้มความรัว (สูงสุด 40)
+            player.custom.laserStacks = 0;   // ไม่มีขีดจำกัดสูงสุดอีกต่อไป
             player.custom.hitTimer = 0;      // คูลดาวน์ระหว่างฮิต
             player.custom.decayTimer = 0;    // เวลาก่อนที่แต้มจะลด
             player.custom.overheatTimer = 0; // คูลดาวน์หลังใช้อัลติเมต
             player.custom.beamLength = 400;  // ความยาวของเส้นเลเซอร์
             
-            player.passiveText = "Laser Gun: ยิ่งจี้โดน ดาเมจยิ่งรัว (สะสม 40 ขั้น)\nUlt: ยิงลำแสงทำลายล้าง ปืนจะ Overheat (ยิงไม่ได้ 4 วิ)";
+            player.passiveText = "Laser Gun: ดาเมจ 1 แต่ความถี่ทะลุขีดจำกัด\nUlt: สรุปรวมดาเมจความถี่ปัจจุบันใน 2 วินาที ระเบิดในฮิตเดียว";
         },
         
         onUpdate(player, enemy, game) {
@@ -612,12 +612,12 @@ const WEAPON_REGISTRY = {
                 player.custom.hitTimer -= (game.delta / 16);
             }
             
-            // ลดแต้ม Stack หากไม่ได้ยิงโดนใครสักพัก
+            // ลดแต้ม Stack อย่างรวดเร็วหากหลุดการเล็ง (เพราะมันขึ้นไวมาก)
             if (player.custom.decayTimer > 0) {
                 player.custom.decayTimer -= (game.delta / 16);
             } else if (player.custom.laserStacks > 0) {
-                player.custom.laserStacks--;
-                player.custom.decayTimer = 15;
+                player.custom.laserStacks = Math.max(0, player.custom.laserStacks - (1 + player.custom.laserStacks * 0.05));
+                player.custom.decayTimer = 5; // ลดรัวๆ หากยิงไม่โดน
             }
     
             // ==========================================
@@ -632,10 +632,18 @@ const WEAPON_REGISTRY = {
                 
                 let l2 = player.custom.beamLength * player.custom.beamLength;
                 
+                // คำนวณความถี่ (Hit per second)
+                // เริ่มต้นที่ 4 ฮิต/วินาที ยิ่ง Stack เยอะความถี่ยิ่งพุ่งเร็วมากๆ
+                let currentFreq = 4 + (player.custom.laserStacks * 1.5);
+                let tickDelay = 60 / currentFreq; // แปลงความถี่เป็นระยะห่างต่อเฟรม
+                
+                // ไบพาสขีดจำกัดของเอนจิ้น 60FPS: ถ้ายิงถี่จนระยะห่างต่ำกว่า 1 เฟรม ให้ทบจำนวนฮิตไปเลย
+                let hitsThisFrame = tickDelay < 1 ? Math.floor(1 / tickDelay) : 1;
+                let actualDamage = this.baseDamage * hitsThisFrame;
+                
                 // เช็คศัตรูทุกคนในเกมว่าโดนเส้นเลเซอร์หรือไม่
                 for (let p of game.players) {
                     if (p !== player) {
-                        // คำนวณจุดที่ใกล้ที่สุดบนเส้นเลเซอร์ (Point-to-Line Projection)
                         let t = ((p.x - startX) * (endX - startX) + (p.y - startY) * (endY - startY)) / l2;
                         t = MathUtils.clamp(t, 0, 1);
                         
@@ -646,20 +654,23 @@ const WEAPON_REGISTRY = {
                         // ถ้าระยะห่างน้อยกว่าความกว้างเลเซอร์ + ขนาดศัตรู แปลว่าโดน!
                         if (dist < this.width + p.radius) {
                             hitSomeone = true;
-                            p.takeDamage(this.baseDamage, "magic", player, game);
-                            game.spawnParticles(p.x, p.y, 2, this.color);
+                            p.takeDamage(actualDamage, "magic", player, game);
+                            
+                            // จำกัดจำนวน Particle ไว้เพื่อไม่ให้เกมกระตุกตอนความถี่สูงระดับพัน
+                            let particleCount = Math.min(5, hitsThisFrame);
+                            game.spawnParticles(p.x, p.y, particleCount, this.color);
                         }
                     }
                 }
                 
-                // ถ้าเลเซอร์โดนใครสักคน ให้เพิ่ม Stack และรีเซ็ตคูลดาวน์
+                // ถ้าเลเซอร์โดนใครสักคน ให้เพิ่ม Stack แบบทวีคูณและรีเซ็ตคูลดาวน์
                 if (hitSomeone) {
-                    if (player.custom.laserStacks < 40) player.custom.laserStacks += 1;
+                    // ยิ่งความถี่ทะลุขีดจำกัด สแตคยิ่งบวกเพิ่มรวดเร็วทวีคูณตามฮิต
+                    player.custom.laserStacks += hitsThisFrame; 
                     
-                    // ยิ่งแต้มเยอะ ยิ่งฮิตถี่ (0 Stack = 15 เฟรม, 40 Stack = 2 เฟรม)
-                    let tickDelay = 15 - (player.custom.laserStacks * 0.325);
-                    player.custom.hitTimer = Math.max(2, tickDelay);
-                    player.custom.decayTimer = 45; // เลื่อนเวลา Decay ออกไป
+                    // ถ้าระยะห่างน้อยกว่า 1 เฟรม ให้ยิงรัวทุกเฟรมไปเลย
+                    player.custom.hitTimer = tickDelay < 1 ? 1 : tickDelay;
+                    player.custom.decayTimer = 30; // เลื่อนเวลา Decay ออกไป
                 }
             }
         },
@@ -681,7 +692,8 @@ const WEAPON_REGISTRY = {
             }
             
             // วาดเส้นเลเซอร์ที่พุ่งออกจากปลายกระบอก (เริ่มวาดที่ x=30 ยืดไปจนสุดความยาว)
-            let stackIntensity = player.custom.laserStacks / 40;
+            // คำนวณความสว่างของแสง (ลิมิตความสว่างไว้ที่ Stack=200 เพื่อไม่ให้สีขาวกลบมิด)
+            let stackIntensity = Math.min(1, player.custom.laserStacks / 200);
             let flicker = Math.random() * 0.3;
             
             // แสงออร่ารอบนอก
@@ -700,7 +712,6 @@ const WEAPON_REGISTRY = {
         
         onHitPlayer(player, enemy, game) {
             // ฟังก์ชันนี้จะทำงานก็ต่อเมื่อศัตรูเดินเข้ามาชน "ตัวปืน" ในระยะประชิดเท่านั้น
-            // (เลเซอร์จะทำดาเมจทะลุผ่าน onUpdate ไม่เด้งกลับ)
             enemy.takeDamage(1, "blunt", player, game);
             player.reverseWeapon();
         },
@@ -715,13 +726,15 @@ const WEAPON_REGISTRY = {
         },
         
         onTakeDamage(player, source, game) {
-            // เมื่อโดนโจมตี สมาธิหลุด Stack เลเซอร์จะลดลงนิดหน่อย
-            player.custom.laserStacks = Math.max(0, player.custom.laserStacks - 5);
+            // เมื่อโดนโจมตี สมาธิหลุด Stack เลเซอร์จะลดลงฮวบ
+            player.custom.laserStacks = Math.max(0, player.custom.laserStacks - 30);
         },
         
         onUltimateActivate(player, game) {
-            // คำนวณดาเมจระเบิดพลัง
-            let burstDamage = 30 + (player.custom.laserStacks * 3); 
+            // คำนวณดาเมจระเบิดพลัง: สรุปรวมดาเมจความถี่ที่จะเกิดขึ้นภายใน 2 วินาที (120 เฟรม)
+            let currentFreq = 4 + (player.custom.laserStacks * 1.5); // ฮิตต่อวินาทีปัจจุบัน
+            let totalHitsIn2Secs = currentFreq * 2;
+            let burstDamage = Math.floor(totalHitsIn2Secs * this.baseDamage); 
             
             // รีเซ็ตสแตคและติดสถานะ Overheat 4 วินาที
             player.custom.laserStacks = 0;
@@ -745,7 +758,7 @@ const WEAPON_REGISTRY = {
                     let projY = player.y + t * (endY - player.y);
                     let dist = MathUtils.distance(p.x, p.y, projX, projY);
                     
-                    // ถ้าระยะห่างน้อยกว่า 40 (ความกว้างลำแสงอัลติ) โดนดาเมจ
+                    // ถ้าระยะห่างน้อยกว่า 40 (ความกว้างลำแสงอัลติ) โดนดาเมจมหาศาล
                     if (dist < 40 + p.radius) { 
                         p.takeDamage(burstDamage, "magic", player, game);
                         let pushDir = MathUtils.normalize(p.x - projX, p.y - projY);
@@ -779,7 +792,6 @@ const WEAPON_REGISTRY = {
             });
         }
     }
-  
 };
 
 /**
