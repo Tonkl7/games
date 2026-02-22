@@ -421,164 +421,291 @@ const WEAPON_REGISTRY = {
         onHitPlayer(player, enemy, game) { enemy.takeDamage(this.baseDamage, "magic", player, game); player.reverseWeapon(); },
         onHitWeapon(player, enemy, game) { player.reverseWeapon(); }
     },
-    "Axe": {
-        name: "Axe", 
-        color: "#8B4513", 
-        width: 20, 
-        length: 75, 
-        baseDamage: 10,
+   "Shield": {
+        name: "Shield", 
+        color: "#4682B4", 
+        width: 25, 
+        length: 15, 
+        baseDamage: 8,
         
         init(player) { 
-            // เก็บค่าโบนัสดาเมจและสถานะของอัลติเมต
-            player.custom.bonusDamage = 0;
-            player.custom.ultPhase = 0; // 0: ปกติ, 1: กำลังพุ่ง, 2: ทุบพื้นแล้ว
-            player.custom.ultTimer = 0;
-            player.passiveText = "โอกาส 25% คริติคอล (+50% DMG), ตีโดน +1 DMG ถาวร | อัลติ: พุ่งทุบพื้นแยก คริ 150% และสโลว์ศัตรู 25%"; 
+            player.custom.dashTimer = 0;
+            player.custom.isDashing = false;
+            player.custom.dashDuration = 0;
+            
+            player.custom.parryChance = 0.10; // โอกาสเริ่มต้น 10%
+            player.custom.totalDamageTaken = 0; // เก็บดาเมจรวมสำหรับอัลติเมต
+            player.custom.lastHp = player.hp; 
+            player.custom.pushedEnemies = []; // เก็บข้อมูลศัตรูที่ถูกกระแทกเพื่อเช็คชนกำแพง
+            
+            player.passiveText = "ทุก 3วิ พุ่งชน(ชนกำแพงสตั๊น+DoT) | โอกาส Parry 10% (+5% เมื่อตีโดน) สะท้อน 50% | อัลติ: คำรามสะท้อนดาเมจที่รับมาทั้งหมด 75%"; 
         },
         
         onUpdate(player, closestEnemy, game) {
             let deltaMult = (game.delta / 16);
     
-            if (player.ultimateActive) {
-                // ช่วงอัลติเมตทำงาน
-                if (player.custom.ultPhase === 1) {
-                    player.custom.ultTimer -= game.delta;
-                    
-                    // หมุนขวานอย่างรวดเร็วระหว่างพุ่ง
-                    player.weaponRotation += 0.4 * player.weaponDir * deltaMult;
-    
-                    if (closestEnemy) {
-                        // คำนวณระยะทางเพื่อพุ่งไปหาศัตรู
-                        let dx = closestEnemy.x - player.x;
-                        let dy = closestEnemy.y - player.y;
-                        let dist = Math.hypot(dx, dy);
-                        
-                        if (dist > 0) {
-                            player.x += (dx / dist) * 18 * deltaMult; // ความเร็วในการพุ่ง
-                            player.y += (dy / dist) * 18 * deltaMult;
-                        }
-    
-                        // ถ้าเข้าใกล้ศัตรูมากพอ หรือหมดเวลาพุ่ง ให้ทำการทุบพื้น!
-                        if (dist < 50 || player.custom.ultTimer <= 0) {
-                            player.custom.ultPhase = 2; // เปลี่ยนเป็นสถานะทุบแล้ว
-                            
-                            // เอฟเฟกต์ทุบพื้นและ Hit Stop สั้นๆ ให้ดูรุนแรง
-                            game.spawnParticles(player.x, player.y, 40, "#FF4500");
-                            game.triggerHitStop(150);
-    
-                            // สร้างดาเมจวงกว้าง (AoE) และสโลว์
-                            let enemies = game.getEnemies(player);
-                            for (let enemy of enemies) {
-                                let edx = enemy.x - player.x;
-                                let edy = enemy.y - player.y;
-                                if (Math.hypot(edx, edy) < 180) { // รัศมีทุบพื้นแยก 180
-                                    // คริติคอล 150% จากดาเมจรวม
-                                    let smashDmg = (this.baseDamage + player.custom.bonusDamage) * 1.5;
-                                    enemy.takeDamage(smashDmg, "physical", player, game);
-                                    
-                                    // ติดสถานะสโลว์ 25% เป็นเวลา 2.5 วินาที
-                                    if (enemy.addStatus) {
-                                        enemy.addStatus({
-                                            name: "EarthShatter_Slow",
-                                            type: "slow",
-                                            duration: 2500,
-                                            value: 0.25 // สโลว์ 25%
-                                        });
-                                    }
-                                }
-                            }
-                            
-                            // เอฟเฟกต์รอยแยกบนพื้น (จำลองด้วยอนุภาคสีเทาเข้ม/น้ำตาลกระจายออก)
-                            for (let i = 0; i < 15; i++) {
-                                game.spawnParticles(player.x + (Math.random() - 0.5) * 200, player.y + (Math.random() - 0.5) * 200, 5, "#3e2723");
-                            }
-                        }
-                    } else if (player.custom.ultTimer <= 0) {
-                        player.custom.ultPhase = 2; // จบการพุ่งหากไม่มีเป้าหมาย
-                    }
-                } else {
-                    // หลังทุบเสร็จ ค้างท่าขวานไว้เล็กน้อย
-                    player.weaponRotation += 0.01 * player.weaponDir * deltaMult;
-                }
+            // 1. ตรวจสอบการรับดาเมจปกติ (เผื่อกรณีไม่ได้เข้าผ่าน onTakeDamage)
+            let hpDiff = player.custom.lastHp - player.hp;
+            if (hpDiff > 0) {
+                player.custom.lastHp = player.hp; // อัปเดตเลือดให้ตรงกัน
             } else {
-                // การหมุนปกติเมื่อไม่ได้ใช้อัลติ
-                player.custom.ultPhase = 0;
-                player.weaponRotation += 0.08 * player.weaponDir * deltaMult;
+                player.custom.lastHp = player.hp;
+            }
+    
+            // 2. ระบบพุ่งชน (Dash) ทุกๆ 3 วินาที
+            if (!player.custom.isDashing) {
+                player.custom.dashTimer += game.delta;
+                if (player.custom.dashTimer >= 3000 && closestEnemy) {
+                    // เริ่มทำการพุ่ง
+                    player.custom.isDashing = true;
+                    player.custom.dashDuration = 350; // พุ่งเป็นเวลา 350ms
+                    player.custom.dashTimer = 0;
+                    
+                    // ล็อคเป้าหมายมุมที่จะพุ่งไปหาศัตรู
+                    let dx = closestEnemy.x - player.x;
+                    let dy = closestEnemy.y - player.y;
+                    player.custom.dashAngle = Math.atan2(dy, dx);
+                }
+                // หมุนโล่ตามปกติเมื่อไม่ได้พุ่ง
+                player.weaponRotation += 0.05 * player.weaponDir * deltaMult;
+            } else {
+                // อยู่ในสถานะพุ่ง (Dash)
+                player.custom.dashDuration -= game.delta;
+                
+                // หันโล่ไปด้านหน้า (ทิศทางที่พุ่ง)
+                player.weaponRotation = player.custom.dashAngle;
+                
+                // เคลื่อนที่ด้วยความเร็วสูง
+                player.x += Math.cos(player.custom.dashAngle) * 25 * deltaMult;
+                player.y += Math.sin(player.custom.dashAngle) * 25 * deltaMult;
+    
+                // เอฟเฟกต์ตอนพุ่ง
+                game.spawnParticles(player.x, player.y, 2, "#87CEFA");
+    
+                if (player.custom.dashDuration <= 0) {
+                    player.custom.isDashing = false; // จบการพุ่ง
+                }
+            }
+    
+            // 3. ระบบเช็คศัตรูกระแทกกำแพง (Wall Slam)
+            for (let i = player.custom.pushedEnemies.length - 1; i >= 0; i--) {
+                let info = player.custom.pushedEnemies[i];
+                let enemy = info.entity;
+                info.timer -= game.delta;
+                
+                if (info.timer <= 0 || !enemy) {
+                    player.custom.pushedEnemies.splice(i, 1);
+                    continue;
+                }
+    
+                // ถ้าระยะที่ศัตรูขยับได้น้อยมาก ทั้งๆ ที่โดนผลักแรง แปลว่าติดกำแพง!
+                let movedDist = Math.hypot(enemy.x - info.lastX, enemy.y - info.lastY);
+                if (movedDist < 2 * deltaMult && info.timer < 350) { 
+                    // ติดกำแพง! ทำการสตั๊นและค่อยๆ สร้างดาเมจ
+                    game.spawnParticles(enemy.x, enemy.y, 20, "#FFFF00");
+                    
+                    if (enemy.addStatus) {
+                        enemy.addStatus({ name: "Wall_Stun", type: "stun", duration: 2000 });
+                    }
+                    
+                    // ติดสถานะ DoT เล็กน้อย
+                    if (!enemy.custom) enemy.custom = {};
+                    enemy.custom.shieldDotTimer = 2000;
+                    
+                    player.custom.pushedEnemies.splice(i, 1); // เอาออกจากคิวเช็ค
+                } else {
+                    // อัปเดตตำแหน่งล่าสุด
+                    info.lastX = enemy.x;
+                    info.lastY = enemy.y;
+                }
+            }
+    
+            // 4. ประมวลผล DoT (Damage over Time) จากการชนกำแพง
+            let allEnemies = game.getEnemies(player);
+            for (let e of allEnemies) {
+                if (e.custom && e.custom.shieldDotTimer > 0) {
+                    e.custom.shieldDotTimer -= game.delta;
+                    // สร้างดาเมจเล็กน้อยทุกๆ 500ms
+                    if (Math.floor(e.custom.shieldDotTimer / 500) !== Math.floor((e.custom.shieldDotTimer + game.delta) / 500)) {
+                        e.takeDamage(3, "true", player, game); // ดาเมจเล็กน้อย
+                        game.spawnParticles(e.x, e.y, 3, "#FF4500");
+                    }
+                }
             }
         },
         
         render(ctx, player, game) { 
-            // วาดด้ามจับขวาน (ไม้)
+            // วาดรูปทรงโล่แบบโค้งๆ
             ctx.fillStyle = this.color;
-            ctx.fillRect(-6, 0, 12, this.length);
-    
-            // วาดหัวขวาน (โลหะ)
-            ctx.fillStyle = "#A9A9A9"; // สีเงิน
             ctx.beginPath();
-            // ออกแบบรูปทรงหัวขวานที่ยื่นออกไปด้านข้าง
-            ctx.moveTo(6, this.length * 0.6);
-            ctx.lineTo(35, this.length * 0.4);
-            ctx.lineTo(45, this.length * 0.7);
-            ctx.lineTo(35, this.length * 1.0);
-            ctx.lineTo(6, this.length * 0.85);
+            // วาดเส้นโค้งครึ่งวงกลมเพื่อให้ดูเหมือนโล่กำบัง
+            ctx.arc(this.length, 0, this.width, -Math.PI/2, Math.PI/2);
+            ctx.lineTo(this.length - 12, this.width);
+            ctx.lineTo(this.length - 12, -this.width);
+            ctx.closePath();
             ctx.fill();
-    
-            // ตกแต่งสันขวาน
-            ctx.strokeStyle = "#ECEFF1";
-            ctx.lineWidth = 2;
+            
+            // วาดขอบโล่
+            ctx.strokeStyle = "#2F4F4F";
+            ctx.lineWidth = 3;
             ctx.stroke();
     
-            // เอฟเฟกต์แสงเรืองรองเมื่อเปิดอัลติเมต
-            if (player.ultimateActive) {
-                ctx.shadowColor = "#FF4500";
-                ctx.shadowBlur = 20;
-                ctx.fillStyle = "rgba(255, 69, 0, 0.4)";
+            // เอฟเฟกต์เรืองแสงแสดงโอกาส Parry (ยิ่งโอกาสเยอะ โล่ยิ่งส่องแสงสีทอง)
+            if (player.custom.parryChance > 0.10) {
+                let glowAlpha = Math.min(0.8, player.custom.parryChance);
+                ctx.fillStyle = `rgba(255, 215, 0, ${glowAlpha})`;
+                ctx.beginPath();
+                ctx.arc(this.length - 4, 0, this.width - 4, -Math.PI/2, Math.PI/2);
                 ctx.fill();
-                ctx.shadowBlur = 0; // รีเซ็ต
             }
         },
         
         onHitPlayer(player, target, game) {
-            // หากอยู่ในช่วงอัลติเมตทุบพื้น จะไม่คิดดาเมจจากการฟาดปกติทับซ้อน
-            if (player.ultimateActive) {
-                player.reverseWeapon();
-                return;
+            // เมื่อโจมตีโดน โอกาส Parry เพิ่มขึ้นทีละ 5% (สูงสุด 100%)
+            player.custom.parryChance = Math.min(1.0, player.custom.parryChance + 0.05);
+    
+            // หากชนเป้าหมายในขณะที่กำลังพุ่ง (Dash)
+            if (player.custom.isDashing) {
+                target.takeDamage(this.baseDamage * 1.5, "physical", player, game);
+                
+                // ผลักศัตรูกระเด็นอย่างแรง
+                let dx = target.x - player.x;
+                let dy = target.y - player.y;
+                let dist = Math.hypot(dx, dy);
+                if (dist > 0) {
+                    target.applyForce((dx/dist) * 30, (dy/dist) * 30);
+                }
+                
+                // บันทึกศัตรูเพื่อติดตามว่ากระเด็นไปชนกำแพงหรือไม่ (ติดตามผล 400ms)
+                player.custom.pushedEnemies.push({
+                    entity: target,
+                    timer: 400, 
+                    lastX: target.x,
+                    lastY: target.y
+                });
+                
+                game.spawnParticles(target.x, target.y, 15, "#A9A9A9");
+                player.custom.isDashing = false; // ชนเป้าหมายแล้วหยุดพุ่ง
+            } else {
+                // โจมตีปกติ
+                target.takeDamage(this.baseDamage, "physical", player, game);
             }
-    
-            // คำนวณดาเมจพื้นฐาน + โบนัสที่สะสมไว้
-            let currentDamage = this.baseDamage + player.custom.bonusDamage;
-            let isCrit = Math.random() < 0.25; // โอกาสคริติคอล 25%
-    
-            if (isCrit) {
-                currentDamage *= 1.5; // คริติคอล +DMG 50%
-                game.spawnParticles(target.x, target.y, 15, "#FFD700"); // อนุภาคสีทองเมื่อคริ
-            }
-    
-            target.takeDamage(currentDamage, "physical", player, game);
-    
-            // พาสซีพ: ตีโดนเพิ่มดาเมจ +1
-            player.custom.bonusDamage += 1;
-    
-            // เอฟเฟกต์เลือด/แรงกระแทกปกติ
-            game.spawnParticles(target.x, target.y, 8, "#FF0000");
             player.reverseWeapon();
         },
         
         onHitWeapon(player, enemyPlayer, game) {
-            // เมื่อขวานปะทะอาวุธศัตรู
-            game.spawnParticles(player.weaponX || player.x, player.weaponY || player.y, 10, "#FFF");
+            game.spawnParticles(player.weaponX || player.x, player.weaponY || player.y, 8, "#87CEFA");
             player.reverseWeapon();
         },
         
         onTakeDamage(player, source, game) {
-            // ไม่มีผลพิเศษเมื่อโดนโจมตี
+            // คำนวณดาเมจที่ได้รับจากผลต่างของ HP
+            let dmgTaken = player.custom.lastHp - player.hp;
+            if (dmgTaken <= 0) return; // ไม่ได้รับดาเมจจริง
+            
+            // สะสมดาเมจที่รับเข้ามาทั้งหมดสำหรับใช้อัลติเมต
+            player.custom.totalDamageTaken += dmgTaken;
+            
+            // เช็คการ Parry!
+            if (Math.random() < player.custom.parryChance) {
+                // Parry สำเร็จ! โล่จะไม่ได้รับดาเมจ (ฮีลส่วนที่ลดไปกลับคืนมา)
+                player.hp += dmgTaken;
+                if (player.hp > player.maxHp) player.hp = player.maxHp;
+                
+                // เอฟเฟกต์หยุดชะงักและประกายแสงปัดป้อง
+                game.triggerHitStop(250); 
+                game.spawnParticles(player.x, player.y, 30, "#FFD700");
+                
+                if (source) {
+                    let dist = Math.hypot(source.x - player.x, source.y - player.y);
+                    let reflectDmg = dmgTaken * 0.5; // ดาเมจสะท้อน 50%
+                    
+                    if (dist < 100) {
+                        // Parry ระยะใกล้: สะท้อนดาเมจและหยุดศัตรู
+                        source.takeDamage(reflectDmg, "physical", player, game);
+                        if (source.addStatus) {
+                            source.addStatus({ name: "Parry_Stun", type: "stun", duration: 500 }); // หยุดแปปนึง
+                        }
+                    } else {
+                        // Parry ระยะไกล: สะท้อน Projectile กลับไปหาศัตรู
+                        game.spawn({
+                            x: player.x,
+                            y: player.y,
+                            vx: ((source.x - player.x) / dist) * 15, // พุ่งกลับไปเร็วมาก
+                            vy: ((source.y - player.y) / dist) * 15,
+                            radius: 8,
+                            team: player.team, 
+                            color: "#FFD700",
+                            life: 100, // เฟรมอายุขัยของกระสุนสะท้อน
+                            dead: false,
+                            reflectDamage: reflectDmg,
+                            sourceRef: source,
+                            onUpdate(proj, g) {
+                                if (proj.dead) return;
+                                let dMult = (g.delta / 16);
+                                proj.x += proj.vx * dMult;
+                                proj.y += proj.vy * dMult;
+                                proj.life -= dMult;
+                                
+                                if (proj.life <= 0) proj.dead = true;
+                                
+                                // เช็คการชนกับศัตรูที่เป็นคนยิงมา
+                                let d = Math.hypot(proj.x - proj.sourceRef.x, proj.y - proj.sourceRef.y);
+                                if (d < proj.sourceRef.radius + proj.radius && !proj.dead) {
+                                    proj.sourceRef.takeDamage(proj.reflectDamage, "magic", player, g);
+                                    if (proj.sourceRef.addStatus) {
+                                        proj.sourceRef.addStatus({ name: "Parry_Stagger", type: "stun", duration: 500 });
+                                    }
+                                    g.spawnParticles(proj.x, proj.y, 15, "#FFD700");
+                                    proj.dead = true;
+                                }
+                            },
+                            render(ctx) {
+                                if (this.dead) return;
+                                ctx.fillStyle = this.color;
+                                ctx.shadowColor = "#FFF";
+                                ctx.shadowBlur = 10;
+                                ctx.beginPath(); 
+                                ctx.arc(0, 0, this.radius, 0, Math.PI * 2); 
+                                ctx.fill();
+                                ctx.shadowBlur = 0;
+                            }
+                        });
+                    }
+                }
+                
+                // รีเซ็ตโอกาส Parry กลับมาที่ 10% หลังจากการปัดป้องสำเร็จ (ป้องกันการเป็นอมตะ)
+                player.custom.parryChance = 0.10;
+            }
+            
+            // อัปเดตเลือดล่าสุดหลังประมวลผลเสร็จ
+            player.custom.lastHp = player.hp;
         },
         
         onUltimateActivate(player, game) {
-            // เริ่มต้นอัลติเมต: ตั้งค่าให้พุ่งเข้าหาศัตรู
-            player.custom.ultPhase = 1; 
-            player.custom.ultTimer = 600; // ให้เวลาพุ่งสูงสุด 600ms
-            game.spawnParticles(player.x, player.y, 25, "#FF8C00"); // ออร่าระเบิดออกตอนกดอัลติ
+            // อัลติเมต: คำรามสะท้อนดาเมจสีทอง
+            game.spawnParticles(player.x, player.y, 60, "#FFD700");
+            game.triggerHitStop(400); // หน้าจอหยุดชะงักเล็กน้อยเพื่อความเท่
+            
+            // คำนวณดาเมจจาก 75% ของดาเมจที่เคยได้รับทั้งหมด
+            let ultDamage = player.custom.totalDamageTaken * 0.75;
+            let enemies = game.getEnemies(player);
+            
+            for (let enemy of enemies) {
+                let dist = Math.hypot(enemy.x - player.x, enemy.y - player.y);
+                // ระยะค่อนข้างใกล้ (AoE รัศมี 160)
+                if (dist < 160) { 
+                    enemy.takeDamage(ultDamage, "true", player, game);
+                    // ผลักศัตรูกระเด็นออกไปรอบตัว
+                    let angle = Math.atan2(enemy.y - player.y, enemy.x - player.x);
+                    enemy.applyForce(Math.cos(angle) * 20, Math.sin(angle) * 20);
+                    
+                    game.spawnParticles(enemy.x, enemy.y, 10, "#FFF8DC");
+                }
+            }
+            
+            // ล้างค่าดาเมจสะสมหลักจากปลดปล่อยไปแล้ว
+            player.custom.totalDamageTaken = 0; 
         }
     }
 };
