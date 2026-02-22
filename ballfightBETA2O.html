@@ -828,8 +828,8 @@ const WEAPON_REGISTRY = {
             let target = game.players.find(p => p !== player);
             if (!target) return; // ถ้าไม่เจอศัตรูให้ยกเลิก
             
-            // 1. คำนวณดาเมจเตรียมไว้ (เส้นละ 20 ดาเมจ)
-            player.custom.burstDamage = player.custom.laserCount * 20; 
+            // 1. คำนวณดาเมจเตรียมไว้ (เส้นละ 1 ดาเมจ ตามจำนวนเลเซอร์ที่มี)
+            player.custom.burstDamage = player.custom.laserCount * 1; 
             
             // 2. เริ่มสถานะการชาร์จเป็นเวลา 60 เฟรม (1 วินาที)
             player.custom.ultChargeTimer = 60;
