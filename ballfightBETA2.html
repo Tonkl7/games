@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Weapon Ball Fight - Modular</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
+        
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #0f172a; 
+            font-family: 'Poppins', sans-serif;
+            scroll-behavior: smooth;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(to bottom, #020617, #0f172a);
+            padding: 20px; 
+        }
+
+        #gameCanvas {
+            display: block;
+        }
+        
+        .hidden { display: none !important; }
+        
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .text-gradient {
+            background: linear-gradient(to right, #00f2fe, #4facfe, #f093fb, #f5576c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        #menu-btn {
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+        }
+
+        #ui-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(12px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <button id="menu-btn" class="hidden bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-semibold py-3 px-6 rounded-full shadow-lg z-40 border border-white/20 transition-all duration-300 hover:scale-105">
+        ⚙️ SETTINGS
+    </button>
+
+    <div id="ui-overlay">
+        <div class="glass-panel flex flex-col items-center gap-6 p-8 rounded-3xl w-11/12 max-w-3xl max-h-[90vh] overflow-y-auto">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-gradient drop-shadow-lg text-center tracking-tight leading-tight">
+                AUTO WEAPON BALL
+            </h1>
+            <p class="text-slate-300 text-base md:text-lg text-center">Select your weapon and start the fight!</p>
+            
+            <div class="flex flex-col sm:flex-row justify-between w-full gap-6 mt-4">
+                <div class="flex flex-col items-center bg-gradient-to-b from-slate-800/40 to-slate-900/40 p-6 rounded-2xl border border-slate-500/30 flex-1 shadow-lg transition-transform hover:-translate-y-1">
+                    <h2 class="text-slate-200 font-bold mb-4 text-xl tracking-wide">PLAYER 1</h2>
+                    <!-- เพิ่ม <option> ตรงนี้ได้ในอนาคตเมื่อ AI สร้างอาวุธใหม่ -->
+                    <select id="p1-weapon" class="text-white px-4 py-3 rounded-xl w-full outline-none font-semibold bg-slate-950/80 border border-slate-400/50 focus:ring-2 focus:ring-cyan-400 appearance-none text-center cursor-pointer">
+                        <option value="sword">Sword</option>
+                        <option value="bow">Bow</option>
+                    </select>
+                </div>
+
+                <div class="flex flex-col items-center bg-gradient-to-b from-slate-800/40 to-slate-900/40 p-6 rounded-2xl border border-slate-500/30 flex-1 shadow-lg transition-transform hover:-translate-y-1">
+                    <h2 class="text-slate-200 font-bold mb-4 text-xl tracking-wide">PLAYER 2</h2>
+                    <select id="p2-weapon" class="text-white px-4 py-3 rounded-xl w-full outline-none font-semibold bg-slate-950/80 border border-slate-400/50 focus:ring-2 focus:ring-cyan-400 appearance-none text-center cursor-pointer">
+                        <option value="sword">Sword</option>
+                        <option value="bow">Bow</option>
+                    </select>
+                </div>
+            </div>
+
+            <button id="start-btn" class="mt-4 bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-300 hover:to-teal-400 text-slate-900 font-extrabold text-xl py-4 px-12 rounded-full shadow-[0_0_30px_rgba(52,211,153,0.4)] transition-all duration-300 transform hover:scale-105 tracking-wider">
+                FIGHT
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const uiOverlay = document.getElementById('ui-overlay');
+        const menuBtn = document.getElementById('menu-btn');
+        const startBtn = document.getElementById('start-btn');
+        
+        let gameRunning = false;
+        let p1, p2;
+        let projectiles = []; // เปลี่ยนจาก arrows เป็น projectiles รองรับอาวุธระยะไกลทุกชนิด
+        let particles = [];
+        
+        const FIXED_ARENA_SIZE = 450; 
+        const PADDING = 60; 
+        let arenaSize, arenaX, arenaY;
+
+        // ========================================================
+        // 🛠️ UTILITY FUNCTIONS
+        // ========================================================
+        function dist(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); }
+        function distToSegment(px, py, vx, vy, wx, wy) {
+            let l2 = (wx - vx) ** 2 + (wy - vy) ** 2;
+            if (l2 === 0) return dist(px, py, vx, vy);
+            let t = ((px - vx) * (wx - vx) + (py - vy) * (wy - vy)) / l2;
+            t = Math.max(0, Math.min(1, t));
+            return dist(px, py, vx + t * (wx - vx), vy + t * (wy - vy));
+        }
+        function segmentsIntersect(x1, y1, x2, y2, x3, y3, x4, y4) {
+            let det = (x2 - x1) * (y4 - y3) - (x4 - x3) * (y2 - y1);
+            if (det === 0) return false;
+            let lambda = ((y4 - y3) * (x4 - x1) + (x3 - x4) * (y4 - y1)) / det;
+            let gamma = ((y1 - y2) * (x4 - x1) + (x2 - x1) * (y4 - y1)) / det;
+            return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
+        }
+
+        // ========================================================
+        // ⚔️ WEAPON SYSTEM (FOR AI EXTENSIBILITY)
+        // AI: To create a new weapon, extend BaseWeapon and add to WeaponFactory
+        // ========================================================
+        
+        class BaseWeapon {
+            constructor(player) {
+                this.player = player;
+                this.name = "Unknown";
+                this.damage = 1; // อาวุธทุกชิ้นเริ่มต้นดาเมจ 1
+                this.theme = { light: '#ffffff', dark: '#64748b', glow: '#94a3b8' }; // สีพื้นฐาน
+                this.spinAngle = Math.random() * Math.PI * 2;
+                this.spinSpeed = 0.12;
+                this.cooldown = 0;
+            }
+
+            // Framework Update Hook
+            update(opponent) {
+                this.spinAngle += this.spinSpeed;
+                if (this.cooldown > 0) this.cooldown--;
+                this.weaponLogic(opponent); // เรียกใช้ Logic เฉพาะของอาวุธ
+            }
+
+            // ---- Methods for Override by Specific Weapons ----
+            weaponLogic(opponent) {} // AI Override
+            draw(ctx) {}             // AI Override
+            getHitbox() { return null; } // AI Override (return {x1, y1, x2, y2} for melee clash)
+            onMeleeHit(opponent) {}  // AI Override
+            onProjectileHit(projectile, opponent) {} // AI Override
+            
+            // AI Override เพื่อแสดงข้อความสกิลที่ด้านล่าง (ถ้าคืนค่าว่าง จะไม่แสดงอะไร)
+            getUIStats() { 
+                return `DMG : ${this.damage}`; 
+            } 
+        }
+
+        // 🗡️ SWORD CLASS
+        class Sword extends BaseWeapon {
+            constructor(player) {
+                super(player);
+                this.name = "Sword";
+                this.length = 90;
+                this.theme = { light: '#fca5a5', dark: '#991b1b', glow: '#ef4444' }; // สีแดงเพลิง
+            }
+
+            getHitbox() {
+                let px = this.player.x;
+                let py = this.player.y;
+                return {
+                    x1: px, y1: py,
+                    x2: px + Math.cos(this.spinAngle) * this.length,
+                    y2: py + Math.sin(this.spinAngle) * this.length
+                };
+            }
+
+            weaponLogic(opponent) {
+                if (this.cooldown === 0 && opponent.invulnerableTimer === 0) {
+                    let box = this.getHitbox();
+                    let hitDist = distToSegment(opponent.x, opponent.y, box.x1, box.y1, box.x2, box.y2);
+                    if (hitDist < opponent.radius) {
+                        if (opponent.takeDamage(this.damage)) {
+                            this.onMeleeHit(opponent);
+                        }
+                    }
+                }
+            }
+
+            onMeleeHit(opponent) {
+                this.damage += 1; // สกิลดาบ: ยิ่งฟันโดน ดาเมจยิ่งแรงทีละ 1
+                this.spinSpeed *= -1; 
+                this.cooldown = 15;
+                createExplosion(opponent.x, opponent.y, this.theme.glow);
+                
+                opponent.vx += Math.cos(this.spinAngle) * 10;
+                opponent.vy += Math.sin(this.spinAngle) * 10;
+            }
+
+            draw(ctx) {
+                let box = this.getHitbox();
+                ctx.beginPath();
+                ctx.moveTo(box.x1, box.y1);
+                ctx.lineTo(box.x2, box.y2);
+                
+                ctx.strokeStyle = this.cooldown > 0 ? 'rgba(255,255,255,0.3)' : '#ffffff'; 
+                ctx.lineWidth = 6;
+                ctx.lineCap = 'round';
+                
+                if (this.cooldown === 0) {
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = this.theme.glow;
+                }
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+
+            getUIStats() {
+                return `DMG : ${this.damage}`; // โชว์แค่ดาเมจ
+            }
+        }
+
+        // 🏹 BOW CLASS
+        class Bow extends BaseWeapon {
+            constructor(player) {
+                super(player);
+                this.name = "Bow";
+                this.length = 70;
+                this.theme = { light: '#86efac', dark: '#166534', glow: '#22c55e' }; // สีเขียวมรกต
+                this.arrowCount = 1;
+                this.timer = 0;
+            }
+
+            weaponLogic(opponent) {
+                this.timer++;
+                if (this.timer > 60) { 
+                    let spread = 0.2; 
+                    let startAngle = this.spinAngle - (spread * (this.arrowCount - 1)) / 2;
+                    let endX = this.player.x + Math.cos(this.spinAngle) * this.length;
+                    let endY = this.player.y + Math.sin(this.spinAngle) * this.length;
+                    
+                    for(let i = 0; i < this.arrowCount; i++) {
+                        let angle = startAngle + (i * spread);
+                        // ยิง Projectile ประเภท "arrow"
+                        projectiles.push(new Projectile(endX, endY, angle, this.player, this.damage, this.theme.glow, 'arrow'));
+                    }
+                    this.timer = 0;
+                }
+            }
+
+            onProjectileHit(projectile, opponent) {
+                this.arrowCount++; // สกิลธนู: ยิ่งยิงโดน จำนวนลูกธนูยิ่งเยอะ
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.player.x, this.player.y);
+                ctx.rotate(this.spinAngle);
+                
+                ctx.beginPath();
+                ctx.arc(this.length - 15, 0, 25, -Math.PI/2.2, Math.PI/2.2);
+                ctx.strokeStyle = this.theme.light; 
+                ctx.lineWidth = 5;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = this.theme.glow;
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.moveTo(this.length - 15, -23);
+                ctx.lineTo(this.length - 15, 23);
+                ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+                ctx.lineWidth = 2;
+                ctx.shadowBlur = 0;
+                ctx.stroke();
+                
+                ctx.restore();
+            }
+
+            getUIStats() {
+                // เอา DMG ออกตามคำขอ แสดงแค่ ARROW
+                return `ARROW : ${this.arrowCount}`;
+            }
+        }
+
+        // โรงงานสร้างอาวุธ (สำหรับ AI เพิ่มอาวุธ)
+        class WeaponFactory {
+            static create(type, player) {
+                switch(type.toLowerCase()) {
+                    case 'sword': return new Sword(player);
+                    case 'bow': return new Bow(player);
+                    // AI: Add new weapons here -> case 'axe': return new Axe(player);
+                    default: return new Sword(player);
+                }
+            }
+        }
+
+        // ========================================================
+        // 🚀 PROJECTILE & PARTICLE SYSTEM
+        // ========================================================
+        class Projectile {
+            constructor(x, y, angle, owner, damage, color, type) {
+                this.x = x; this.y = y;
+                let speed = 15;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.owner = owner;
+                this.damage = damage;
+                this.color = color;
+                this.type = type; // e.g., 'arrow', 'fireball' (for AI)
+                this.active = true;
+            }
+
+            update() {
+                this.x += this.vx; this.y += this.vy;
+                if (this.x < arenaX || this.x > arenaX + arenaSize || this.y < arenaY || this.y > arenaY + arenaSize) {
+                    this.active = false;
+                    createExplosion(this.x, this.y, this.color); 
+                }
+
+                let opponent = this.owner === p1 ? p2 : p1;
+                if (dist(this.x, this.y, opponent.x, opponent.y) < opponent.radius + 5) {
+                    let hitSuccess = opponent.takeDamage(this.damage); 
+                    if (hitSuccess) {
+                        // แจ้งเตือนกลับไปยังอาวุธว่า Projectile ทำดาเมจสำเร็จ
+                        if(this.owner.weapon.onProjectileHit) {
+                            this.owner.weapon.onProjectileHit(this, opponent);
+                        }
+                        opponent.vx += this.vx * 0.4;
+                        opponent.vy += this.vy * 0.4;
+                    }
+                    this.active = false;
+                    createExplosion(this.x, this.y, this.color);
+                }
+            }
+
+            draw() {
+                if(this.type === 'arrow') {
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(this.x - this.vx*1.2, this.y - this.vy*1.2); 
+                    ctx.strokeStyle = '#ffffff'; 
+                    ctx.lineWidth = 5;
+                    ctx.lineCap = 'round';
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = this.color;
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+                }
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y;
+                let angle = Math.random() * Math.PI * 2;
+                let speed = Math.random() * 8 + 2;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.life = 1.0;
+                this.decay = Math.random() * 0.05 + 0.02;
+                this.color = color;
+                this.size = Math.random() * 4 + 2;
+            }
+            update() {
+                this.x += this.vx; this.y += this.vy;
+                this.life -= this.decay;
+            }
+            draw() {
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI*2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        function createExplosion(x, y, color) {
+            for(let i=0; i<15; i++) {
+                particles.push(new Particle(x, y, color));
+            }
+        }
+
+        // ========================================================
+        // 🟢 PLAYER CLASS
+        // ========================================================
+        class Player {
+            constructor(x, y, weaponType, playerNumber) {
+                this.x = x; this.y = y;
+                let angle = Math.random() * Math.PI * 2;
+                let speed = 7 + Math.random() * 3;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                
+                this.radius = 35; 
+                this.hp = 100;
+                this.playerNumber = playerNumber; // เก็บไว้เพื่อระบุว่าเป็น P1 หรือ P2
+                
+                this.stunTimer = 0; 
+                this.invulnerableTimer = 0; 
+                this.bounciness = 1; 
+
+                // ติดตั้งอาวุธ (Weapon ควบคุมสีและสแตททั้งหมด)
+                this.weapon = WeaponFactory.create(weaponType, this);
+            }
+
+            takeDamage(amount) {
+                if (this.invulnerableTimer > 0) return false; 
+                this.hp -= amount;
+                this.stunTimer = 15; 
+                this.invulnerableTimer = 90; // อมตะ 1.5 วิ (60fps * 1.5)
+                return true;
+            }
+
+            update(opponent) {
+                if (this.invulnerableTimer > 0) this.invulnerableTimer--;
+                if (this.stunTimer > 0) {
+                    this.stunTimer--;
+                    return; 
+                }
+
+                this.x += this.vx; this.y += this.vy;
+
+                let currentSpeed = Math.hypot(this.vx, this.vy);
+                if (currentSpeed < 5) {
+                    let mult = 5 / (currentSpeed || 1);
+                    this.vx *= mult; this.vy *= mult;
+                }
+                if (currentSpeed > 18) {
+                    let mult = 18 / currentSpeed;
+                    this.vx *= mult; this.vy *= mult;
+                }
+
+                if (this.x - this.radius < arenaX) { this.x = arenaX + this.radius; this.vx *= -this.bounciness; }
+                if (this.x + this.radius > arenaX + arenaSize) { this.x = arenaX + arenaSize - this.radius; this.vx *= -this.bounciness; }
+                if (this.y - this.radius < arenaY) { this.y = arenaY + this.radius; this.vy *= -this.bounciness; }
+                if (this.y + this.radius > arenaY + arenaSize) { this.y = arenaY + arenaSize - this.radius; this.vy *= -this.bounciness; }
+
+                // อัปเดตตรรกะของอาวุธ
+                this.weapon.update(opponent);
+            }
+
+            draw() {
+                let isStunned = (this.stunTimer > 0 && this.stunTimer % 4 < 2);
+                let isInvulnerable = (this.invulnerableTimer > 0 && this.invulnerableTimer % 10 < 5);
+
+                ctx.save();
+                if (isInvulnerable && !isStunned) ctx.globalAlpha = 0.5;
+
+                // วาดตัวผู้เล่น (สีตามอาวุธที่ถือ)
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                
+                if (isStunned) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.shadowBlur = 30;
+                    ctx.shadowColor = '#ffffff';
+                } else {
+                    let grad = ctx.createRadialGradient(this.x - this.radius*0.3, this.y - this.radius*0.3, this.radius*0.1, this.x, this.y, this.radius);
+                    grad.addColorStop(0, this.weapon.theme.light);
+                    grad.addColorStop(1, this.weapon.theme.dark);
+                    ctx.fillStyle = grad;
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = this.weapon.theme.glow;
+                }
+                
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                ctx.stroke();
+                
+                // ระบุข้อความตัวเลข P1/P2 เล็กๆ บนหัวและเลือด
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = isStunned ? '#000000' : '#ffffff';
+                ctx.font = '800 24px Poppins, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(Math.max(0, Math.floor(this.hp)), this.x, this.y + 6); 
+                
+                ctx.font = '600 10px Poppins, sans-serif';
+                ctx.fillText(`P${this.playerNumber}`, this.x, this.y - 15);
+
+                // วาดอาวุธ
+                this.weapon.draw(ctx);
+
+                ctx.restore();
+            }
+        }
+
+        // ========================================================
+        // 🎮 GAME ENGINE CORE
+        // ========================================================
+        function resolveBallCollision(ball1, ball2) {
+            let dx = ball2.x - ball1.x;
+            let dy = ball2.y - ball1.y;
+            let distance = Math.hypot(dx, dy);
+
+            if (distance < ball1.radius + ball2.radius) {
+                let overlap = (ball1.radius + ball2.radius - distance) / 2;
+                let nx = dx / distance;
+                let ny = dy / distance;
+                
+                ball1.x -= nx * overlap; ball1.y -= ny * overlap;
+                ball2.x += nx * overlap; ball2.y += ny * overlap;
+
+                let kx = (ball1.vx - ball2.vx);
+                let ky = (ball1.vy - ball2.vy);
+                let p = 2 * (nx * kx + ny * ky) / 2; 
+
+                let restitution = 1.05; 
+                ball1.vx = ball1.vx - p * nx * restitution;
+                ball1.vy = ball1.vy - p * ny * restitution;
+                ball2.vx = ball2.vx + p * nx * restitution;
+                ball2.vy = ball2.vy + p * ny * restitution;
+                
+                createExplosion((ball1.x + ball2.x)/2, (ball1.y + ball2.y)/2, '#ffffff');
+            }
+        }
+
+        function setupCanvasSize() {
+            arenaSize = FIXED_ARENA_SIZE;
+            canvas.width = arenaSize + (PADDING * 2);
+            canvas.height = arenaSize + (PADDING * 2);
+            arenaX = PADDING; arenaY = PADDING;
+        }
+
+        function initGame() {
+            setupCanvasSize();
+            
+            let w1 = document.getElementById('p1-weapon').value;
+            let w2 = document.getElementById('p2-weapon').value;
+            
+            p1 = new Player(arenaX + arenaSize * 0.25, arenaY + arenaSize * 0.5, w1, 1); 
+            p2 = new Player(arenaX + arenaSize * 0.75, arenaY + arenaSize * 0.5, w2, 2); 
+            
+            projectiles = [];
+            particles = [];
+            
+            uiOverlay.classList.add('hidden');
+            menuBtn.classList.remove('hidden');
+            
+            canvas.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            gameRunning = true;
+            if(window.gameLoopRequest) cancelAnimationFrame(window.gameLoopRequest);
+            gameLoop();
+        }
+
+        function stopGame() {
+            gameRunning = false;
+            uiOverlay.classList.remove('hidden');
+            menuBtn.classList.add('hidden');
+        }
+
+        function drawArenaUI() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Background & Grid
+            ctx.fillStyle = 'rgba(30, 41, 59, 0.7)';
+            ctx.fillRect(arenaX, arenaY, arenaSize, arenaSize);
+            
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            let step = arenaSize / 15;
+            for(let i = arenaX; i <= arenaX + arenaSize; i += step) { ctx.moveTo(i, arenaY); ctx.lineTo(i, arenaY + arenaSize); }
+            for(let j = arenaY; j <= arenaY + arenaSize; j += step) { ctx.moveTo(arenaX, j); ctx.lineTo(arenaX + arenaSize, j); }
+            ctx.stroke();
+
+            // Border
+            ctx.strokeStyle = '#38bdf8'; 
+            ctx.lineWidth = 4;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#0ea5e9';
+            ctx.strokeRect(arenaX, arenaY, arenaSize, arenaSize);
+            ctx.shadowBlur = 0; 
+
+            // Header Top
+            ctx.fillStyle = '#f8fafc';
+            ctx.font = '800 24px Poppins, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            let headerText = `${p1.weapon.name}  VS  ${p2.weapon.name}`;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#ffffff';
+            ctx.fillText(headerText, canvas.width / 2, arenaY - 15);
+            ctx.shadowBlur = 0;
+
+            // Footer Bottom (Dynamic UI Stats based on weapon)
+            ctx.textBaseline = 'top';
+            ctx.font = '800 20px Poppins, sans-serif';
+            
+            // P1 Stats
+            ctx.fillStyle = p1.weapon.theme.light; 
+            ctx.textAlign = 'left';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = p1.weapon.theme.glow;
+            let p1Text = `P1 ${p1.weapon.name.toUpperCase()}`;
+            let p1Skill = p1.weapon.getUIStats();
+            if(p1Skill) p1Text += `  |  ${p1Skill}`;
+            ctx.fillText(p1Text, arenaX, arenaY + arenaSize + 15);
+            
+            // P2 Stats
+            ctx.fillStyle = p2.weapon.theme.light; 
+            ctx.textAlign = 'right';
+            ctx.shadowColor = p2.weapon.theme.glow;
+            let p2Text = `P2 ${p2.weapon.name.toUpperCase()}`;
+            let p2Skill = p2.weapon.getUIStats();
+            if(p2Skill) p2Text += `  |  ${p2Skill}`;
+            ctx.fillText(p2Text, arenaX + arenaSize, arenaY + arenaSize + 15);
+            ctx.shadowBlur = 0;
+        }
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            drawArenaUI();
+
+            // ตรวจสอบการปะทะกันของอาวุธระยะประชิด (Clash System)
+            let box1 = p1.weapon.getHitbox();
+            let box2 = p2.weapon.getHitbox();
+            
+            if (box1 && box2 && p1.weapon.cooldown === 0 && p2.weapon.cooldown === 0 && p1.stunTimer === 0 && p2.stunTimer === 0) {
+                if (segmentsIntersect(box1.x1, box1.y1, box1.x2, box1.y2, box2.x1, box2.y1, box2.x2, box2.y2)) {
+                    p1.weapon.spinSpeed *= -1; p2.weapon.spinSpeed *= -1;
+                    p1.weapon.cooldown = 15;   p2.weapon.cooldown = 15;
+                    
+                    let clashX = (box1.x2 + box2.x2)/2;
+                    let clashY = (box1.y2 + box2.y2)/2;
+                    
+                    ctx.beginPath();
+                    ctx.arc(clashX, clashY, 40, 0, Math.PI*2);
+                    let clashGrad = ctx.createRadialGradient(clashX, clashY, 0, clashX, clashY, 40);
+                    clashGrad.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+                    clashGrad.addColorStop(1, 'rgba(250, 204, 21, 0)');
+                    ctx.fillStyle = clashGrad;
+                    ctx.fill();
+                    
+                    createExplosion(clashX, clashY, '#fde047');
+                }
+            }
+
+            // Game Over Check
+            if (p1.hp <= 0 || p2.hp <= 0) {
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+                ctx.fillRect(arenaX, arenaY, arenaSize, arenaSize); 
+                
+                ctx.font = '800 48px Poppins, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                let winText = p1.hp <= 0 ? "PLAYER 2 WINS!" : "PLAYER 1 WINS!";
+                let winColor = p1.hp <= 0 ? p2.weapon.theme.light : p1.weapon.theme.light;
+
+                if (p1.hp <= 0 && p2.hp <= 0) { winText = "DRAW!"; winColor = "#facc15"; }
+                
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = winColor;
+                ctx.fillText(winText, canvas.width/2, canvas.height/2);
+                ctx.shadowBlur = 0;
+                
+                setTimeout(stopGame, 3000); 
+                return;
+            }
+
+            p1.update(p2); p2.update(p1);
+            resolveBallCollision(p1, p2);
+
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                projectiles[i].update();
+                if (!projectiles[i].active) projectiles.splice(i, 1);
+            }
+            
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                if (particles[i].life <= 0) particles.splice(i, 1);
+            }
+
+            p1.draw(); p2.draw();
+            projectiles.forEach(proj => proj.draw());
+            particles.forEach(p => p.draw());
+
+            window.gameLoopRequest = requestAnimationFrame(gameLoop);
+        }
+
+        setupCanvasSize();
+        
+        // Initial Background setup for menu
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'rgba(30, 41, 59, 0.7)';
+        ctx.fillRect(arenaX, arenaY, arenaSize, arenaSize);
+        ctx.strokeStyle = '#38bdf8'; 
+        ctx.lineWidth = 4;
+        ctx.strokeRect(arenaX, arenaY, arenaSize, arenaSize);
+
+        startBtn.addEventListener('click', () => { initGame(); });
+        menuBtn.addEventListener('click', () => { stopGame(); });
+
+    </script>
+</body>
+</html>
