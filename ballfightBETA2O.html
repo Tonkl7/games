@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto-Battler Arena Engine</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #111;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+
+        /* Menu Scene */
+        #menu {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            z-index: 100;
+        }
+        .menu-box {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+            border: 2px solid #e94560;
+            box-shadow: 0 0 20px rgba(233, 69, 96, 0.4);
+        }
+        h1 { margin-top: 0; color: #e94560; font-size: 2.5em; text-transform: uppercase; letter-spacing: 2px; }
+        .selector { margin: 20px 0; display: flex; justify-content: space-between; align-items: center; gap: 20px;}
+        select {
+            padding: 10px;
+            font-size: 16px;
+            background: #222;
+            color: #fff;
+            border: 1px solid #e94560;
+            border-radius: 6px;
+            outline: none;
+            cursor: pointer;
+        }
+        button {
+            margin-top: 30px;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            background: #e94560;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+        button:hover { background: #ff5c77; transform: scale(1.05); }
+
+        /* Arena UI */
+        #game-ui {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none;
+            display: none;
+            z-index: 10;
+        }
+        
+        /* Top HUD */
+        #header {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            letter-spacing: 1px;
+        }
+        .p1-text { color: #4facfe; }
+        .p2-text { color: #ff0844; }
+
+        /* Bottom HUD */
+        #footer {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-end;
+            padding: 0 20px;
+            box-sizing: border-box;
+        }
+        .player-panel {
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #333;
+            border-radius: 10px;
+            padding: 15px;
+            width: 300px;
+            backdrop-filter: blur(5px);
+        }
+        #p1-panel { border-color: #4facfe; }
+        #p2-panel { border-color: #ff0844; }
+
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 14px;}
+        .passive-text { font-style: italic; color: #ddd; margin-bottom: 10px; font-size: 13px; height: 18px;}
+        
+        /* Bars */
+        .bar-container { width: 100%; height: 12px; background: #222; border-radius: 6px; overflow: hidden; margin-bottom: 8px; border: 1px solid #000; }
+        .hp-bar { height: 100%; transition: width 0.2s; }
+        #p1-hp { background: linear-gradient(90deg, #00c6ff, #0072ff); }
+        #p2-hp { background: linear-gradient(90deg, #ff0844, #ffb199); }
+        
+        .ult-bar { height: 100%; background: linear-gradient(90deg, #f6d365, #fda085); transition: width 0.2s; width: 0%; }
+        
+        /* Canvas */
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Scene 1: Main Menu -->
+    <div id="menu">
+        <div class="menu-box">
+            <h1>Auto-Battler Engine</h1>
+            <div class="selector">
+                <label style="color:#4facfe; font-weight:bold;">Player 1 Weapon:</label>
+                <select id="p1-weapon"></select>
+            </div>
+            <div class="selector">
+                <label style="color:#ff0844; font-weight:bold;">Player 2 Weapon:</label>
+                <select id="p2-weapon"></select>
+            </div>
+            <button id="start-btn">Enter Arena</button>
+        </div>
+    </div>
+
+    <!-- Scene 2: Game UI -->
+    <div id="game-ui">
+        <div id="header">
+            <span class="p1-text" id="p1-title">P1: Sword</span> <span style="color:#777">vs</span> <span class="p2-text" id="p2-title">P2: Bow</span>
+        </div>
+        
+        <div id="footer">
+            <div class="player-panel" id="p1-panel">
+                <div class="stat-row"><span>HP</span><span id="p1-hp-text">100/100</span></div>
+                <div class="bar-container"><div class="hp-bar" id="p1-hp" style="width: 100%"></div></div>
+                <div class="stat-row"><span style="color:#f6d365">Ultimate</span><span id="p1-ult-text">0%</span></div>
+                <div class="bar-container"><div class="ult-bar" id="p1-ult"></div></div>
+                <div class="passive-text" id="p1-passive">Passive: --</div>
+            </div>
+
+            <div class="player-panel" id="p2-panel">
+                <div class="stat-row"><span>HP</span><span id="p2-hp-text">100/100</span></div>
+                <div class="bar-container"><div class="hp-bar" id="p2-hp" style="width: 100%"></div></div>
+                <div class="stat-row"><span style="color:#f6d365">Ultimate</span><span id="p2-ult-text">0%</span></div>
+                <div class="bar-container"><div class="ult-bar" id="p2-ult"></div></div>
+                <div class="passive-text" id="p2-passive">Passive: --</div>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+/**
+ * ------------------------------------------------------------------
+ * UTILITIES & MATH
+ * ------------------------------------------------------------------
+ */
+const MathUtils = {
+    distance: (x1, y1, x2, y2) => Math.hypot(x2 - x1, y2 - y1),
+    randRange: (min, max) => Math.random() * (max - min) + min,
+    clamp: (val, min, max) => Math.max(min, Math.min(max, val)),
+    normalize: (vx, vy) => {
+        let len = Math.hypot(vx, vy);
+        if (len === 0) return {x: 0, y: 0};
+        return {x: vx / len, y: vy / len};
+    }
+};
+
+/**
+ * ------------------------------------------------------------------
+ * WEAPON REGISTRY (MODDABLE SYSTEM)
+ * ------------------------------------------------------------------
+ */
+const WEAPON_REGISTRY = {
+    "Sword": {
+        name: "Sword",
+        color: "#e0e0e0",
+        width: 25, // Hitbox radius ใหญ่ขึ้น
+        length: 75, // ระยะห่างจากตัวละคร
+        baseDamage: 8,
+        
+        init(player) {
+            player.custom.dmgBonus = 0;
+            player.custom.spinSpeed = 0.08;
+            player.passiveText = `DMG Bonus: +0`;
+        },
+        
+        onUpdate(player, enemy, game) {
+            player.weaponRotation += player.custom.spinSpeed * player.weaponDir * (game.delta / 16);
+            
+            if (player.ultimateActive) {
+                player.weaponReach = 110;
+                player.custom.spinSpeed = 0.2;
+                player.custom.dmgBonus += 0.01;
+            } else {
+                player.weaponReach = 75;
+                player.custom.spinSpeed = 0.08;
+            }
+            player.passiveText = `DMG Bonus: +${Math.floor(player.custom.dmgBonus)}`;
+        },
+        
+        // วาดรูปดาบสมจริง
+        render(ctx, player, game) {
+            // ด้ามจับ (Handle)
+            ctx.fillStyle = "#5c4033"; 
+            ctx.fillRect(-35, -6, 25, 12);
+            
+            // ตุ้มปลายด้าม (Pommel)
+            ctx.fillStyle = "#d4af37";
+            ctx.beginPath();
+            ctx.arc(-35, 0, 8, 0, Math.PI*2);
+            ctx.fill();
+
+            // โกร่งดาบ (Crossguard)
+            ctx.fillStyle = "#d4af37";
+            ctx.fillRect(-15, -25, 12, 50);
+            
+            // ใบดาบ (Blade)
+            ctx.fillStyle = this.color;
+            ctx.shadowColor = player.ultimateActive ? "#f6d365" : "transparent";
+            ctx.shadowBlur = player.ultimateActive ? 20 : 0;
+            ctx.beginPath();
+            ctx.moveTo(-3, -15);
+            ctx.lineTo(50, -10);
+            ctx.lineTo(65, 0); // Tip
+            ctx.lineTo(50, 10);
+            ctx.lineTo(-3, 15);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // เส้นแกนกลางดาบ
+            ctx.beginPath();
+            ctx.moveTo(-3, 0);
+            ctx.lineTo(55, 0);
+            ctx.strokeStyle = "#aaa";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            
+            ctx.shadowBlur = 0;
+        },
+
+        onHitPlayer(player, enemy, game) {
+            player.custom.dmgBonus += 2;
+            let dmg = this.baseDamage + player.custom.dmgBonus;
+            enemy.takeDamage(dmg, "physical", player, game);
+            
+            let dx = enemy.x - player.x;
+            let dy = enemy.y - player.y;
+            let n = MathUtils.normalize(dx, dy);
+            // เพิ่มแรงกระเด็นเมื่อโดนฟันให้มากขึ้น
+            enemy.applyForce(n.x * 20, n.y * 20);
+            
+            player.reverseWeapon();
+        },
+        
+        onHitWeapon(player, enemy, game) {
+            game.spawnParticles(player.weaponX, player.weaponY, 8, "#fff");
+            player.reverseWeapon();
+        },
+        
+        onUltimateActivate(player, game) {
+            player.hp = Math.min(player.maxHp, player.hp + 20);
+        }
+    },
+
+    "Bow": {
+        name: "Bow",
+        color: "#8b5a2b",
+        width: 20, // Hitbox radius
+        length: 55, // ระยะห่างจากตัว
+        baseDamage: 5,
+
+        init(player) {
+            player.custom.arrowCount = 1;
+            player.custom.shootTimer = 0;
+            player.custom.shotsFired = 0;
+            player.passiveText = `Arrows per shot: 1`;
+        },
+
+        onUpdate(player, enemy, game) {
+            let dx = enemy.x - player.x;
+            let dy = enemy.y - player.y;
+            let targetAngle = Math.atan2(dy, dx);
+            
+            let diff = targetAngle - player.weaponRotation;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            player.weaponRotation += diff * 0.08 * (game.delta/16);
+
+            player.weaponReach = 55;
+
+            player.custom.shootTimer -= game.delta;
+            let fireRate = player.ultimateActive ? 100 : 800;
+            
+            if (player.custom.shootTimer <= 0) {
+                player.custom.shootTimer = fireRate;
+                
+                let count = player.ultimateActive ? player.custom.arrowCount + 2 : player.custom.arrowCount;
+                let spread = 0.2; 
+                let startAngle = player.weaponRotation - (spread * (count - 1)) / 2;
+
+                for(let i=0; i<count; i++) {
+                    let angle = startAngle + (i * spread);
+                    game.spawn(this.createArrow(player, angle));
+                }
+                
+                player.custom.shotsFired++;
+                if (player.custom.shotsFired % 5 === 0 && player.custom.arrowCount < 5) {
+                    player.custom.arrowCount++;
+                    player.passiveText = `Arrows per shot: ${player.custom.arrowCount}`;
+                }
+            }
+        },
+
+        // วาดคันธนู
+        render(ctx, player, game) {
+            ctx.shadowColor = player.ultimateActive ? "#f6d365" : "transparent";
+            ctx.shadowBlur = player.ultimateActive ? 15 : 0;
+
+            // คันธนู (Bow Curve)
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 8;
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            ctx.arc(-10, 0, 45, -Math.PI/2.2, Math.PI/2.2);
+            ctx.stroke();
+
+            // สายธนู (Bow String)
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            // จำลองการง้างสายธนู
+            let drawBack = player.custom.shootTimer < 150 ? -25 : -5;
+            
+            ctx.moveTo(10, -42);
+            ctx.lineTo(drawBack, 0); // จุดง้าง
+            ctx.lineTo(10, 42);
+            ctx.stroke();
+            
+            // วาดลูกศรที่กำลังง้างอยู่
+            if (player.custom.shootTimer < 200) {
+                 ctx.fillStyle = "#fff";
+                 ctx.fillRect(drawBack, -2, 40, 4); // ก้าน
+                 ctx.beginPath(); // หัวศร
+                 ctx.moveTo(drawBack + 40, -6);
+                 ctx.lineTo(drawBack + 50, 0);
+                 ctx.lineTo(drawBack + 40, 6);
+                 ctx.fill();
+            }
+            ctx.shadowBlur = 0;
+        },
+
+        createArrow(owner, angle) {
+            return {
+                x: owner.weaponX,
+                y: owner.weaponY,
+                vx: Math.cos(angle) * 20, // ความเร็วลูกศร
+                vy: Math.sin(angle) * 20,
+                radius: 8, // ใหญ่ขึ้น
+                lifetime: 2000,
+                owner: owner,
+                type: "projectile",
+                
+                update(game) {
+                    this.x += this.vx * (game.delta/16);
+                    this.y += this.vy * (game.delta/16);
+                    this.lifetime -= game.delta;
+                    
+                    let enemy = game.players.find(p => p !== this.owner);
+                    if (MathUtils.distance(this.x, this.y, enemy.x, enemy.y) < this.radius + enemy.radius) {
+                        enemy.takeDamage(5, "pierce", this.owner, game);
+                        game.spawnParticles(this.x, this.y, 5, "#fff");
+                        
+                        // เพิ่มแรงกระเด็นนิดหน่อยเมื่อโดนธนู
+                        let nx = Math.cos(angle);
+                        let ny = Math.sin(angle);
+                        enemy.applyForce(nx * 5, ny * 5);
+                        
+                        this.lifetime = 0; 
+                    }
+                },
+                
+                // วาดลูกศรแบบสมจริง
+                render(ctx) {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(Math.atan2(this.vy, this.vx));
+                    
+                    // ก้านลูกศร
+                    ctx.fillStyle = "#8b5a2b";
+                    ctx.fillRect(-20, -3, 35, 6);
+                    
+                    // หัวลูกศร (สีเงิน)
+                    ctx.fillStyle = "#ddd";
+                    ctx.beginPath();
+                    ctx.moveTo(15, -7);
+                    ctx.lineTo(28, 0);
+                    ctx.lineTo(15, 7);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // ขนนกลูกศร (Fletching)
+                    ctx.fillStyle = "#fff";
+                    ctx.beginPath();
+                    ctx.moveTo(-20, -3); ctx.lineTo(-10, -10); ctx.lineTo(-5, -3);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.moveTo(-20, 3); ctx.lineTo(-10, 10); ctx.lineTo(-5, 3);
+                    ctx.fill();
+                    
+                    ctx.restore();
+                }
+            };
+        },
+
+        onHitPlayer(player, enemy, game) {
+            enemy.takeDamage(2, "blunt", player, game);
+            player.reverseWeapon();
+        },
+        
+        onHitWeapon(player, enemy, game) {
+            player.reverseWeapon();
+        }
+    },
+
+    "Magic Orb": {
+        name: "Magic Orb",
+        color: "#9d4edd",
+        width: 30, // รัศมีลูกแก้วเวท
+        length: 85, // ระยะห่างจากตัว
+        baseDamage: 3,
+
+        init(player) {
+            player.custom.zoneTimer = 0;
+            player.custom.burnStacksApplied = 0;
+            player.passiveText = `Burn Stacks Applied: 0`;
+        },
+
+        onUpdate(player, enemy, game) {
+            player.weaponRotation += 0.04 * player.weaponDir * (game.delta/16);
+            player.weaponReach = 85;
+
+            player.custom.zoneTimer -= game.delta;
+            let zoneInterval = player.ultimateActive ? 300 : 1500;
+
+            if (player.custom.zoneTimer <= 0) {
+                player.custom.zoneTimer = zoneInterval;
+                game.spawn(this.createZone(player));
+            }
+
+            if (player.ultimateActive) {
+                let dx = player.x - enemy.x;
+                let dy = player.y - enemy.y;
+                let n = MathUtils.normalize(dx, dy);
+                // ดึงดูดแรงขึ้นในช่วงอัลติเมต
+                enemy.applyForce(n.x * 1.5, n.y * 1.5); 
+            }
+        },
+
+        // วาดลูกแก้วเวทมนตร์
+        render(ctx, player, game) {
+            let time = Date.now();
+            
+            // แสงออร่าด้านหลัง
+            ctx.shadowColor = this.color;
+            ctx.shadowBlur = 30 + Math.sin(time * 0.005) * 10;
+            
+            // แกนกลางลูกแก้ว
+            ctx.beginPath();
+            ctx.arc(0, 0, this.width - 5, 0, Math.PI * 2);
+            ctx.fillStyle = "#fff";
+            ctx.fill();
+            
+            // เลเยอร์สีเวทมนตร์
+            ctx.beginPath();
+            ctx.arc(0, 0, this.width + Math.sin(time * 0.008) * 4, 0, Math.PI * 2);
+            ctx.fillStyle = this.color;
+            ctx.globalAlpha = 0.6;
+            ctx.fill();
+            
+            ctx.globalAlpha = 1.0;
+            ctx.shadowBlur = 0;
+            
+            // วงแหวนเวทมนตร์หมุนรอบๆ
+            ctx.save();
+            ctx.rotate(time * 0.002);
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, this.width + 15, this.width - 10, 0, 0, Math.PI*2);
+            ctx.stroke();
+            
+            ctx.rotate(Math.PI / 2);
+            ctx.strokeStyle = this.color;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, this.width + 15, this.width - 10, 0, 0, Math.PI*2);
+            ctx.stroke();
+            ctx.restore();
+        },
+
+        createZone(owner) {
+            return {
+                x: owner.weaponX,
+                y: owner.weaponY,
+                radius: 1,
+                maxRadius: 60, // ขยายพื้นที่ดาเมจตามอาวุธที่ใหญ่ขึ้น
+                lifetime: 4000,
+                owner: owner,
+                type: "zone",
+                tickTimer: 0,
+                
+                update(game) {
+                    if (this.radius < this.maxRadius) this.radius += 2 * (game.delta/16);
+                    this.lifetime -= game.delta;
+                    this.tickTimer -= game.delta;
+
+                    if (this.tickTimer <= 0) {
+                        this.tickTimer = 500; 
+                        let enemy = game.players.find(p => p !== this.owner);
+                        if (MathUtils.distance(this.x, this.y, enemy.x, enemy.y) < this.radius + enemy.radius) {
+                            enemy.addStatus({
+                                type: "burn",
+                                duration: 2000,
+                                tickTimer: 0,
+                                update(p, g) {
+                                    this.tickTimer -= g.delta;
+                                    if(this.tickTimer <= 0) {
+                                        this.tickTimer = 400;
+                                        p.takeDamage(2, "magic", null, g);
+                                        g.spawnParticles(p.x, p.y + Math.random()*20-10, 1, "#ff5500");
+                                    }
+                                }
+                            });
+                            this.owner.custom.burnStacksApplied++;
+                            this.owner.passiveText = `Burn Stacks Applied: ${this.owner.custom.burnStacksApplied}`;
+                        }
+                    }
+                },
+                render(ctx) {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(157, 78, 221, ${this.lifetime / 4000 * 0.4})`;
+                    ctx.fill();
+                    ctx.strokeStyle = `rgba(157, 78, 221, ${this.lifetime / 4000})`;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            };
+        },
+
+        onHitPlayer(player, enemy, game) {
+            enemy.takeDamage(this.baseDamage, "magic", player, game);
+            player.reverseWeapon();
+        },
+        
+        onHitWeapon(player, enemy, game) {
+            player.reverseWeapon();
+        }
+    }
+};
+
+/**
+ * ------------------------------------------------------------------
+ * ENGINE CLASSES
+ * ------------------------------------------------------------------
+ */
+
+class Player {
+    constructor(id, x, y, color, weaponName) {
+        this.id = id;
+        this.x = x;
+        this.y = y;
+        // ปรับลดความเร็วเริ่มต้นลงอีก (ให้บอลวิ่งช้าลง)
+        this.vx = (Math.random() - 0.5) * 18;
+        this.vy = (Math.random() - 0.5) * 18;
+        this.radius = 35; 
+        this.color = color;
+        
+        this.maxHp = 100;
+        this.hp = this.maxHp;
+        
+        this.weaponDef = WEAPON_REGISTRY[weaponName];
+        this.weaponRotation = Math.random() * Math.PI * 2;
+        this.weaponDir = 1; 
+        this.weaponReach = this.weaponDef.length;
+        this.weaponHitboxRadius = this.weaponDef.width;
+        this.weaponCooldown = 0; 
+        
+        this.custom = {}; 
+        this.passiveText = "";
+        
+        this.statusEffects = [];
+        this.ultimateGauge = 0;
+        this.ultimateActive = false;
+        this.ultimateTimer = 0;
+        this.iFrames = 0;
+
+        if(this.weaponDef.init) this.weaponDef.init(this);
+    }
+
+    get weaponX() { return this.x + Math.cos(this.weaponRotation) * this.weaponReach; }
+    get weaponY() { return this.y + Math.sin(this.weaponRotation) * this.weaponReach; }
+
+    update(game) {
+        let dtMod = game.delta / 16;
+
+        this.x += this.vx * dtMod;
+        this.y += this.vy * dtMod;
+
+        // ลดแรงเสียดทานลงนิดหน่อยเพื่อให้ลูกบอลลื่น
+        this.vx *= 0.995;
+        this.vy *= 0.995;
+
+        let speed = Math.hypot(this.vx, this.vy);
+        // ปรับลดความเร็วสูงสุด (Speed Cap)
+        if (speed > 20) { 
+            this.vx = (this.vx / speed) * 20;
+            this.vy = (this.vy / speed) * 20;
+        } else if (speed < 5) { // ปรับลดขีดจำกัดความเร็วต่ำสุด
+            if(speed === 0) { this.vx = 2; this.vy = 2; }
+            let n = MathUtils.normalize(this.vx, this.vy);
+            this.vx += n.x * 0.8;
+            this.vy += n.y * 0.8;
+        }
+
+        if (this.iFrames > 0) this.iFrames -= game.delta;
+        if (this.weaponCooldown > 0) this.weaponCooldown -= game.delta;
+
+        for (let i = this.statusEffects.length - 1; i >= 0; i--) {
+            let effect = this.statusEffects[i];
+            effect.duration -= game.delta;
+            if (effect.update) effect.update(this, game);
+            if (effect.duration <= 0) this.statusEffects.splice(i, 1);
+        }
+
+        if (this.ultimateActive) {
+            this.ultimateTimer -= game.delta;
+            // อัปเดตการคำนวณเกจหลอดอัลติเมตที่ 2000 ms (2 วินาที)
+            this.ultimateGauge = (this.ultimateTimer / 2000) * 100; 
+            if (this.ultimateTimer <= 0) {
+                this.ultimateActive = false;
+                this.ultimateGauge = 0;
+            }
+        }
+
+        let enemy = game.players.find(p => p !== this);
+        if (this.weaponDef.onUpdate) {
+            this.weaponDef.onUpdate(this, enemy, game);
+        }
+
+        this.handleWallCollision(game.arena);
+    }
+
+    handleWallCollision(arena) {
+        const bounce = 0.95; // เพิ่มแรงกระเด้งกำแพงให้ไม่สูญเสียความเร็วมากนัก
+        const perturb = () => (Math.random() - 0.5) * 5; // เพิ่มการเบี่ยงเบนเล็กน้อยให้คาดเดายากขึ้น
+        
+        if (this.x - this.radius < arena.x) {
+            this.x = arena.x + this.radius;
+            this.vx = Math.abs(this.vx) * bounce + perturb();
+            this.vy += perturb();
+        } else if (this.x + this.radius > arena.x + arena.size) {
+            this.x = arena.x + arena.size - this.radius;
+            this.vx = -Math.abs(this.vx) * bounce + perturb();
+            this.vy += perturb();
+        }
+        
+        if (this.y - this.radius < arena.y) {
+            this.y = arena.y + this.radius;
+            this.vy = Math.abs(this.vy) * bounce + perturb();
+            this.vx += perturb();
+        } else if (this.y + this.radius > arena.y + arena.size) {
+            this.y = arena.y + arena.size - this.radius;
+            this.vy = -Math.abs(this.vy) * bounce + perturb();
+            this.vx += perturb();
+        }
+    }
+
+    render(ctx, game) {
+        if (this.statusEffects.some(e => e.type === "burn")) {
+            ctx.shadowColor = "#ff5500";
+            ctx.shadowBlur = 15;
+        }
+
+        // ตัวละครจะกระพริบเป็นสีขาวเมื่อติดสถานะ iFrames (เพิ่งโดนดาเมจ)
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = this.iFrames > 0 ? "#fff" : this.color;
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = this.ultimateActive ? "#f6d365" : "#fff";
+        ctx.stroke();
+
+        ctx.shadowBlur = 0; 
+
+        let wx = this.weaponX;
+        let wy = this.weaponY;
+
+        ctx.save();
+        ctx.translate(wx, wy);
+        ctx.rotate(this.weaponRotation);
+        
+        // ใช้ Custom Render ของแต่ละอาวุธถ้ามี
+        if (this.weaponDef.render) {
+            this.weaponDef.render(ctx, this, game);
+        } else {
+            // Fallback (สำหรับอาวุธที่ไม่ได้ตั้งค่า render ไว้)
+            ctx.fillStyle = this.weaponDef.color;
+            ctx.fillRect(-this.weaponHitboxRadius, -this.weaponHitboxRadius, this.weaponHitboxRadius*2, this.weaponHitboxRadius*2);
+        }
+        
+        ctx.restore();
+    }
+
+    applyForce(fx, fy) {
+        this.vx += fx;
+        this.vy += fy;
+    }
+
+    takeDamage(amount, type, source, game) {
+        if (this.iFrames > 0) return; 
+        
+        this.hp = Math.max(0, this.hp - amount);
+        this.iFrames = 200; // ระยะเวลากระพริบของตัวละคร 200ms
+        game.triggerHitStop(50); 
+        // นำ game.flashScreen() ออกเพื่อไม่ให้จอแสงกระพริบรบกวนสายตา
+        game.spawnParticles(this.x, this.y, 15, source ? source.color : "#fff");
+
+        // คำนวณสีของตัวเลขดาเมจตามประเภท
+        let dmgColor = "#fff";
+        if (type === "physical") dmgColor = "#eeeeee";
+        else if (type === "pierce") dmgColor = "#f6d365";
+        else if (type === "blunt") dmgColor = "#a9a9a9";
+        else if (type === "magic") dmgColor = "#e066ff";
+        else if (type === "burn") dmgColor = "#ff4500";
+
+        // สร้าง Entity ตัวเลขดาเมจลอยขึ้นมา
+        game.spawn({
+            x: this.x + (Math.random() * 30 - 15),
+            y: this.y - 40 + (Math.random() * 10 - 5),
+            vx: (Math.random() - 0.5) * 2,
+            vy: -1.5 - Math.random() * 2,
+            lifetime: 800,
+            maxLife: 800,
+            text: Math.ceil(amount).toString(),
+            color: dmgColor,
+            update(g) {
+                this.x += this.vx * (g.delta/16);
+                this.y += this.vy * (g.delta/16);
+                this.lifetime -= g.delta;
+            },
+            render(ctx) {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.lifetime / this.maxLife);
+                ctx.fillStyle = this.color;
+                ctx.font = "bold 24px 'Segoe UI'";
+                ctx.textAlign = "center";
+                ctx.strokeStyle = "#000";
+                ctx.lineWidth = 4;
+                ctx.strokeText(this.text, this.x, this.y);
+                ctx.fillText(this.text, this.x, this.y);
+                ctx.restore();
+            }
+        });
+
+        if (source && !source.ultimateActive && source.id) {
+            // เพิ่มเกจหลอดอัลติเมตทีละ 20% แบบตายตัวเมื่อทำการโจมตีสำเร็จ
+            source.ultimateGauge += 20;
+            if (source.ultimateGauge >= 100) {
+                source.ultimateGauge = 100;
+                source.ultimateActive = true;
+                // ตั้งค่าระยะเวลาอัลติเมตเป็น 2000 ms (2 วินาที)
+                source.ultimateTimer = 2000;
+                if(source.weaponDef.onUltimateActivate) source.weaponDef.onUltimateActivate(source, game);
+                game.spawnParticles(source.x, source.y, 40, "#f6d365"); 
+            }
+        }
+        
+        if (this.weaponDef.onTakeDamage) {
+            this.weaponDef.onTakeDamage(this, source, game);
+        }
+    }
+
+    addStatus(effect) {
+        let existing = this.statusEffects.find(e => e.type === effect.type);
+        if (existing) {
+            existing.duration = Math.max(existing.duration, effect.duration);
+        } else {
+            this.statusEffects.push(effect);
+        }
+    }
+
+    reverseWeapon() {
+        if (this.weaponCooldown <= 0) {
+            this.weaponDir *= -1;
+            this.weaponCooldown = 200; 
+        }
+    }
+}
+
+/**
+ * ------------------------------------------------------------------
+ * MAIN ENGINE OBJECT
+ * ------------------------------------------------------------------
+ */
+const Engine = {
+    canvas: document.getElementById('gameCanvas'),
+    ctx: document.getElementById('gameCanvas').getContext('2d'),
+    width: window.innerWidth,
+    height: window.innerHeight,
+    
+    arena: { x: 0, y: 0, size: 0 }, 
+    
+    players: [],
+    entities: [],
+    particles: [],
+    
+    lastTime: 0,
+    delta: 0,
+    hitStop: 0,
+    
+    state: 'MENU', 
+    
+    init() {
+        window.addEventListener('resize', () => {
+            this.width = window.innerWidth;
+            this.height = window.innerHeight;
+            this.canvas.width = this.width;
+            this.canvas.height = this.height;
+            
+            let headerH = 80;
+            let footerH = 180;
+            let maxArenaH = this.height - headerH - footerH;
+            let maxArenaW = this.width - 40; 
+            
+            this.arena.size = Math.min(maxArenaW, maxArenaH);
+            this.arena.x = (this.width - this.arena.size) / 2;
+            this.arena.y = headerH + (maxArenaH - this.arena.size) / 2;
+        });
+        window.dispatchEvent(new Event('resize'));
+        
+        const p1Select = document.getElementById('p1-weapon');
+        const p2Select = document.getElementById('p2-weapon');
+        for (let w in WEAPON_REGISTRY) {
+            p1Select.add(new Option(w, w));
+            p2Select.add(new Option(w, w));
+        }
+        p2Select.selectedIndex = 1; 
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            let w1 = p1Select.value;
+            let w2 = p2Select.value;
+            this.startGame(w1, w2);
+        });
+
+        requestAnimationFrame((t) => this.loop(t));
+    },
+
+    startGame(w1, w2) {
+        document.getElementById('menu').style.display = 'none';
+        document.getElementById('game-ui').style.display = 'block';
+        
+        document.getElementById('p1-title').innerText = `P1: ${w1}`;
+        document.getElementById('p2-title').innerText = `P2: ${w2}`;
+
+        this.players = [
+            new Player("p1", this.arena.x + this.arena.size * 0.25, this.arena.y + this.arena.size / 2, "#4facfe", w1),
+            new Player("p2", this.arena.x + this.arena.size * 0.75, this.arena.y + this.arena.size / 2, "#ff0844", w2)
+        ];
+        
+        // ปรับลดความเร็วการพุ่งเข้าหากันตอนเริ่มเกมส์ลง
+        this.players[0].vx = 12;
+        this.players[1].vx = -12;
+        this.players[0].vy = (Math.random() - 0.5) * 4;
+        this.players[1].vy = (Math.random() - 0.5) * 4;
+
+        this.entities = [];
+        this.particles = [];
+        this.hitStop = 0;
+        this.state = 'PLAYING';
+    },
+
+    spawn(entity) {
+        this.entities.push(entity);
+    },
+
+    spawnParticles(x, y, count, color) {
+        for(let i=0; i<count; i++) {
+            let angle = Math.random() * Math.PI * 2;
+            let speed = Math.random() * 5 + 2;
+            this.particles.push({
+                x: x, y: y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                life: 1.0,
+                color: color
+            });
+        }
+    },
+
+    triggerHitStop(ms) {
+        this.hitStop = ms;
+    },
+
+    updateUI() {
+        const p1 = this.players[0];
+        const p2 = this.players[1];
+
+        document.getElementById('p1-hp').style.width = `${(p1.hp / p1.maxHp) * 100}%`;
+        document.getElementById('p1-hp-text').innerText = `${Math.ceil(p1.hp)}/${p1.maxHp}`;
+        document.getElementById('p2-hp').style.width = `${(p2.hp / p2.maxHp) * 100}%`;
+        document.getElementById('p2-hp-text').innerText = `${Math.ceil(p2.hp)}/${p2.maxHp}`;
+
+        document.getElementById('p1-ult').style.width = `${p1.ultimateGauge}%`;
+        document.getElementById('p1-ult').style.background = p1.ultimateActive ? "#fff" : "linear-gradient(90deg, #f6d365, #fda085)";
+        document.getElementById('p1-ult-text').innerText = p1.ultimateActive ? "ACTIVE" : `${Math.floor(p1.ultimateGauge)}%`;
+        
+        document.getElementById('p2-ult').style.width = `${p2.ultimateGauge}%`;
+        document.getElementById('p2-ult').style.background = p2.ultimateActive ? "#fff" : "linear-gradient(90deg, #f6d365, #fda085)";
+        document.getElementById('p2-ult-text').innerText = p2.ultimateActive ? "ACTIVE" : `${Math.floor(p2.ultimateGauge)}%`;
+
+        document.getElementById('p1-passive').innerText = `Passive: ${p1.passiveText}`;
+        document.getElementById('p2-passive').innerText = `Passive: ${p2.passiveText}`;
+    },
+
+    checkCollisions() {
+        let p1 = this.players[0];
+        let p2 = this.players[1];
+
+        let dx = p2.x - p1.x;
+        let dy = p2.y - p1.y;
+        let dist = Math.hypot(dx, dy);
+        let minDist = p1.radius + p2.radius;
+        
+        if (dist < minDist) {
+            let overlap = minDist - dist;
+            let nx = dx / dist;
+            let ny = dy / dist;
+            p1.x -= nx * overlap / 2;
+            p1.y -= ny * overlap / 2;
+            p2.x += nx * overlap / 2;
+            p2.y += ny * overlap / 2;
+            
+            // เพิ่มการกระเด้งเวลาชนกันให้แรงขึ้น
+            let tx = p1.vx; let ty = p1.vy;
+            p1.vx = p2.vx * 1.1; p1.vy = p2.vy * 1.1;
+            p2.vx = tx * 1.1; p2.vy = ty * 1.1;
+        }
+
+        [ [p1, p2], [p2, p1] ].forEach(([attacker, target]) => {
+            let wx = attacker.weaponX;
+            let wy = attacker.weaponY;
+            let wRadius = attacker.weaponHitboxRadius;
+            
+            if (MathUtils.distance(wx, wy, target.x, target.y) < wRadius + target.radius) {
+                if(attacker.weaponCooldown <= 0 && attacker.weaponDef.onHitPlayer) {
+                    attacker.weaponDef.onHitPlayer(attacker, target, this);
+                }
+            }
+        });
+
+        let wDist = MathUtils.distance(p1.weaponX, p1.weaponY, p2.weaponX, p2.weaponY);
+        if (wDist < p1.weaponHitboxRadius + p2.weaponHitboxRadius) {
+            if(p1.weaponCooldown <= 0 && p1.weaponDef.onHitWeapon) p1.weaponDef.onHitWeapon(p1, p2, this);
+            if(p2.weaponCooldown <= 0 && p2.weaponDef.onHitWeapon) p2.weaponDef.onHitWeapon(p2, p1, this);
+        }
+    },
+
+    loop(timestamp) {
+        this.delta = timestamp - this.lastTime;
+        this.lastTime = timestamp;
+        
+        if (this.delta > 100) this.delta = 16; 
+
+        if (this.state === 'PLAYING') {
+            
+            if (this.hitStop > 0) {
+                this.hitStop -= this.delta;
+            } else {
+                this.players.forEach(p => p.update(this));
+                
+                this.checkCollisions();
+
+                for (let i = this.entities.length - 1; i >= 0; i--) {
+                    let e = this.entities[i];
+                    e.update(this);
+                    if (e.lifetime <= 0) this.entities.splice(i, 1);
+                }
+
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    let p = this.particles[i];
+                    p.x += p.vx * (this.delta/16);
+                    p.y += p.vy * (this.delta/16);
+                    p.life -= 0.05 * (this.delta/16);
+                    if (p.life <= 0) this.particles.splice(i, 1);
+                }
+
+                this.updateUI();
+
+                if (this.players[0].hp <= 0 || this.players[1].hp <= 0) {
+                    this.state = 'GAMEOVER';
+                    let winner = this.players[0].hp > 0 ? "Player 1" : "Player 2";
+                    setTimeout(() => {
+                        alert(`${winner} Wins! Engine resets.`);
+                        document.getElementById('menu').style.display = 'flex';
+                        document.getElementById('game-ui').style.display = 'none';
+                        this.state = 'MENU';
+                    }, 1000);
+                }
+            }
+
+            this.ctx.fillStyle = "#111"; 
+            this.ctx.fillRect(0, 0, this.width, this.height);
+            
+            this.ctx.fillStyle = "#16161a";
+            this.ctx.fillRect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
+
+            this.ctx.strokeStyle = "#222";
+            this.ctx.lineWidth = 1;
+            this.ctx.beginPath();
+            for(let i=0; i<=this.arena.size; i+=50) {
+                this.ctx.moveTo(this.arena.x + i, this.arena.y); 
+                this.ctx.lineTo(this.arena.x + i, this.arena.y + this.arena.size);
+                this.ctx.moveTo(this.arena.x, this.arena.y + i); 
+                this.ctx.lineTo(this.arena.x + this.arena.size, this.arena.y + i);
+            }
+            this.ctx.stroke();
+
+            this.ctx.strokeStyle = "#e94560";
+            this.ctx.lineWidth = 3;
+            this.ctx.strokeRect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
+
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.rect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
+            this.ctx.clip();
+
+            this.entities.forEach(e => {
+                if(e.render) e.render(this.ctx);
+            });
+
+            // ส่ง game เข้าไปให้ player เอาไปใช้วาดอนิเมชันอาวุธด้วย
+            this.players.forEach(p => p.render(this.ctx, this));
+
+            this.particles.forEach(p => {
+                this.ctx.fillStyle = p.color;
+                this.ctx.globalAlpha = p.life;
+                this.ctx.beginPath();
+                this.ctx.arc(p.x, p.y, 4, 0, Math.PI*2); // ขยายขนาดยิบย่อยเล็กน้อย
+                this.ctx.fill();
+            });
+            
+            this.ctx.restore(); 
+            this.ctx.globalAlpha = 1.0;
+        }
+
+        requestAnimationFrame((t) => this.loop(t));
+    }
+};
+
+
+/**
+ * ------------------------------------------------------------------
+ * SAFETY SYSTEM & SCRIPT SANDBOX
+ * ------------------------------------------------------------------
+ * Provides Module Validation, Null Protection, Script Sandboxing,
+ * Fallback Systems, and Error Logging.
+ */
+const SafetySystem = {
+    logError(moduleName, context, error) {
+        console.error(`[SafetySystem] 🚨 Error in [${moduleName}] during '${context}':`, error);
+    },
+
+    createSafeFunction(moduleName, context, originalFunc) {
+        if (typeof originalFunc !== 'function') return originalFunc;
+        return function(...args) {
+            try {
+                // Null Protection / Guard before execution
+                if (!originalFunc) return;
+                return originalFunc.apply(this, args);
+            } catch (err) {
+                // Error Logging & Fallback (isolate the error without crashing)
+                SafetySystem.logError(moduleName, context, err);
+            }
+        };
+    },
+
+    safeguardWeapon(weaponName, weaponDef) {
+        // Module Validation
+        if (!weaponDef || typeof weaponDef !== 'object') return null;
+        
+        const hooks = ['init', 'onUpdate', 'render', 'onHitPlayer', 'onHitWeapon', 'onTakeDamage', 'onUltimateActivate'];
+        
+        hooks.forEach(hook => {
+            if (typeof weaponDef[hook] === 'function') {
+                // Script Sandbox via Wrapper
+                weaponDef[hook] = this.createSafeFunction(`Weapon:${weaponName}`, hook, weaponDef[hook]);
+            }
+        });
+        return weaponDef;
+    },
+
+    safeguardEntity(entity) {
+        // Module Validation
+        if (!entity || typeof entity !== 'object') return null;
+        
+        const entityName = entity.type || 'UnknownEntity';
+        const hooks = ['update', 'render', 'onCollision'];
+        
+        hooks.forEach(hook => {
+            if (typeof entity[hook] === 'function') {
+                // Script Sandbox via Wrapper
+                entity[hook] = this.createSafeFunction(`Entity:${entityName}`, hook, entity[hook]);
+            }
+        });
+        return entity;
+    },
+
+    safeguardStatusEffect(effect) {
+        // Module Validation
+        if (!effect || typeof effect !== 'object') return null;
+        
+        const effectName = effect.type || 'UnknownEffect';
+        if (typeof effect.update === 'function') {
+            // Script Sandbox via Wrapper
+            effect.update = this.createSafeFunction(`StatusEffect:${effectName}`, 'update', effect.update);
+        }
+        return effect;
+    },
+
+    applyWrappers() {
+        // 1. Wrap Weapon Registry
+        for (let weaponName in WEAPON_REGISTRY) {
+            WEAPON_REGISTRY[weaponName] = this.safeguardWeapon(weaponName, WEAPON_REGISTRY[weaponName]);
+        }
+
+        // 2. Wrap Engine.spawn safely
+        const originalSpawn = Engine.spawn;
+        Engine.spawn = function(entity) {
+            // Null Protection before attaching
+            if (!entity) {
+                console.warn("[SafetySystem] Prevented spawning of null entity");
+                return;
+            }
+            const safeEntity = SafetySystem.safeguardEntity(entity);
+            if (safeEntity) {
+                originalSpawn.call(this, safeEntity);
+            }
+        };
+
+        // 3. Wrap Player Status Effects safely
+        const originalAddStatus = Player.prototype.addStatus;
+        Player.prototype.addStatus = function(effect) {
+            // Null Protection
+            if (!effect) {
+                console.warn("[SafetySystem] Prevented adding null status effect");
+                return;
+            }
+            const safeEffect = SafetySystem.safeguardStatusEffect(effect);
+            if (safeEffect) {
+                originalAddStatus.call(this, safeEffect);
+            }
+        };
+    }
+};
+
+// Initialize Sandbox / Safety System before engine starts
+SafetySystem.applyWrappers();
+
+// Start Engine
+Engine.init();
+
+</script>
+</body>
+</html>
