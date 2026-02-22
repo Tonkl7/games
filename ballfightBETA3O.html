@@ -420,6 +420,166 @@ const WEAPON_REGISTRY = {
         },
         onHitPlayer(player, enemy, game) { enemy.takeDamage(this.baseDamage, "magic", player, game); player.reverseWeapon(); },
         onHitWeapon(player, enemy, game) { player.reverseWeapon(); }
+    },
+    "Axe": {
+        name: "Axe", 
+        color: "#8B4513", 
+        width: 20, 
+        length: 75, 
+        baseDamage: 10,
+        
+        init(player) { 
+            // เก็บค่าโบนัสดาเมจและสถานะของอัลติเมต
+            player.custom.bonusDamage = 0;
+            player.custom.ultPhase = 0; // 0: ปกติ, 1: กำลังพุ่ง, 2: ทุบพื้นแล้ว
+            player.custom.ultTimer = 0;
+            player.passiveText = "โอกาส 25% คริติคอล (+50% DMG), ตีโดน +1 DMG ถาวร | อัลติ: พุ่งทุบพื้นแยก คริ 150% และสโลว์ศัตรู 25%"; 
+        },
+        
+        onUpdate(player, closestEnemy, game) {
+            let deltaMult = (game.delta / 16);
+    
+            if (player.ultimateActive) {
+                // ช่วงอัลติเมตทำงาน
+                if (player.custom.ultPhase === 1) {
+                    player.custom.ultTimer -= game.delta;
+                    
+                    // หมุนขวานอย่างรวดเร็วระหว่างพุ่ง
+                    player.weaponRotation += 0.4 * player.weaponDir * deltaMult;
+    
+                    if (closestEnemy) {
+                        // คำนวณระยะทางเพื่อพุ่งไปหาศัตรู
+                        let dx = closestEnemy.x - player.x;
+                        let dy = closestEnemy.y - player.y;
+                        let dist = Math.hypot(dx, dy);
+                        
+                        if (dist > 0) {
+                            player.x += (dx / dist) * 18 * deltaMult; // ความเร็วในการพุ่ง
+                            player.y += (dy / dist) * 18 * deltaMult;
+                        }
+    
+                        // ถ้าเข้าใกล้ศัตรูมากพอ หรือหมดเวลาพุ่ง ให้ทำการทุบพื้น!
+                        if (dist < 50 || player.custom.ultTimer <= 0) {
+                            player.custom.ultPhase = 2; // เปลี่ยนเป็นสถานะทุบแล้ว
+                            
+                            // เอฟเฟกต์ทุบพื้นและ Hit Stop สั้นๆ ให้ดูรุนแรง
+                            game.spawnParticles(player.x, player.y, 40, "#FF4500");
+                            game.triggerHitStop(150);
+    
+                            // สร้างดาเมจวงกว้าง (AoE) และสโลว์
+                            let enemies = game.getEnemies(player);
+                            for (let enemy of enemies) {
+                                let edx = enemy.x - player.x;
+                                let edy = enemy.y - player.y;
+                                if (Math.hypot(edx, edy) < 180) { // รัศมีทุบพื้นแยก 180
+                                    // คริติคอล 150% จากดาเมจรวม
+                                    let smashDmg = (this.baseDamage + player.custom.bonusDamage) * 1.5;
+                                    enemy.takeDamage(smashDmg, "physical", player, game);
+                                    
+                                    // ติดสถานะสโลว์ 25% เป็นเวลา 2.5 วินาที
+                                    if (enemy.addStatus) {
+                                        enemy.addStatus({
+                                            name: "EarthShatter_Slow",
+                                            type: "slow",
+                                            duration: 2500,
+                                            value: 0.25 // สโลว์ 25%
+                                        });
+                                    }
+                                }
+                            }
+                            
+                            // เอฟเฟกต์รอยแยกบนพื้น (จำลองด้วยอนุภาคสีเทาเข้ม/น้ำตาลกระจายออก)
+                            for (let i = 0; i < 15; i++) {
+                                game.spawnParticles(player.x + (Math.random() - 0.5) * 200, player.y + (Math.random() - 0.5) * 200, 5, "#3e2723");
+                            }
+                        }
+                    } else if (player.custom.ultTimer <= 0) {
+                        player.custom.ultPhase = 2; // จบการพุ่งหากไม่มีเป้าหมาย
+                    }
+                } else {
+                    // หลังทุบเสร็จ ค้างท่าขวานไว้เล็กน้อย
+                    player.weaponRotation += 0.01 * player.weaponDir * deltaMult;
+                }
+            } else {
+                // การหมุนปกติเมื่อไม่ได้ใช้อัลติ
+                player.custom.ultPhase = 0;
+                player.weaponRotation += 0.08 * player.weaponDir * deltaMult;
+            }
+        },
+        
+        render(ctx, player, game) { 
+            // วาดด้ามจับขวาน (ไม้)
+            ctx.fillStyle = this.color;
+            ctx.fillRect(-6, 0, 12, this.length);
+    
+            // วาดหัวขวาน (โลหะ)
+            ctx.fillStyle = "#A9A9A9"; // สีเงิน
+            ctx.beginPath();
+            // ออกแบบรูปทรงหัวขวานที่ยื่นออกไปด้านข้าง
+            ctx.moveTo(6, this.length * 0.6);
+            ctx.lineTo(35, this.length * 0.4);
+            ctx.lineTo(45, this.length * 0.7);
+            ctx.lineTo(35, this.length * 1.0);
+            ctx.lineTo(6, this.length * 0.85);
+            ctx.fill();
+    
+            // ตกแต่งสันขวาน
+            ctx.strokeStyle = "#ECEFF1";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+    
+            // เอฟเฟกต์แสงเรืองรองเมื่อเปิดอัลติเมต
+            if (player.ultimateActive) {
+                ctx.shadowColor = "#FF4500";
+                ctx.shadowBlur = 20;
+                ctx.fillStyle = "rgba(255, 69, 0, 0.4)";
+                ctx.fill();
+                ctx.shadowBlur = 0; // รีเซ็ต
+            }
+        },
+        
+        onHitPlayer(player, target, game) {
+            // หากอยู่ในช่วงอัลติเมตทุบพื้น จะไม่คิดดาเมจจากการฟาดปกติทับซ้อน
+            if (player.ultimateActive) {
+                player.reverseWeapon();
+                return;
+            }
+    
+            // คำนวณดาเมจพื้นฐาน + โบนัสที่สะสมไว้
+            let currentDamage = this.baseDamage + player.custom.bonusDamage;
+            let isCrit = Math.random() < 0.25; // โอกาสคริติคอล 25%
+    
+            if (isCrit) {
+                currentDamage *= 1.5; // คริติคอล +DMG 50%
+                game.spawnParticles(target.x, target.y, 15, "#FFD700"); // อนุภาคสีทองเมื่อคริ
+            }
+    
+            target.takeDamage(currentDamage, "physical", player, game);
+    
+            // พาสซีพ: ตีโดนเพิ่มดาเมจ +1
+            player.custom.bonusDamage += 1;
+    
+            // เอฟเฟกต์เลือด/แรงกระแทกปกติ
+            game.spawnParticles(target.x, target.y, 8, "#FF0000");
+            player.reverseWeapon();
+        },
+        
+        onHitWeapon(player, enemyPlayer, game) {
+            // เมื่อขวานปะทะอาวุธศัตรู
+            game.spawnParticles(player.weaponX || player.x, player.weaponY || player.y, 10, "#FFF");
+            player.reverseWeapon();
+        },
+        
+        onTakeDamage(player, source, game) {
+            // ไม่มีผลพิเศษเมื่อโดนโจมตี
+        },
+        
+        onUltimateActivate(player, game) {
+            // เริ่มต้นอัลติเมต: ตั้งค่าให้พุ่งเข้าหาศัตรู
+            player.custom.ultPhase = 1; 
+            player.custom.ultTimer = 600; // ให้เวลาพุ่งสูงสุด 600ms
+            game.spawnParticles(player.x, player.y, 25, "#FF8C00"); // ออร่าระเบิดออกตอนกดอัลติ
+        }
     }
 };
 
