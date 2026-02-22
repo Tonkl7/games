@@ -592,11 +592,11 @@ const WEAPON_REGISTRY = {
             player.custom.laserCount = 1;    // จำนวนเส้นเลเซอร์ (เริ่มต้นที่ 1 เส้น)
             player.custom.maxLasers = 30;    // จำกัดสูงสุด 30 เส้น (เพื่อไม่ให้เกมแลคและสมดุล)
             player.custom.hitTimer = 0;      // คูลดาวน์การทำดาเมจของเลเซอร์
-            player.custom.decayTimer = 0;    // เวลาก่อนที่จำนวนเส้นเลเซอร์จะลดลง
             player.custom.overheatTimer = 0; // คูลดาวน์หลังใช้อัลติเมต
             player.custom.beamLength = 400;  // ความยาวของเส้นเลเซอร์
             
-            player.passiveText = "Laser Gun: ยิ่งจี้โดน เลเซอร์ยิ่งงอกเพิ่ม (สูงสุด 30 เส้น)\nUlt: หลอมรวมเลเซอร์ทุกเส้นเป็นลำแสงยักษ์ยิงกวาดจอ (Overheat 4 วิ)";
+            // อัปเดตข้อความ Passive ใหม่
+            player.passiveText = "Laser Gun: ยิ่งจี้โดน เลเซอร์ยิ่งงอกเพิ่ม (สะสมไว้ไม่มีลด สูงสุด 30 เส้น)\nUlt: หลอมรวมเลเซอร์ทุกเส้นเป็นลำแสงยักษ์ยิงกวาดจอ (Overheat 4 วิ, รีเซ็ตเลเซอร์)";
         },
         
         onUpdate(player, enemy, game) {
@@ -611,14 +611,6 @@ const WEAPON_REGISTRY = {
             // จัดการระบบ Cooldown การดึงดาเมจ
             if (player.custom.hitTimer > 0) {
                 player.custom.hitTimer -= (game.delta / 16);
-            }
-            
-            // ลดจำนวนเส้นเลเซอร์หากยิงไม่โดนศัตรูสักพัก
-            if (player.custom.decayTimer > 0) {
-                player.custom.decayTimer -= (game.delta / 16);
-            } else if (player.custom.laserCount > 1) {
-                player.custom.laserCount--;
-                player.custom.decayTimer = 15; // ค่อยๆ หุบเลเซอร์ลงทีละเส้น
             }
     
             // ==========================================
@@ -656,6 +648,10 @@ const WEAPON_REGISTRY = {
                             if (dist < 5 + p.radius) {
                                 anyHit = true;
                                 p.takeDamage(this.baseDamage, "magic", player, game);
+                                
+                                // เพิ่มเกจอัลติเมต 1% ต่อ 1 ดาเมจที่ทำได้ (จำกัดไม่ให้เกิน 100)
+                                player.ultimateGauge = Math.min(100, (player.ultimateGauge || 0) + this.baseDamage);
+                                
                                 // ปั้น Particle แค่เส้นละ 1 เม็ดพอ เพื่อไม่ให้กระตุกเวลาโดนพร้อมกัน 30 เส้น
                                 game.spawnParticles(p.x, p.y, 1, this.color); 
                             }
@@ -665,13 +661,12 @@ const WEAPON_REGISTRY = {
                 
                 // ถ้ามีเลเซอร์อย่างน้อย 1 เส้นโจมตีโดน
                 if (anyHit) {
-                    // งอกเลเซอร์เส้นใหม่เพิ่ม (สูงสุดตามที่จำกัดไว้)
+                    // งอกเลเซอร์เส้นใหม่เพิ่ม (สูงสุดตามที่จำกัดไว้ จะไม่มีการลดหายไปเองแล้ว)
                     if (player.custom.laserCount < player.custom.maxLasers) {
                         player.custom.laserCount += 1; 
                     }
                     
                     player.custom.hitTimer = 6;    // ความถี่การทำดาเมจ (ประมาณ 10 ฮิตต่อวินาที)
-                    player.custom.decayTimer = 60; // เลื่อนเวลาหุบเลเซอร์ออกไป
                 }
             }
         },
@@ -736,8 +731,7 @@ const WEAPON_REGISTRY = {
         },
         
         onTakeDamage(player, source, game) {
-            // เมื่อโดนโจมตี เลเซอร์จะหุบหายไป 30% ของที่มีอยู่
-            player.custom.laserCount = Math.max(1, player.custom.laserCount - Math.floor(player.custom.laserCount * 0.3));
+            // ไม่มีผลอะไรแล้วเมื่อโดนดาเมจ (เลเซอร์ที่สะสมมาจะไม่หายไป)
         },
         
         onUltimateActivate(player, game) {
@@ -747,6 +741,8 @@ const WEAPON_REGISTRY = {
             // รีเซ็ตจำนวนเลเซอร์กลับเป็น 1 เส้น และติดสถานะ Overheat 4 วินาที (240 เฟรม)
             player.custom.laserCount = 1;
             player.custom.overheatTimer = 240; 
+            // รีเซ็ตเกจอัลติเมต
+            player.ultimateGauge = 0;
             
             game.triggerHitStop(250);
             game.spawnParticles(player.x, player.y, 50, "#00FFFF");
