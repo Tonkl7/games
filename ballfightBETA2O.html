@@ -596,7 +596,7 @@ const WEAPON_REGISTRY = {
             player.custom.beamLength = 400;  // ความยาวของเส้นเลเซอร์
             
             // อัปเดตข้อความ Passive ใหม่
-            player.passiveText = "Laser Gun: ยิ่งจี้โดน เลเซอร์ยิ่งงอกเพิ่ม (สะสมไว้ไม่มีลด สูงสุด 30 เส้น)\nUlt: หลอมรวมเลเซอร์ทุกเส้นเป็นลำแสงยักษ์ยิงกวาดจอ (Overheat 4 วิ, รีเซ็ตเลเซอร์)";
+            player.passiveText = "Laser Gun: ยิ่งจี้โดน เลเซอร์ยิ่งงอกเพิ่ม (สะสมไว้ไม่มีลด สูงสุด 30 เส้น)\nUlt: หลอมรวมเลเซอร์ทั้งหมดที่มี ยิงกวาดจอทีเดียว (Overheat 4 วิ, รีเซ็ตเลเซอร์)";
         },
         
         onUpdate(player, enemy, game) {
@@ -649,8 +649,8 @@ const WEAPON_REGISTRY = {
                                 anyHit = true;
                                 p.takeDamage(this.baseDamage, "magic", player, game);
                                 
-                                // เพิ่มเกจอัลติเมต 1% ต่อ 1 ดาเมจที่ทำได้ (จำกัดไม่ให้เกิน 100)
-                                player.ultimateGauge = Math.min(100, (player.ultimateGauge || 0) + this.baseDamage);
+                                // ชดเชยระบบหลักของเกมที่บวกเกจ 20% อัตโนมัติ โดยการลบออก 19% (เพื่อให้เหลือเพิ่มแค่ 1%)
+                                player.ultimateGauge = Math.max(0, Math.min(100, (player.ultimateGauge || 0) - 19));
                                 
                                 // ปั้น Particle แค่เส้นละ 1 เม็ดพอ เพื่อไม่ให้กระตุกเวลาโดนพร้อมกัน 30 เส้น
                                 game.spawnParticles(p.x, p.y, 1, this.color); 
@@ -719,6 +719,8 @@ const WEAPON_REGISTRY = {
         
         onHitPlayer(player, enemy, game) {
             enemy.takeDamage(1, "blunt", player, game);
+            // ชดเชยเกจเวลากระแทกด้วยตัวปืนเพียวๆ ด้วย
+            player.ultimateGauge = Math.max(0, Math.min(100, (player.ultimateGauge || 0) - 19));
             player.reverseWeapon();
         },
         
@@ -735,8 +737,8 @@ const WEAPON_REGISTRY = {
         },
         
         onUltimateActivate(player, game) {
-            // คำนวณดาเมจระเบิดพลัง: ยิ่งมีเลเซอร์เยอะ ดาเมจรวมยิ่งมหาศาล (20 เบส + 10 ต่อเส้นเลเซอร์)
-            let burstDamage = 20 + (player.custom.laserCount * 10); 
+            // คำนวณดาเมจระเบิดพลัง: นับรวมจากจำนวนเลเซอร์ที่เรามีทั้งหมด (เช่น เส้นละ 20 ดาเมจ)
+            let burstDamage = player.custom.laserCount * 20; 
             
             // รีเซ็ตจำนวนเลเซอร์กลับเป็น 1 เส้น และติดสถานะ Overheat 4 วินาที (240 เฟรม)
             player.custom.laserCount = 1;
@@ -765,6 +767,10 @@ const WEAPON_REGISTRY = {
                     // เลเซอร์อัลติเมตใหญ่ขึ้น รัศมี 60 พิกเซล
                     if (dist < 60 + p.radius) { 
                         p.takeDamage(burstDamage, "magic", player, game);
+                        
+                        // ป้องกันบั๊กเกจเด้งตอนใช้อัลติเมต (ลบเกจที่อาจจะเด้งขึ้นมาจาก engine ตอนโดนดาเมจ)
+                        player.ultimateGauge = 0;
+    
                         let pushDir = MathUtils.normalize(p.x - projX, p.y - projY);
                         if (pushDir.x === 0 && pushDir.y === 0) pushDir = {x: 1, y: 1}; 
                         p.applyForce(pushDir.x * 20, pushDir.y * 20); 
