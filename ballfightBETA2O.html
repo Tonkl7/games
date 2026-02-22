@@ -647,10 +647,14 @@ const WEAPON_REGISTRY = {
                             // เลเซอร์เส้นเล็ก ใช้ hitbox ที่แคบลง (5)
                             if (dist < 5 + p.radius) {
                                 anyHit = true;
+                                
+                                // จำค่าเกจเก่าเอาไว้ก่อนทำดาเมจ
+                                let oldGauge = player.ultimateGauge || 0;
+                                
                                 p.takeDamage(this.baseDamage, "magic", player, game);
                                 
-                                // ชดเชยระบบหลักของเกมที่บวกเกจ 20% อัตโนมัติ โดยการลบออก 19% (เพื่อให้เหลือเพิ่มแค่ 1%)
-                                player.ultimateGauge = Math.max(0, Math.min(100, (player.ultimateGauge || 0) - 19));
+                                // บังคับให้เกจเพิ่มขึ้นแค่ 1% จากค่าเดิม (ตัดปัญหาเกจเด้งขึ้นลง)
+                                player.ultimateGauge = Math.min(100, oldGauge + 1);
                                 
                                 // ปั้น Particle แค่เส้นละ 1 เม็ดพอ เพื่อไม่ให้กระตุกเวลาโดนพร้อมกัน 30 เส้น
                                 game.spawnParticles(p.x, p.y, 1, this.color); 
@@ -718,9 +722,13 @@ const WEAPON_REGISTRY = {
         },
         
         onHitPlayer(player, enemy, game) {
+            let oldGauge = player.ultimateGauge || 0;
+            
             enemy.takeDamage(1, "blunt", player, game);
-            // ชดเชยเกจเวลากระแทกด้วยตัวปืนเพียวๆ ด้วย
-            player.ultimateGauge = Math.max(0, Math.min(100, (player.ultimateGauge || 0) - 19));
+            
+            // บังคับเกจเวลาเอาตัวปืนกระแทกให้เพิ่มแค่ 1% เช่นกัน
+            player.ultimateGauge = Math.min(100, oldGauge + 1);
+            
             player.reverseWeapon();
         },
         
