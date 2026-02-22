@@ -593,13 +593,79 @@ const WEAPON_REGISTRY = {
             player.custom.maxLasers = 30;    // จำกัดสูงสุด 30 เส้น (เพื่อไม่ให้เกมแลคและสมดุล)
             player.custom.hitTimer = 0;      // คูลดาวน์การทำดาเมจของเลเซอร์
             player.custom.overheatTimer = 0; // คูลดาวน์หลังใช้อัลติเมต
+            player.custom.ultChargeTimer = 0;// ตัวจับเวลาชาร์จอัลติเมต
+            player.custom.burstDamage = 0;   // เก็บค่าดาเมจที่จะทำตอนชาร์จเสร็จ
             player.custom.beamLength = 400;  // ความยาวของเส้นเลเซอร์
             
             // อัปเดตข้อความ Passive ใหม่
-            player.passiveText = "Laser Gun: ยิ่งจี้โดน เลเซอร์ยิ่งงอกเพิ่ม (สะสมไว้ไม่มีลด สูงสุด 30 เส้น)\nUlt: หลอมรวมเลเซอร์ทั้งหมดที่มี ยิงกวาดจอทีเดียว (Overheat 4 วิ, รีเซ็ตเลเซอร์)";
+            player.passiveText = "Laser Gun: ยิ่งจี้โดน เลเซอร์ยิ่งงอกเพิ่ม (สะสมไว้ไม่มีลด สูงสุด 30 เส้น)\nUlt: ล็อกเป้าและแช่แข็งศัตรู ชาร์จพลัง 1 วิเพื่อยิงลำแสงทำลายล้างการันตีโดน (Overheat 4 วิ, รีเซ็ตเลเซอร์)";
         },
         
         onUpdate(player, enemy, game) {
+            // ==========================================
+            // ระบบชาร์จอัลติเมต (ล็อกเป้า & หยุดศัตรู)
+            // ==========================================
+            if (player.custom.ultChargeTimer > 0) {
+                player.custom.ultChargeTimer -= (game.delta / 16);
+                
+                // หมุนปืนล็อกเป้าไปที่ศัตรูตลอดเวลา
+                player.weaponRotation = Math.atan2(enemy.y - player.y, enemy.x - player.x);
+                
+                // เอฟเฟกต์ดูดพลังตอนชาร์จ
+                if (Math.random() < 0.4) {
+                    let pX = player.x + Math.cos(player.weaponRotation) * 40;
+                    let pY = player.y + Math.sin(player.weaponRotation) * 40;
+                    game.spawnParticles(pX, pY, 1, "#FFFFFF");
+                }
+                
+                // เมื่อชาร์จเต็ม (เวลาย้อนกลับมาถึง 0)
+                if (player.custom.ultChargeTimer <= 0) {
+                    // ทำดาเมจทีเดียวแบบการันตีโดนแน่นอน
+                    enemy.takeDamage(player.custom.burstDamage, "magic", player, game);
+                    
+                    // ผลักศัตรูกระเด็นอย่างแรง
+                    let pushDir = MathUtils.normalize(enemy.x - player.x, enemy.y - player.y);
+                    if (pushDir.x === 0 && pushDir.y === 0) pushDir = {x: 1, y: 1};
+                    enemy.applyForce(pushDir.x * 30, pushDir.y * 30);
+                    
+                    // รีเซ็ตเกจที่อาจจะเด้งขึ้นมาจากการทำดาเมจเวท
+                    player.ultimateGauge = 0;
+                    
+                    // เข้าสู่โหมด Overheat และรีเซ็ตเลเซอร์
+                    player.custom.laserCount = 1;
+                    player.custom.overheatTimer = 240; // Overheat 4 วินาที
+                    
+                    game.triggerHitStop(250);
+                    game.spawnParticles(enemy.x, enemy.y, 40, "#00FFFF");
+                    
+                    // สร้าง Entity ลำแสงยักษ์ที่ยิงทะลุจอตามมุมล็อกเป้า
+                    let blastAngle = player.weaponRotation;
+                    game.spawn({
+                        x: player.x, y: player.y, rot: blastAngle,
+                        lifetime: 500,
+                        update(g) { this.lifetime -= g.delta; },
+                        render(ctx) {
+                            ctx.save();
+                            ctx.translate(this.x, this.y);
+                            ctx.rotate(this.rot);
+                            let alpha = Math.max(0, this.lifetime / 500);
+                            ctx.globalAlpha = alpha;
+                            ctx.fillStyle = "#00FFFF";
+                            ctx.fillRect(0, -80, 1500, 160); // ออร่าลำแสงใหญ่มาก
+                            ctx.fillStyle = "#FFFFFF";
+                            ctx.fillRect(0, -40, 1500, 80);  // แกนกลาง
+                            ctx.restore();
+                        }
+                    });
+                }
+                // รีเทิร์นออกไปเลย เพื่อข้ามการหมุนปืนปกติและการทำดาเมจเลเซอร์เส้นเล็กขณะกำลังชาร์จ
+                return; 
+            }
+    
+            // ==========================================
+            // การทำงานปกติ (เมื่อไม่ได้ชาร์จอัลติเมต)
+            // ==========================================
+            
             // หมุนปืนด้วยความเร็วคงที่
             player.weaponRotation += 0.06 * player.weaponDir * (game.delta / 16);
             
@@ -613,17 +679,14 @@ const WEAPON_REGISTRY = {
                 player.custom.hitTimer -= (game.delta / 16);
             }
     
-            // ==========================================
             // ระบบคำนวณ Hitbox สำหรับเลเซอร์หลายเส้น
-            // ==========================================
             if (player.custom.overheatTimer <= 0 && player.custom.hitTimer <= 0) {
                 let anyHit = false;
                 let count = player.custom.laserCount;
-                let spreadAngle = 0.08; // องศาความกว้างของการแฉกแต่ละเส้น (ประมาณ 4.5 องศา)
+                let spreadAngle = 0.08; 
     
                 // ลูปเช็คเลเซอร์ทีละเส้น
                 for (let i = 0; i < count; i++) {
-                    // คำนวณมุมของเลเซอร์เส้นนี้ ให้กระจายตัวออกจากศูนย์กลาง
                     let angleOffset = count === 1 ? 0 : (i - (count - 1) / 2) * spreadAngle;
                     let actualAngle = player.weaponRotation + angleOffset;
     
@@ -634,7 +697,6 @@ const WEAPON_REGISTRY = {
                     
                     let l2 = player.custom.beamLength * player.custom.beamLength;
                     
-                    // เช็คศัตรูทุกคน
                     for (let p of game.players) {
                         if (p !== player) {
                             let t = ((p.x - startX) * (endX - startX) + (p.y - startY) * (endY - startY)) / l2;
@@ -656,7 +718,6 @@ const WEAPON_REGISTRY = {
                                 // บังคับให้เกจเพิ่มขึ้นแค่ 1% จากค่าเดิม (ตัดปัญหาเกจเด้งขึ้นลง)
                                 player.ultimateGauge = Math.min(100, oldGauge + 1);
                                 
-                                // ปั้น Particle แค่เส้นละ 1 เม็ดพอ เพื่อไม่ให้กระตุกเวลาโดนพร้อมกัน 30 เส้น
                                 game.spawnParticles(p.x, p.y, 1, this.color); 
                             }
                         }
@@ -665,12 +726,10 @@ const WEAPON_REGISTRY = {
                 
                 // ถ้ามีเลเซอร์อย่างน้อย 1 เส้นโจมตีโดน
                 if (anyHit) {
-                    // งอกเลเซอร์เส้นใหม่เพิ่ม (สูงสุดตามที่จำกัดไว้ จะไม่มีการลดหายไปเองแล้ว)
                     if (player.custom.laserCount < player.custom.maxLasers) {
                         player.custom.laserCount += 1; 
                     }
-                    
-                    player.custom.hitTimer = 6;    // ความถี่การทำดาเมจ (ประมาณ 10 ฮิตต่อวินาที)
+                    player.custom.hitTimer = 6;
                 }
             }
         },
@@ -682,6 +741,25 @@ const WEAPON_REGISTRY = {
             ctx.fillStyle = "#555555";
             ctx.fillRect(20, -6, 15, 12);   
             
+            // เช็คสถานะการชาร์จอัลติเมต (วาดลูกบอลพลังงานที่ปลายกระบอกปืน)
+            if (player.custom.ultChargeTimer > 0) {
+                let chargeRatio = (60 - player.custom.ultChargeTimer) / 60; // 0.0 ถึง 1.0
+                
+                ctx.beginPath();
+                ctx.arc(35, 0, 5 + (chargeRatio * 25), 0, Math.PI * 2);
+                ctx.fillStyle = "#00FFFF";
+                ctx.globalAlpha = 0.5 + Math.random() * 0.5;
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.arc(35, 0, 2 + (chargeRatio * 10), 0, Math.PI * 2);
+                ctx.fillStyle = "#FFFFFF";
+                ctx.fill();
+                
+                ctx.globalAlpha = 1.0;
+                return; // ข้ามการวาดเลเซอร์ปกติไปเลย
+            }
+    
             // เช็คสถานะ Overheat
             if (player.custom.overheatTimer > 0) {
                 ctx.fillStyle = "#FF3300";
@@ -692,7 +770,7 @@ const WEAPON_REGISTRY = {
             }
             
             // ==========================================
-            // วาดเส้นเลเซอร์ (กางออกเป็นแฉก)
+            // วาดเส้นเลเซอร์ปกติ (กางออกเป็นแฉก)
             // ==========================================
             let count = player.custom.laserCount;
             let spreadAngle = 0.08;
@@ -701,20 +779,18 @@ const WEAPON_REGISTRY = {
                 let angleOffset = count === 1 ? 0 : (i - (count - 1) / 2) * spreadAngle;
                 
                 ctx.save();
-                // ย้ายจุดหมุนไปที่ปลายกระบอกปืน (x=35)
                 ctx.translate(35, 0);
-                ctx.rotate(angleOffset); // หมุนเลเซอร์ตามองศาแฉก
+                ctx.rotate(angleOffset); 
                 
                 let flicker = Math.random() * 0.3;
                 
-                // วาดเส้นเลเซอร์ขนาดเล็ก
                 ctx.globalAlpha = 0.4 + flicker;
                 ctx.fillStyle = this.color;
-                ctx.fillRect(0, -2, player.custom.beamLength, 4); // ออร่ารอบนอก
+                ctx.fillRect(0, -2, player.custom.beamLength, 4); 
                 
                 ctx.globalAlpha = 0.8 + flicker / 2;
                 ctx.fillStyle = "#FFFFFF";
-                ctx.fillRect(0, -1, player.custom.beamLength, 2); // แกนกลาง
+                ctx.fillRect(0, -1, player.custom.beamLength, 2); 
                 
                 ctx.restore();
             }
@@ -733,6 +809,9 @@ const WEAPON_REGISTRY = {
         },
         
         onHitWeapon(player, enemy, game) {
+            // ถ้าชาร์จอยู่ ให้ปืนแข็งแกร่งทะลุอาวุธศัตรูไปเลย
+            if (player.custom.ultChargeTimer > 0) return;
+    
             if (player.custom.overheatTimer > 0) {
                 player.reverseWeapon(); 
             } else {
@@ -745,65 +824,52 @@ const WEAPON_REGISTRY = {
         },
         
         onUltimateActivate(player, game) {
-            // คำนวณดาเมจระเบิดพลัง: นับรวมจากจำนวนเลเซอร์ที่เรามีทั้งหมด (เช่น เส้นละ 20 ดาเมจ)
-            let burstDamage = player.custom.laserCount * 20; 
+            // ค้นหาศัตรูในเกม
+            let target = game.players.find(p => p !== player);
+            if (!target) return; // ถ้าไม่เจอศัตรูให้ยกเลิก
             
-            // รีเซ็ตจำนวนเลเซอร์กลับเป็น 1 เส้น และติดสถานะ Overheat 4 วินาที (240 เฟรม)
-            player.custom.laserCount = 1;
-            player.custom.overheatTimer = 240; 
-            // รีเซ็ตเกจอัลติเมต
-            player.ultimateGauge = 0;
+            // 1. คำนวณดาเมจเตรียมไว้ (เส้นละ 20 ดาเมจ)
+            player.custom.burstDamage = player.custom.laserCount * 20; 
             
-            game.triggerHitStop(250);
-            game.spawnParticles(player.x, player.y, 50, "#00FFFF");
+            // 2. เริ่มสถานะการชาร์จเป็นเวลา 60 เฟรม (1 วินาที)
+            player.custom.ultChargeTimer = 60;
+            player.ultimateGauge = 0; // เคลียร์เกจเป็น 0
             
-            // อัลติเมตยิงกวาดจอ 1000 พิกเซล
-            let ultBeamLength = 1000;
-            let endX = player.x + Math.cos(player.weaponRotation) * ultBeamLength;
-            let endY = player.y + Math.sin(player.weaponRotation) * ultBeamLength;
-            
-            let l2 = ultBeamLength * ultBeamLength;
-            for (let p of game.players) {
-                if (p !== player) {
-                    let t = ((p.x - player.x) * (endX - player.x) + (p.y - player.y) * (endY - player.y)) / l2;
-                    t = MathUtils.clamp(t, 0, 1);
-                    
-                    let projX = player.x + t * (endX - player.x);
-                    let projY = player.y + t * (endY - player.y);
-                    let dist = MathUtils.distance(p.x, p.y, projX, projY);
-                    
-                    // เลเซอร์อัลติเมตใหญ่ขึ้น รัศมี 60 พิกเซล
-                    if (dist < 60 + p.radius) { 
-                        p.takeDamage(burstDamage, "magic", player, game);
-                        
-                        // ป้องกันบั๊กเกจเด้งตอนใช้อัลติเมต (ลบเกจที่อาจจะเด้งขึ้นมาจาก engine ตอนโดนดาเมจ)
-                        player.ultimateGauge = 0;
-    
-                        let pushDir = MathUtils.normalize(p.x - projX, p.y - projY);
-                        if (pushDir.x === 0 && pushDir.y === 0) pushDir = {x: 1, y: 1}; 
-                        p.applyForce(pushDir.x * 20, pushDir.y * 20); 
-                    }
+            // 3. หยุดศัตรูให้อยู่กับที่ (ด้วยการยัด Status Effect แช่แข็ง 1 วินาที)
+            target.addStatus({
+                type: "ult_lock",
+                duration: 1000,
+                update(p, g) {
+                    p.vx = 0;
+                    p.vy = 0;
                 }
-            }
+            });
             
-            // เสก Entity เลเซอร์ยักษ์ที่หลอมรวมแล้ว (ค่อยๆ จางหายไป)
+            // 4. สร้าง Entity "เป้าเล็ง" ไปล็อกอยู่บนตัวศัตรู
             game.spawn({
-                x: player.x, y: player.y, rot: player.weaponRotation,
-                lifetime: 500, // แสดงอยู่ครึ่งวินาที
+                target: target,
+                lifetime: 1000,
                 update(g) { this.lifetime -= g.delta; },
                 render(ctx) {
                     ctx.save();
-                    ctx.translate(this.x, this.y);
-                    ctx.rotate(this.rot);
+                    ctx.translate(this.target.x, this.target.y);
                     
-                    let alpha = Math.max(0, this.lifetime / 500);
-                    ctx.globalAlpha = alpha;
+                    // หมุนเป้าเล็งช้าๆ
+                    ctx.rotate(Date.now() * 0.005);
                     
-                    ctx.fillStyle = "#00FFFF";
-                    ctx.fillRect(0, -60, ultBeamLength, 120); // ออร่ากว้างมาก
+                    ctx.strokeStyle = "#FF0000"; // สีเป้าเล็งแดง
+                    ctx.lineWidth = 3;
                     
-                    ctx.fillStyle = "#FFFFFF";
-                    ctx.fillRect(0, -30, ultBeamLength, 60); // แกนกลาง
+                    // วงกลมล็อกเป้า
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.target.radius + 15, 0, Math.PI * 2);
+                    ctx.stroke();
+                    
+                    // ขีด 4 มุม (Crosshair)
+                    ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(-20, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(40, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, -40); ctx.lineTo(0, -20); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, 20); ctx.lineTo(0, 40); ctx.stroke();
                     
                     ctx.restore();
                 }
