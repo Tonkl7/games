@@ -580,6 +580,195 @@ const WEAPON_REGISTRY = {
         onHitWeapon(player, enemy, game) {
             player.reverseWeapon();
         }
+    },
+    "LaserGun": {
+        name: "Laser Gun",
+        color: "#00FFFF", // Cyan Laser
+        width: 10,
+        length: 250, // Very long beam
+        baseDamage: 3, // Low base damage but hits extremely fast
+    
+        init(player) {
+            player.custom.laserStacks = 0;   // Max 40
+            player.custom.hitTimer = 0;      // Cooldown between each damage tick
+            player.custom.decayTimer = 0;    // Time before stacks start dropping
+            player.custom.overheatTimer = 0; // Cooldown after ultimate
+        
+            player.passiveText = "Laser Gun: ยิ่งจี้โดน ดาเมจยิ่งรัว (สะสม 40 ขั้น)\nUlt: ปลดปล่อยสแตคยิงลำแสงทำลายล้าง จากนั้นปืนจะ Overheat (ยิงไม่ได้ 4 วิ)";
+        },
+    
+        onUpdate(player, enemy, game) {
+            // Laser sweeps at a consistent speed
+            player.weaponRotation += 0.06 * player.weaponDir * (game.delta / 16);
+        
+            // Handle Overheat Cooldown
+            if (player.custom.overheatTimer > 0) {
+                player.custom.overheatTimer -= (game.delta / 16);
+            }
+        
+            // Handle Damage Tick Cooldown
+            if (player.custom.hitTimer > 0) {
+                player.custom.hitTimer -= (game.delta / 16);
+            }
+        
+            // Handle Stack Decay (if not hitting for a while, gun cools down)
+            if (player.custom.decayTimer > 0) {
+                player.custom.decayTimer -= (game.delta / 16);}
+            else if (player.custom.laserStacks > 0) {
+                player.custom.laserStacks--;
+                player.custom.decayTimer = 15;}
+        },
+    
+        render(ctx, player, game) {
+            // 1. Draw Gun Body & Barrel
+            ctx.fillStyle = "#222222";
+            ctx.fillRect(-15, -12, 45, 24); // Main body
+            ctx.fillStyle = "#555555";
+            ctx.fillRect(30, -6, 20, 12);   // Gun tip
+        
+            // 2. Overheat State Check
+            if (player.custom.overheatTimer > 0) {
+                // Draw smoke / glowing hot barrel
+                ctx.fillStyle = "#FF3300";
+                ctx.globalAlpha = 0.6 + (Math.sin(Date.now() * 0.01) * 0.4);
+                ctx.fillRect(30, -6, 20, 12);
+                ctx.globalAlpha = 1.0;
+                return; // STOP RENDERING: No laser beam during overheat
+            }
+        
+            // 3. Draw Laser Beam
+            let beamLength = this.length - 50; 
+            let stackIntensity = player.custom.laserStacks / 40; // 0.0 to 1.0
+            let flicker = Math.random() * 0.3;
+        
+            // Outer Beam Glow
+            ctx.globalAlpha = 0.4 + flicker;
+            ctx.fillStyle = this.color;
+            ctx.fillRect(50, -this.width, beamLength, this.width * 2);
+        
+            // Inner Bright Core (gets thicker with more stacks)
+            ctx.globalAlpha = 0.8 + flicker / 2;
+            ctx.fillStyle = "#FFFFFF";
+            let coreWidth = this.width * (0.3 + 0.6 * stackIntensity);
+            ctx.fillRect(50, -coreWidth, beamLength, coreWidth * 2);
+        
+            ctx.globalAlpha = 1.0;
+        },
+    
+        onHitPlayer(player, enemy, game) {
+            // If overheated, laser is gone. Only the physical gun barrel can hit.
+            if (player.custom.overheatTimer > 0) {
+                let dist = MathUtils.distance(player.x, player.y, enemy.x, enemy.y);
+                if (dist < 50 + enemy.radius) { // 50 is the physical gun barrel length
+                    enemy.takeDamage(2, "blunt", player, game);
+                    player.reverseWeapon();
+                }
+                return;
+            }
+        
+            // If Laser is active, check if ready to tick damage
+            if (player.custom.hitTimer <= 0) {
+                // Deal continuous magic damage
+                enemy.takeDamage(this.baseDamage, "magic", player, game);
+            
+                // Add Stacks
+                if (player.custom.laserStacks < 40) {
+                    player.custom.laserStacks += 1;
+                }
+            
+                // Calculate Next Tick Rate (Faster with more stacks)
+                // 0 Stacks = 15 frames (~250ms), 40 Stacks = 2 frames (~33ms)
+                let tickDelay = 15 - (player.custom.laserStacks * 0.325);
+                player.custom.hitTimer = Math.max(2, tickDelay);
+            
+                // Reset decay
+                player.custom.decayTimer = 45; // Wait before stacks drop
+            
+                // Impact Particles
+                game.spawnParticles(enemy.x, enemy.y, 2, this.color);
+            }
+            // NOTE: We deliberately DO NOT call player.reverseWeapon() here.
+            // This allows the laser to sweep cleanly THROUGH the enemy!
+        },
+    
+        onHitWeapon(player, enemy, game) {
+            if (player.custom.overheatTimer > 0) {
+                player.reverseWeapon(); // Bounce normally if overheated
+            } else {
+                // Laser cuts through weapons without bouncing!
+                game.spawnParticles(player.weaponX, player.weaponY, 1, this.color);
+            }
+        },
+    
+        onTakeDamage(player, source, game) {
+            // Getting hit interrupts focus, dropping some stacks
+            player.custom.laserStacks = Math.max(0, player.custom.laserStacks - 5);
+        },
+    
+        onUltimateActivate(player, game) {
+            // 1. Calculate Massive Burst Damage
+            let burstDamage = 30 + (player.custom.laserStacks * 3); // Max 150 damage
+        
+            // 2. Consume stacks and trigger Overheat (4 seconds = 240 frames)
+            player.custom.laserStacks = 0;
+            player.custom.overheatTimer = 240; 
+        
+            // 3. Massive Screen Hitstop for impact feel
+            game.triggerHitStop(250);
+            game.spawnParticles(player.x, player.y, 50, "#00FFFF");
+        
+            // 4. Calculate beam end point (Screen wide)
+            let beamLength = 1000;
+            let endX = player.x + Math.cos(player.weaponRotation) * beamLength;
+            let endY = player.y + Math.sin(player.weaponRotation) * beamLength;
+        
+            // 5. Instant Hit Detection using Point-to-Line Projection Math
+            let l2 = beamLength * beamLength;
+            for (let p of game.players) {
+                if (p !== player) {
+                    let t = ((p.x - player.x) * (endX - player.x) + (p.y - player.y) * (endY - player.y)) / l2;
+                    t = MathUtils.clamp(t, 0, 1);
+                
+                    let projX = player.x + t * (endX - player.x);
+                    let projY = player.y + t * (endY - player.y);
+                    let dist = MathUtils.distance(p.x, p.y, projX, projY);
+                
+                    if (dist < 40 + p.radius) { // 40 is the half-width of the giant ultimate beam
+                        p.takeDamage(burstDamage, "magic", player, game);
+                    
+                        // Knockback away from the beam's center
+                        let pushDir = MathUtils.normalize(p.x - projX, p.y - projY);
+                        if (pushDir.x === 0 && pushDir.y === 0) pushDir = {x: 1, y: 1}; // Fallback
+                        p.applyForce(pushDir.x * 20, pushDir.y * 20);
+                    }
+                }
+            }
+        
+            // 6. Spawn Visual Entity for the Ultimate Beam (Fades out quickly)
+            game.spawn({
+                x: player.x, y: player.y, rot: player.weaponRotation,
+                lifetime: 400, // Lingers for 400ms
+                update(g) { this.lifetime -= g.delta; },
+                render(ctx) {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(this.rot);
+                
+                    let alpha = Math.max(0, this.lifetime / 400);
+                    ctx.globalAlpha = alpha;
+                
+                    // Giant outer beam
+                    ctx.fillStyle = "#00FFFF";
+                    ctx.fillRect(30, -40, beamLength, 80);
+                
+                    // Giant inner core
+                    ctx.fillStyle = "#FFFFFF";
+                    ctx.fillRect(30, -20, beamLength, 40);
+                
+                    ctx.restore();
+                }
+            });
+        }
     }
 };
 
