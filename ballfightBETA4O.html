@@ -635,7 +635,7 @@ const WEAPON_REGISTRY = {
             player.custom.ultGauge = 0; 
             player.custom.ultTimer = 0; // ระยะเวลาแสดงผลอัลติเมต (ms)
     
-            player.passiveText = "พาสซีฟ: เด้งกำแพงเพิ่มดาเมจ +1 | อัลติเพิ่มทีละ 10% (อิสระ)";
+            player.passiveText = "พาสซีฟ: เด้งกำแพงเพิ่มดาเมจ +1 | อัลติเพิ่มทีละ 10% (อิสระ), หน่วงศัตรูเมื่อใช้";
             player.weaponHitboxRadius = player.radius; // ระยะโจมตีเท่ากับตัวผู้เล่น
         },
     
@@ -688,9 +688,20 @@ const WEAPON_REGISTRY = {
                 // ค่อยๆ ลดเกจลงตามเวลาที่เหลืออยู่ (ลดจาก 100 ไป 0 ใน 4 วินาที)
                 player.custom.ultGauge = (Math.max(0, player.custom.ultTimer) / 4000) * 100;
     
-                // พาสซีฟอัลติ: เพิ่มความเร็วในการกระเด้งและพุ่งกระแทก
+                // พาสซีฟอัลติ: เพิ่มความเร็วในการกระเด้งและพุ่งกระแทกของเราเอง
                 if (Math.abs(player.vx) < 50) player.vx *= 1.05;
                 if (Math.abs(player.vy) < 50) player.vy *= 1.05;
+    
+                // หน่วงความเร็วศัตรูและโปรเจคไทล์ของศัตรูทั้งหมดในสนาม (ทำให้ดูเหมือนโลกช้าลง)
+                let enemies = game.getEnemies(player);
+                if (enemies && enemies.length > 0) {
+                    for (let i = 0; i < enemies.length; i++) {
+                        let enemy = enemies[i];
+                        // ลดความเร็ว (Velocity) ของศัตรูลงเรื่อยๆ ในขณะที่อัลติทำงาน
+                        enemy.vx *= 0.85;
+                        enemy.vy *= 0.85;
+                    }
+                }
     
                 // ปิดอัลติเมื่อเวลาหมด
                 if (player.custom.ultTimer <= 0) {
@@ -712,16 +723,25 @@ const WEAPON_REGISTRY = {
     
             // คำนวณความเร็วปัจจุบัน
             let speed = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
+            let isUltActive = player.custom.ultTimer > 0;
+    
+            // ปรับแต่งค่าของเงา (Trail) ตามสถานะอัลติเมต
+            let trailCount = isUltActive ? 10 : 4;         // จำนวนเงา (อัลติจะมีเงาเยอะกว่า)
+            let trailSpacing = isUltActive ? 0.5 : 0.3;    // ระยะห่างของเงาแต่ละอัน (อัลติจะลากยาวกว่า)
+            let startAlpha = isUltActive ? 0.8 : 0.6;      // ความเข้มเริ่มต้น
+            let alphaDrop = isUltActive ? 0.08 : 0.15;     // อัตราการจาง (ค่าน้อย = อยู่นานกว่าปกติ)
     
             // เอฟเฟคภาพติดตา (Fade/Trail) เพื่อแสดงให้เห็นถึงความเร็ว
             if (speed > 3) {
-                for (let i = 1; i <= 4; i++) {
+                for (let i = 1; i <= trailCount; i++) {
                     // ยิ่งห่าง ยิ่งจาง
-                    ctx.globalAlpha = Math.max(0, 0.6 - (i * 0.15));
+                    ctx.globalAlpha = Math.max(0, startAlpha - (i * alphaDrop));
                     ctx.beginPath();
                     // วาดย้อนกลับไปในทิศทางตรงข้ามกับความเร็ว
-                    ctx.arc(-player.vx * i * 0.3, -player.vy * i * 0.3, player.radius, 0, Math.PI * 2);
-                    ctx.fillStyle = this.color;
+                    ctx.arc(-player.vx * i * trailSpacing, -player.vy * i * trailSpacing, player.radius, 0, Math.PI * 2);
+                    
+                    // ตอนใช้อัลติให้สีเงาเป็นสีขาวเรืองแสงนิดหน่อย เพื่อความเท่
+                    ctx.fillStyle = isUltActive ? "#ffffff" : this.color; 
                     ctx.fill();
                 }
             }
