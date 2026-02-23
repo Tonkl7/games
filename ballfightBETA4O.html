@@ -3,26 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auto-Battler Arena Engine</title>
+    <title>Ball Fight betaV4</title>
     <style>
-        /* --- THEME: MODERN MEDIEVAL --- */
+        /* --- THEME: DIMENSIONAL MINIMAL MEDIEVAL --- */
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Lato:wght@400;700&display=swap');
 
         :root {
-            --gold: #d4af37;
-            --gold-dark: #aa8628;
-            --bg-dark: #0f0f15;
-            --panel-bg: rgba(20, 20, 26, 0.85);
-            --text-main: #f3e5ab; /* Parchment white */
-            --text-accent: #b0c4de; /* Steel blue */
-            --team1-color: #4169e1; /* Royal Blue */
-            --team2-color: #8b0000; /* Dark Red */
+            --gold: #b89947;
+            --gold-dark: #8b7952;
+            --bg-light: #e8e4d8; /* Slightly darker parchment for depth */
+            --panel-bg: rgba(252, 250, 245, 0.95);
+            --text-main: #3d3124; /* Dark ink brown */
+            --text-accent: #5c4e3a; /* Muted brown */
+            --team1-color: #3b5998; /* Muted Royal Blue */
+            --team2-color: #8b2222; /* Muted Dark Red */
+            --border-light: #c8bca7;
         }
 
         body {
             margin: 0;
             overflow: hidden;
-            background-color: var(--bg-dark);
+            background-color: var(--bg-light);
             color: var(--text-main);
             font-family: 'Lato', Tahoma, Geneva, Verdana, sans-serif;
             user-select: none;
@@ -32,8 +33,9 @@
             font-family: 'Cinzel', serif;
             text-transform: uppercase;
             letter-spacing: 2px;
-            color: var(--gold);
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            color: var(--text-main);
+            margin: 0;
+            text-shadow: 1px 1px 0px rgba(255, 255, 255, 0.8); /* Emboss effect */
         }
 
         /* Menu Scene */
@@ -44,93 +46,129 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background: radial-gradient(circle at center, #232332 0%, #0a0a0f 100%);
+            background: radial-gradient(circle at center, #ffffff 0%, #dcd7ca 100%);
             z-index: 100;
         }
         
         .menu-box {
-            background: var(--panel-bg);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(240, 236, 227, 0.9));
             backdrop-filter: blur(10px);
             padding: 40px;
             border-radius: 8px;
             text-align: center;
-            border: 2px solid var(--gold-dark);
-            box-shadow: 0 0 30px rgba(212, 175, 55, 0.15), inset 0 0 20px rgba(0,0,0,0.5);
+            border: 1px solid var(--border-light);
+            border-bottom: 4px solid var(--border-light); /* 3D Box effect */
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1), 0 5px 15px rgba(0, 0, 0, 0.05);
             max-height: 90vh;
             overflow-y: auto;
             width: 80%;
             max-width: 600px;
         }
         
-        h1 { margin-top: 0; font-size: 2.5em; }
+        h1 { 
+            margin-bottom: 20px; 
+            font-size: 2.2em; 
+            border-bottom: 1px solid var(--border-light); 
+            padding-bottom: 15px;
+            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+            position: relative;
+        }
+
+        /* Beta Blinking Tag */
+        .beta-tag {
+            font-family: 'Lato', sans-serif;
+            font-size: 0.35em;
+            color: #d32f2f;
+            vertical-align: top;
+            margin-left: 8px;
+            letter-spacing: 1px;
+            font-weight: bold;
+            text-shadow: none;
+            animation: blink 1.2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
         
-        .mode-selector { margin-bottom: 20px; padding: 10px; border-bottom: 1px solid rgba(212, 175, 55, 0.3);}
+        .mode-selector { margin-bottom: 20px; padding: 10px; }
         
-        .setup-section { margin-bottom: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .setup-section { margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; }
         .dynamic-row { 
             display: flex; justify-content: space-between; align-items: center; 
-            background: rgba(0,0,0,0.4); 
-            padding: 12px; 
+            background: linear-gradient(to right, rgba(0,0,0,0.03), transparent); 
+            padding: 10px 15px; 
             border-radius: 4px;
-            border-left: 3px solid var(--gold);
+            border-left: 4px solid var(--gold);
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.02);
         }
         
         select, input[type="number"], input[type="color"] {
-            padding: 8px;
+            padding: 6px 10px;
             font-size: 14px;
             font-family: 'Lato', sans-serif;
-            background: #111;
+            background: #fff;
             color: var(--text-main);
-            border: 1px solid var(--gold-dark);
+            border: 1px solid var(--border-light);
             border-radius: 4px;
             outline: none;
             cursor: pointer;
+            transition: border-color 0.2s;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.04);
         }
+        select:focus, input:focus { border-color: var(--gold); box-shadow: inset 0 2px 4px rgba(184, 153, 71, 0.1); }
         
         .action-buttons {
             display: flex;
             gap: 15px;
             justify-content: center;
-            margin-top: 20px;
+            margin-top: 30px;
         }
 
         button.primary-btn {
-            padding: 15px 40px;
-            font-size: 18px;
-            font-family: 'Cinzel', serif;
-            font-weight: bold;
-            background: linear-gradient(180deg, #3a2e22 0%, #1c1510 100%);
-            color: var(--gold);
-            border: 2px solid var(--gold-dark);
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.2s;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.6);
-        }
-        button.primary-btn:hover { 
-            background: linear-gradient(180deg, #4d3d2e 0%, #291e17 100%);
-            color: #fff;
-            border-color: var(--gold);
-            box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
-            transform: translateY(-2px); 
-        }
-
-        button.secondary-btn {
-            padding: 15px 25px;
+            padding: 12px 35px;
             font-size: 16px;
             font-family: 'Cinzel', serif;
             font-weight: bold;
+            background: linear-gradient(180deg, #fdfbf7 0%, #e8e4d8 100%);
+            color: var(--text-main);
+            border: 1px solid var(--border-light);
+            border-bottom: 3px solid var(--gold-dark);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.08);
+            text-shadow: 1px 1px 0px #fff;
+        }
+        button.primary-btn:hover { 
+            background: linear-gradient(180deg, #fff 0%, #f4f1ea 100%);
+            transform: translateY(-1px); 
+            box-shadow: 0 6px 12px rgba(184, 153, 71, 0.2);
+            border-bottom-color: var(--gold);
+        }
+        button.primary-btn:active {
+            transform: translateY(2px);
+            border-bottom-width: 1px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        button.secondary-btn {
+            padding: 12px 25px;
+            font-size: 14px;
+            font-family: 'Cinzel', serif;
+            font-weight: bold;
             background: transparent;
-            color: var(--gold);
-            border: 2px solid var(--gold-dark);
-            border-radius: 4px;
+            color: var(--text-accent);
+            border: 1px solid var(--border-light);
+            border-radius: 6px;
             cursor: pointer;
             transition: all 0.2s;
         }
         button.secondary-btn:hover {
-            background: rgba(212, 175, 55, 0.1);
-            color: #fff;
-            box-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
+            background: rgba(0,0,0,0.03);
+            color: var(--text-main);
+            border-color: var(--text-accent);
         }
 
         /* Arena UI Layout */
@@ -149,12 +187,12 @@
             width: 270px; height: 100vh;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 12px;
             padding: 20px 15px;
             box-sizing: border-box;
             overflow-y: auto;
             pointer-events: auto;
-            background: linear-gradient(90deg, rgba(10,10,15,0.9) 0%, rgba(10,10,15,0) 100%);
+            background: linear-gradient(90deg, rgba(232, 228, 216, 0.95) 0%, rgba(232, 228, 216, 0) 100%);
         }
 
         /* Right HUD (Bosses / P2 / Team 2) */
@@ -164,67 +202,65 @@
             width: 270px; height: 100vh;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 12px;
             padding: 20px 15px;
             box-sizing: border-box;
             overflow-y: auto;
             pointer-events: auto;
-            background: linear-gradient(-90deg, rgba(10,10,15,0.9) 0%, rgba(10,10,15,0) 100%);
+            background: linear-gradient(-90deg, rgba(232, 228, 216, 0.95) 0%, rgba(232, 228, 216, 0) 100%);
         }
 
         .hud-panel {
-            background: var(--panel-bg);
-            border: 2px solid #333;
-            border-radius: 4px;
-            padding: 15px;
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(240, 235, 225, 0.85));
+            border: 1px solid var(--border-light);
+            border-bottom: 3px solid var(--border-light); /* 3D effect */
+            border-left: 5px solid var(--gold); /* Team color handled in JS */
+            border-radius: 6px;
+            padding: 12px 15px;
             width: 100%;
             box-sizing: border-box;
             backdrop-filter: blur(8px);
             flex-shrink: 0;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,1);
             position: relative;
         }
-        /* Modern-Medieval corner accents */
-        .hud-panel::before, .hud-panel::after {
-            content: ''; position: absolute; width: 8px; height: 8px; border: 1px solid var(--gold);
-        }
-        .hud-panel::before { top: -3px; left: -3px; border-right: none; border-bottom: none; }
-        .hud-panel::after { bottom: -3px; right: -3px; border-left: none; border-top: none; }
 
-        .hud-title { margin-bottom: 10px; font-size: 16px; }
+        .hud-title { margin-bottom: 8px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        .stat-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px; font-weight: bold; color: var(--text-accent);}
-        .passive-text { font-style: italic; color: #aaa; margin-top: 8px; font-size: 11px; height: 16px; overflow:hidden;}
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 11px; font-weight: bold; color: var(--text-accent);}
+        .passive-text { font-style: italic; color: #888; margin-top: 6px; font-size: 10px; height: 14px; overflow:hidden;}
         
         /* Bars */
-        .bar-container { width: 100%; height: 8px; background: #000; border-radius: 2px; overflow: hidden; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.1); box-shadow: inset 0 2px 4px rgba(0,0,0,0.8);}
-        .hp-bar { height: 100%; transition: width 0.2s; box-shadow: inset 0 1px 2px rgba(255,255,255,0.3); }
-        .ult-bar { height: 100%; background: linear-gradient(90deg, #b8860b, #ffd700); transition: width 0.2s; width: 0%; box-shadow: inset 0 0 5px rgba(255,255,255,0.5);}
+        .bar-container { width: 100%; height: 8px; background: #dcd7ca; border-radius: 4px; overflow: hidden; margin-bottom: 6px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.15);}
+        .hp-bar { height: 100%; transition: width 0.2s; box-shadow: inset 0 2px 4px rgba(255,255,255,0.4); }
+        .ult-bar { height: 100%; background: linear-gradient(90deg, #d4c4a8, var(--gold)); transition: width 0.2s; width: 0%; box-shadow: inset 0 2px 4px rgba(255,255,255,0.5);}
         
         /* Settings Button & Modal */
         #settings-btn {
             position: fixed;
             bottom: 20px;
             right: 280px; /* Offset from right sidebar */
-            padding: 10px 20px;
-            font-size: 14px;
+            padding: 8px 16px;
+            font-size: 12px;
             font-family: 'Cinzel', serif;
             z-index: 50;
             pointer-events: auto;
             display: none;
-            background: var(--panel-bg);
-            border: 1px solid var(--gold-dark);
-            color: var(--gold);
+            background: linear-gradient(180deg, #fdfbf7 0%, #e8e4d8 100%);
+            border: 1px solid var(--border-light);
+            border-bottom: 2px solid var(--gold-dark);
+            color: var(--text-main);
             border-radius: 4px;
             cursor: pointer;
             backdrop-filter: blur(5px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
-        #settings-btn:hover { background: rgba(0,0,0,0.9); color: #fff; }
+        #settings-btn:hover { background: #fff; border-color: var(--gold); transform: translateY(-1px); }
 
         #settings-modal {
             position: absolute;
             top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(0,0,0,0.85);
+            background: rgba(232, 228, 216, 0.85);
             backdrop-filter: blur(5px);
             display: none;
             flex-direction: column;
@@ -234,17 +270,43 @@
             pointer-events: auto;
         }
         .settings-box {
-            background: var(--bg-dark);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 1), rgba(240, 236, 227, 1));
             padding: 30px;
-            border-radius: 4px;
-            border: 2px solid var(--gold-dark);
+            border-radius: 8px;
+            border: 1px solid var(--border-light);
+            border-bottom: 4px solid var(--border-light);
             text-align: center;
-            min-width: 350px;
-            box-shadow: 0 0 20px rgba(212, 175, 55, 0.2);
+            min-width: 450px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
         }
-        .settings-box label { display: block; margin: 15px 0 5px; font-weight: bold; color: var(--gold); font-family: 'Cinzel', serif; }
-        .settings-box input[type="range"] { width: 100%; cursor: pointer; accent-color: var(--gold); }
-        .settings-actions { margin-top: 30px; display: flex; gap: 15px; justify-content: center; }
+        .settings-box h2 { margin-bottom: 20px; border-bottom: 1px solid var(--border-light); padding-bottom: 15px; box-shadow: 0 1px 0 #fff;}
+        
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            text-align: left;
+            margin-bottom: 20px;
+        }
+        .setting-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            background: rgba(0,0,0,0.02);
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid var(--border-light);
+        }
+        .setting-item label { 
+            display: flex; justify-content: space-between;
+            margin: 0; font-weight: bold; color: var(--text-accent); font-family: 'Cinzel', serif; font-size: 12px;
+        }
+        .setting-item label span { color: var(--gold-dark); }
+        .setting-item input[type="range"] { width: 100%; cursor: pointer; accent-color: var(--gold); }
+        
+        .settings-actions { margin-top: 20px; display: flex; gap: 15px; justify-content: center; }
         
         /* Canvas */
         canvas {
@@ -259,10 +321,10 @@
     <!-- Scene 1: Main Menu -->
     <div id="menu">
         <div class="menu-box">
-            <h1>Auto-Battler Engine</h1>
+            <h1>Ball Fight <span class="beta-tag">betaV4</span></h1>
             
             <div class="mode-selector">
-                <label style="font-weight:bold; font-size: 1.2em; color: var(--gold); font-family: 'Cinzel', serif;">Game Mode: </label>
+                <label style="font-weight:bold; font-size: 1.1em; color: var(--text-main); font-family: 'Cinzel', serif;">Game Mode: </label>
                 <select id="game-mode">
                     <option value="1v1">1v1 Duel</option>
                     <option value="boss">Boss Raid</option>
@@ -289,18 +351,51 @@
     <!-- Settings Modal -->
     <div id="settings-modal">
         <div class="settings-box">
-            <h2>Arena Settings</h2>
+            <h2>Engine Setup & Hacks</h2>
             
-            <label for="arena-scale">Arena Size (<span id="arena-scale-val">100</span>%)</label>
-            <input type="range" id="arena-scale" min="0.3" max="1.5" step="0.05" value="1.0">
+            <div class="settings-grid">
+                <div class="setting-item">
+                    <label>ขนาดสนาม <span id="val-arenaScale">1.0</span></label>
+                    <input type="range" id="cfg-arenaScale" min="0.3" max="1.5" step="0.05">
+                </div>
+                <div class="setting-item">
+                    <label>ความเร็วปกติ <span id="val-baseSpeedCap">20</span></label>
+                    <input type="range" id="cfg-baseSpeedCap" min="5" max="60" step="1">
+                </div>
+                <div class="setting-item">
+                    <label>ความแรงเวลาชน <span id="val-collisionBounce">1.05</span></label>
+                    <input type="range" id="cfg-collisionBounce" min="0.5" max="3.0" step="0.05">
+                </div>
+                <div class="setting-item">
+                    <label>ความเร็วสูงสุด(หลังชน) <span id="val-maxCollisionSpeed">40</span></label>
+                    <input type="range" id="cfg-maxCollisionSpeed" min="10" max="100" step="1">
+                </div>
+                <div class="setting-item">
+                    <label>เวลาอมตะ i-Frame (ms) <span id="val-iFrameDuration">200</span></label>
+                    <input type="range" id="cfg-iFrameDuration" min="0" max="1000" step="10">
+                </div>
+                <div class="setting-item">
+                    <label>กระตุก Hit-Stop (ms) <span id="val-hitStopDuration">50</span></label>
+                    <input type="range" id="cfg-hitStopDuration" min="0" max="300" step="5">
+                </div>
+                <div class="setting-item">
+                    <label>เด้งกำแพง <span id="val-wallBounce">0.95</span></label>
+                    <input type="range" id="cfg-wallBounce" min="0.5" max="1.5" step="0.05">
+                </div>
+                <div class="setting-item">
+                    <label>แรงเสียดทานลาน <span id="val-friction">0.995</span></label>
+                    <input type="range" id="cfg-friction" min="0.9" max="1.0" step="0.001">
+                </div>
+                <div class="setting-item" style="grid-column: span 2; display: flex; flex-direction: row; align-items: center; gap:10px;">
+                    <label style="flex-shrink: 0;">สีพื้นหลังนอกสนาม</label>
+                    <input type="color" id="cfg-bgColor" style="width: 100%; height: 35px; padding: 0; border:none; border-radius:4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">
+                </div>
+            </div>
 
-            <label for="bg-color" style="margin-top:20px;">Background Color</label>
-            <!-- Default สว่างสดใส ธรรมชาติ (Soft Breeze / Sky tone) -->
-            <input type="color" id="bg-color" value="#e8f0f2" style="width: 100%; height: 40px; padding: 0;">
-            
             <div class="settings-actions">
-                <button id="resume-btn" class="secondary-btn" style="border-color: #4169e1; color:#4169e1;">Resume</button>
-                <button id="quit-btn" class="secondary-btn" style="border-color: #8b0000; color:#ff4444;">Quit</button>
+                <button id="resume-btn" class="secondary-btn" style="border-color: var(--team1-color); color:var(--team1-color);">Resume</button>
+                <button id="reset-settings-btn" class="secondary-btn" style="border-color: var(--gold-dark); color:var(--text-main);">Reset</button>
+                <button id="quit-btn" class="secondary-btn" style="border-color: var(--team2-color); color:var(--team2-color);">Quit Game</button>
             </div>
         </div>
     </div>
@@ -310,7 +405,7 @@
 <script>
 /**
  * ------------------------------------------------------------------
- * UTILITIES & MATH
+ * UTILITIES & MATH & SETTINGS HACK OVERRIDE
  * ------------------------------------------------------------------
  */
 const MathUtils = {
@@ -321,6 +416,14 @@ const MathUtils = {
         let len = Math.hypot(vx, vy);
         if (len === 0) return {x: 0, y: 0};
         return {x: vx / len, y: vy / len};
+    },
+    // 🔥 Hack Override System: Allows any weapon/boss to break the global rules dynamically
+    getStat: (actor, statName) => {
+        if (!actor) return Engine.config[statName];
+        if (actor.custom && actor.custom[statName] !== undefined) return actor.custom[statName];
+        if (actor.weaponDef && actor.weaponDef[statName] !== undefined) return actor.weaponDef[statName];
+        if (actor.bossDef && actor.bossDef[statName] !== undefined) return actor.bossDef[statName];
+        return Engine.config[statName];
     }
 };
 
@@ -347,14 +450,14 @@ const WEAPON_REGISTRY = {
             player.passiveText = `DMG Bonus: +${Math.floor(player.custom.dmgBonus)}`;
         },
         render(ctx, player, game) {
-            ctx.fillStyle = "#3e2723"; ctx.fillRect(-35, -6, 25, 12);
-            ctx.fillStyle = "#d4af37"; ctx.beginPath(); ctx.arc(-35, 0, 8, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "#d4af37"; ctx.fillRect(-15, -25, 12, 50);
+            ctx.fillStyle = "#5c4e3a"; ctx.fillRect(-35, -6, 25, 12);
+            ctx.fillStyle = "#b89947"; ctx.beginPath(); ctx.arc(-35, 0, 8, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#b89947"; ctx.fillRect(-15, -25, 12, 50);
             ctx.fillStyle = this.color;
-            ctx.shadowColor = player.ultimateActive ? "#f6d365" : "transparent"; ctx.shadowBlur = player.ultimateActive ? 20 : 0;
+            ctx.shadowColor = player.ultimateActive ? "#f6d365" : "transparent"; ctx.shadowBlur = player.ultimateActive ? 15 : 0;
             ctx.beginPath(); ctx.moveTo(-3, -15); ctx.lineTo(50, -10); ctx.lineTo(65, 0); ctx.lineTo(50, 10); ctx.lineTo(-3, 15); ctx.closePath(); ctx.fill();
-            ctx.strokeStyle = "#b0c4de"; ctx.lineWidth = 2; ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(-3, 0); ctx.lineTo(55, 0); ctx.strokeStyle = "#555"; ctx.lineWidth = 1; ctx.stroke();
+            ctx.strokeStyle = "#8b7952"; ctx.lineWidth = 1; ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(-3, 0); ctx.lineTo(55, 0); ctx.strokeStyle = "#aaa"; ctx.lineWidth = 1; ctx.stroke();
             ctx.shadowBlur = 0;
         },
         onHitPlayer(player, enemy, game) {
@@ -372,7 +475,7 @@ const WEAPON_REGISTRY = {
     },
 
     "Bow": {
-        name: "Bow", color: "#8b5a2b", width: 20, length: 55, baseDamage: 5,
+        name: "Bow", color: "#8b7952", width: 20, length: 55, baseDamage: 5,
         init(player) {
             player.custom.arrowCount = 1; player.custom.shootTimer = 0; player.custom.shotsFired = 0;
             player.passiveText = `Arrows per shot: 1`;
@@ -403,14 +506,14 @@ const WEAPON_REGISTRY = {
         },
         render(ctx, player, game) {
             ctx.shadowColor = player.ultimateActive ? "#f6d365" : "transparent"; ctx.shadowBlur = player.ultimateActive ? 15 : 0;
-            ctx.strokeStyle = this.color; ctx.lineWidth = 8; ctx.lineCap = "round";
+            ctx.strokeStyle = this.color; ctx.lineWidth = 6; ctx.lineCap = "round";
             ctx.beginPath(); ctx.arc(-10, 0, 45, -Math.PI/2.2, Math.PI/2.2); ctx.stroke();
-            ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.beginPath();
+            ctx.strokeStyle = "#555"; ctx.lineWidth = 1; ctx.beginPath();
             let drawBack = player.custom.shootTimer < 150 ? -25 : -5;
             ctx.moveTo(10, -42); ctx.lineTo(drawBack, 0); ctx.lineTo(10, 42); ctx.stroke();
             if (player.custom.shootTimer < 200) {
-                 ctx.fillStyle = "#fff"; ctx.fillRect(drawBack, -2, 40, 4); 
-                 ctx.beginPath(); ctx.moveTo(drawBack + 40, -6); ctx.lineTo(drawBack + 50, 0); ctx.lineTo(drawBack + 40, 6); ctx.fill();
+                 ctx.fillStyle = "#fff"; ctx.fillRect(drawBack, -2, 40, 3); 
+                 ctx.fillStyle = "#8b7952"; ctx.beginPath(); ctx.moveTo(drawBack + 40, -5); ctx.lineTo(drawBack + 50, 0); ctx.lineTo(drawBack + 40, 5); ctx.fill();
             }
             ctx.shadowBlur = 0;
         },
@@ -423,24 +526,23 @@ const WEAPON_REGISTRY = {
                     for (let enemy of enemies) {
                         if (MathUtils.distance(this.x, this.y, enemy.x, enemy.y) < this.radius + enemy.radius) {
                             enemy.takeDamage(5, "pierce", this.owner, game);
-                            game.spawnParticles(this.x, this.y, 5, "#fff");
+                            game.spawnParticles(this.x, this.y, 5, "#ccc");
                             let n = MathUtils.normalize(Math.cos(angle), Math.sin(angle));
                             enemy.applyForce(n.x * 5, n.y * 5);
                             this.lifetime = 0; break;
                         }
                     }
-                    // Arrows can be destroyed upon hitting the arena bounds logic if AI implements it
                     if (this.x < game.arena.x || this.x > game.arena.x + game.arena.size || this.y < game.arena.y || this.y > game.arena.y + game.arena.size) {
                         this.lifetime = 0;
-                        game.spawnParticles(this.x, this.y, 3, "#8b5a2b");
+                        game.spawnParticles(this.x, this.y, 3, "#8b7952");
                     }
                 },
                 render(ctx) {
                     ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(Math.atan2(this.vy, this.vx));
-                    ctx.fillStyle = "#8b5a2b"; ctx.fillRect(-20, -3, 35, 6);
-                    ctx.fillStyle = "#ddd"; ctx.beginPath(); ctx.moveTo(15, -7); ctx.lineTo(28, 0); ctx.lineTo(15, 7); ctx.closePath(); ctx.fill();
-                    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.moveTo(-20, -3); ctx.lineTo(-10, -10); ctx.lineTo(-5, -3); ctx.fill();
-                    ctx.beginPath(); ctx.moveTo(-20, 3); ctx.lineTo(-10, 10); ctx.lineTo(-5, 3); ctx.fill();
+                    ctx.fillStyle = "#8b7952"; ctx.fillRect(-20, -2, 35, 4);
+                    ctx.fillStyle = "#ddd"; ctx.beginPath(); ctx.moveTo(15, -5); ctx.lineTo(28, 0); ctx.lineTo(15, 5); ctx.closePath(); ctx.fill();
+                    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.moveTo(-20, -2); ctx.lineTo(-10, -8); ctx.lineTo(-5, -2); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(-20, 2); ctx.lineTo(-10, 8); ctx.lineTo(-5, 2); ctx.fill();
                     ctx.restore();
                 }
             };
@@ -450,7 +552,7 @@ const WEAPON_REGISTRY = {
     },
 
     "Magic Orb": {
-        name: "Magic Orb", color: "#9d4edd", width: 30, length: 85, baseDamage: 3,
+        name: "Magic Orb", color: "#9c27b0", width: 30, length: 85, baseDamage: 3,
         init(player) {
             player.custom.zoneTimer = 0; player.custom.burnStacksApplied = 0; player.passiveText = `Burn Stacks Applied: 0`;
         },
@@ -467,12 +569,12 @@ const WEAPON_REGISTRY = {
         },
         render(ctx, player, game) {
             let time = Date.now();
-            ctx.shadowColor = this.color; ctx.shadowBlur = 30 + Math.sin(time * 0.005) * 10;
+            ctx.shadowColor = this.color; ctx.shadowBlur = 20 + Math.sin(time * 0.005) * 10;
             ctx.beginPath(); ctx.arc(0, 0, this.width - 5, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
-            ctx.beginPath(); ctx.arc(0, 0, this.width + Math.sin(time * 0.008) * 4, 0, Math.PI * 2); ctx.fillStyle = this.color; ctx.globalAlpha = 0.6; ctx.fill();
+            ctx.beginPath(); ctx.arc(0, 0, this.width + Math.sin(time * 0.008) * 4, 0, Math.PI * 2); ctx.fillStyle = this.color; ctx.globalAlpha = 0.5; ctx.fill();
             ctx.globalAlpha = 1.0; ctx.shadowBlur = 0;
-            ctx.save(); ctx.rotate(time * 0.002); ctx.strokeStyle = "#d4af37"; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(0, 0, this.width + 15, this.width - 10, 0, 0, Math.PI*2); ctx.stroke();
-            ctx.rotate(Math.PI / 2); ctx.strokeStyle = this.color; ctx.beginPath(); ctx.ellipse(0, 0, this.width + 15, this.width - 10, 0, 0, Math.PI*2); ctx.stroke(); ctx.restore();
+            ctx.save(); ctx.rotate(time * 0.002); ctx.strokeStyle = "#b89947"; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(0, 0, this.width + 10, this.width - 10, 0, 0, Math.PI*2); ctx.stroke();
+            ctx.rotate(Math.PI / 2); ctx.strokeStyle = this.color; ctx.beginPath(); ctx.ellipse(0, 0, this.width + 10, this.width - 10, 0, 0, Math.PI*2); ctx.stroke(); ctx.restore();
         },
         createZone(owner) {
             return {
@@ -491,7 +593,7 @@ const WEAPON_REGISTRY = {
                                         this.tickTimer -= g.delta;
                                         if(this.tickTimer <= 0) {
                                             this.tickTimer = 400; p.takeDamage(2, "magic", null, g);
-                                            g.spawnParticles(p.x, p.y + Math.random()*20-10, 1, "#ff5500");
+                                            g.spawnParticles(p.x, p.y + Math.random()*20-10, 1, "#e64a19");
                                         }
                                     }
                                 });
@@ -502,301 +604,14 @@ const WEAPON_REGISTRY = {
                 },
                 render(ctx) {
                     ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(157, 78, 221, ${this.lifetime / 4000 * 0.4})`; ctx.fill();
-                    ctx.strokeStyle = `rgba(157, 78, 221, ${this.lifetime / 4000})`; ctx.lineWidth = 2; ctx.stroke();
+                    ctx.fillStyle = `rgba(156, 39, 176, ${this.lifetime / 4000 * 0.2})`; ctx.fill();
+                    ctx.strokeStyle = `rgba(156, 39, 176, ${this.lifetime / 4000 * 0.5})`; ctx.lineWidth = 1; ctx.stroke();
                 }
             };
         },
         onHitPlayer(player, enemy, game) { enemy.takeDamage(this.baseDamage, "magic", player, game); player.reverseWeapon(); },
         onHitWeapon(player, enemy, game) { player.reverseWeapon(); }
-    },
-    "Magic Wand": {
-      name: "Magic Wand",
-      color: "#a832a8", // สีม่วงเวทมนตร์
-      width: 6,
-      length: 50,
-      baseDamage: 2, // ลดดาเมจเหลือ 2
-      init(player) { 
-          player.custom.projectiles = [];
-          player.custom.shockwaves = []; 
-          player.custom.fireTimer = 0;
-          player.custom.radiusStacks = 0; 
-          player.passiveText = "ระเบิดเวท: ลูกเวทระเบิดเมื่อเข้าใกล้ศัตรูหรือชนขอบ ยิ่งโดนวงยิ่งกว้าง (ดาเมจ: 2)"; 
-      },
-      onUpdate(player, closestEnemy, game) {
-          // หมุนคทา
-          player.weaponRotation += 0.06 * player.weaponDir * (game.delta / 16);
-          
-          // คำนวณพิกัดที่แท้จริงของปลายคทา
-          let wx = player.x + Math.cos(player.weaponRotation) * player.weaponReach;
-          let wy = player.y + Math.sin(player.weaponRotation) * player.weaponReach;
-  
-          // ระบบคูลดาวน์และยิงลูกเวทมนตร์
-          player.custom.fireTimer -= (game.delta / 16);
-          if (player.custom.fireTimer <= 0 && closestEnemy) {
-              player.custom.fireTimer = 70; // ความเร็วการยิง
-              let dx = closestEnemy.x - wx;
-              let dy = closestEnemy.y - wy;
-              let dist = Math.sqrt(dx*dx + dy*dy);
-              if (dist > 0) {
-                  player.custom.projectiles.push({
-                      isUlt: false,
-                      x: wx,
-                      y: wy,
-                      vx: (dx/dist) * 7, 
-                      vy: (dy/dist) * 7,
-                      life: 150 
-                  });
-              }
-          }
-  
-          let enemies = game.getEnemies(player);
-  
-          // อัปเดตลูกเวทมนตร์ที่ยิงออกไป
-          for (let i = player.custom.projectiles.length - 1; i >= 0; i--) {
-              let p = player.custom.projectiles[i];
-              p.life -= (game.delta / 16);
-  
-              if (p.isUlt) {
-                  // ระบบ Ultimate: หมุนวนรอบตัวก่อนแล้วกระจายออก
-                  if (p.life > 100) { 
-                      p.orbitAngle += 0.08 * (game.delta / 16);
-                      p.x = player.x + Math.cos(p.orbitAngle) * p.orbitRadius;
-                      p.y = player.y + Math.sin(p.orbitAngle) * p.orbitRadius;
-                  } else {
-                      if (p.ultState === 'orbit') {
-                          p.ultState = 'expand';
-                          p.vx = Math.cos(p.orbitAngle) * 6;
-                          p.vy = Math.sin(p.orbitAngle) * 6;
-                      }
-                      let currentAngle = Math.atan2(p.vy, p.vx);
-                      currentAngle += 0.03 * (game.delta / 16); 
-                      let speed = Math.sqrt(p.vx*p.vx + p.vy*p.vy);
-                      p.vx = Math.cos(currentAngle) * speed;
-                      p.vy = Math.sin(currentAngle) * speed;
-                      
-                      p.x += p.vx * (game.delta / 16);
-                      p.y += p.vy * (game.delta / 16);
-                  }
-              } else {
-                  // ระบบ Soft Homing
-                  p.x += p.vx * (game.delta / 16);
-                  p.y += p.vy * (game.delta / 16);
-  
-                  if (closestEnemy) {
-                      let targetAngle = Math.atan2(closestEnemy.y - p.y, closestEnemy.x - p.x);
-                      let currentAngle = Math.atan2(p.vy, p.vx);
-                      
-                      let diff = targetAngle - currentAngle;
-                      while (diff > Math.PI) diff -= Math.PI * 2;
-                      while (diff < -Math.PI) diff += Math.PI * 2;
-                      
-                      let turnSpeed = 0.025 * (game.delta / 16); 
-                      currentAngle += Math.sign(diff) * Math.min(Math.abs(diff), turnSpeed);
-                      
-                      let speed = 7; 
-                      p.vx = Math.cos(currentAngle) * speed;
-                      p.vy = Math.sin(currentAngle) * speed;
-                  }
-              }
-  
-              let exploded = false;
-  
-              // เช็คชนขอบสนาม (Arena Bounds) 
-              // จะดึงค่าขนาดสนามจริงจากเอนจิ้น (ถ้ามี) ถ้าไม่มีจะอิงจากความกว้าง/ยาวของโลกเกม
-              let arenaWidth = game.arenaWidth || game.width || 1200;
-              let arenaHeight = game.arenaHeight || game.height || 800;
-              
-              // ระยะห่าง 15px เพื่อให้ระเบิดพอดีขอบสนามก่อนทะลุออกไป
-              if (p.x < 15 || p.x > arenaWidth - 15 || p.y < 15 || p.y > arenaHeight - 15) {
-                  exploded = true;
-              }
-  
-              // เช็คการเข้าใกล้ศัตรู
-              if (!exploded) {
-                  let triggerRadius = 35; 
-                  for (let e of enemies) {
-                      let edx = e.x - p.x;
-                      let edy = e.y - p.y;
-                      if (Math.sqrt(edx*edx + edy*edy) < e.radius + triggerRadius) { 
-                          exploded = true;
-                          break;
-                      }
-                  }
-              }
-  
-              // หมดอายุขัย
-              if (p.life <= 0) exploded = true;
-  
-              // สร้างคลื่นกระจาย (Shockwave)
-              if (exploded) {
-                  let baseRadius = 45; 
-                  let explosionRadius = baseRadius + (player.custom.radiusStacks * 3);
-                  let explosionDamage = this.baseDamage;
-  
-                  game.spawnParticles(p.x, p.y, 10, this.color);
-                  game.spawnParticles(p.x, p.y, 8, "#ffffff");
-  
-                  player.custom.shockwaves.push({
-                      x: p.x,
-                      y: p.y,
-                      radius: 5, 
-                      maxRadius: explosionRadius,
-                      damage: explosionDamage,
-                      hitList: [] 
-                  });
-  
-                  player.custom.projectiles.splice(i, 1);
-              }
-          }
-  
-          // อัปเดตคลื่นกระแทก
-          for (let i = player.custom.shockwaves.length - 1; i >= 0; i--) {
-              let sw = player.custom.shockwaves[i];
-              sw.radius += 8 * (game.delta / 16); 
-              
-              let hitCount = 0;
-              for (let e of enemies) {
-                  if (!sw.hitList.includes(e)) {
-                      let edx = e.x - sw.x;
-                      let edy = e.y - sw.y;
-                      if (Math.sqrt(edx*edx + edy*edy) <= sw.radius + e.radius) {
-                          e.takeDamage(sw.damage, "magic", player, game);
-                          sw.hitList.push(e); 
-                          hitCount++;
-                      }
-                  }
-              }
-  
-              if (hitCount > 0) {
-                  player.custom.radiusStacks = Math.min(player.custom.radiusStacks + hitCount, 50); 
-                  player.passiveText = `ระเบิดเวท: รัศมีระเบิดเพิ่มขึ้น (+${(player.custom.radiusStacks*3).toFixed(0)}px) ดาเมจ 2`;
-              }
-  
-              if (sw.radius >= sw.maxRadius) {
-                  player.custom.shockwaves.splice(i, 1);
-              }
-          }
-      },
-      render(ctx, player, game) { 
-          // 1. วาดด้ามคทาไม้ (ไล่สี Gradient ให้ดูสวยงาม)
-          let handleGrad = ctx.createLinearGradient(-this.width, 0, this.width, 0);
-          handleGrad.addColorStop(0, "#3d2314");
-          handleGrad.addColorStop(0.5, "#6b4226");
-          handleGrad.addColorStop(1, "#2a160b");
-          ctx.fillStyle = handleGrad;
-          
-          ctx.beginPath();
-          ctx.moveTo(-this.width/2, -this.length/2);
-          ctx.lineTo(this.width/2, -this.length/2);
-          // ทำให้ส่วนฐานลูกแก้วกว้างขึ้นเล็กน้อย
-          ctx.lineTo(this.width*0.8, this.length/2 - 10);
-          ctx.lineTo(-this.width*0.8, this.length/2 - 10);
-          ctx.fill();
-  
-          // 2. ของตกแต่งสีทองที่ด้ามจับและฐานลูกแก้ว
-          ctx.fillStyle = "#ffd700"; // สีทอง
-          ctx.fillRect(-this.width, -this.length/2, this.width*2, 6); // ปลายด้ามด้านล่าง
-          ctx.fillRect(-this.width*1.2, this.length/2 - 12, this.width*2.4, 8); // ฐานรับลูกแก้ว
-          
-          // 3. วาดลูกแก้วเวทมนตร์ (เรืองแสง)
-          ctx.shadowBlur = 15;
-          ctx.shadowColor = this.color;
-          
-          ctx.beginPath();
-          let orbCenterY = this.length/2 + 2;
-          let orbRadius = this.width * 2.2;
-          ctx.arc(0, orbCenterY, orbRadius, 0, Math.PI * 2);
-          
-          let orbGrad = ctx.createRadialGradient(0, orbCenterY, 0, 0, orbCenterY, orbRadius);
-          orbGrad.addColorStop(0, "#ffffff");
-          orbGrad.addColorStop(0.4, "#e066ff");
-          orbGrad.addColorStop(1, this.color);
-          ctx.fillStyle = orbGrad;
-          ctx.fill();
-          
-          ctx.shadowBlur = 0; // เคลียร์เงาเพื่อไม่ให้กระทบส่วนอื่น
-  
-          // 4. วงแหวนเวทมนตร์รอบลูกแก้ว
-          ctx.beginPath();
-          // หมุนวงแหวนตามการกวัดแกว่งของคทา
-          ctx.ellipse(0, orbCenterY, this.width * 3.5, this.width * 1.2, player.weaponRotation * 3, 0, Math.PI * 2);
-          ctx.strokeStyle = "rgba(255, 215, 0, 0.8)";
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-  
-          // 5. วาดลูกไฟและคลื่นระเบิด
-          let wx = player.x + Math.cos(player.weaponRotation) * player.weaponReach;
-          let wy = player.y + Math.sin(player.weaponRotation) * player.weaponReach;
-  
-          for (let p of player.custom.projectiles) {
-              let dx = p.x - wx;
-              let dy = p.y - wy;
-              let localX = dx * Math.cos(-player.weaponRotation) - dy * Math.sin(-player.weaponRotation);
-              let localY = dx * Math.sin(-player.weaponRotation) + dy * Math.cos(-player.weaponRotation);
-              
-              ctx.beginPath();
-              ctx.arc(localX, localY, p.isUlt ? 10 : (8 + (player.custom.radiusStacks * 0.05)), 0, Math.PI * 2);
-              ctx.fillStyle = this.color;
-              ctx.fill();
-              
-              ctx.beginPath();
-              ctx.arc(localX, localY, p.isUlt ? 5 : 4, 0, Math.PI * 2);
-              ctx.fillStyle = "#ffffff";
-              ctx.fill();
-          }
-  
-          for (let sw of player.custom.shockwaves) {
-              let dx = sw.x - wx;
-              let dy = sw.y - wy;
-              let localX = dx * Math.cos(-player.weaponRotation) - dy * Math.sin(-player.weaponRotation);
-              let localY = dx * Math.sin(-player.weaponRotation) + dy * Math.cos(-player.weaponRotation);
-              
-              ctx.beginPath();
-              ctx.arc(localX, localY, sw.radius, 0, Math.PI * 2);
-              ctx.strokeStyle = this.color;
-              ctx.lineWidth = 3;
-              ctx.globalAlpha = Math.max(0, 1 - (sw.radius / sw.maxRadius));
-              ctx.stroke();
-              ctx.globalAlpha = 1.0; 
-          }
-      },
-      onHitPlayer(player, target, game) {
-          target.takeDamage(this.baseDamage, "magic", player, game);
-          
-          player.custom.radiusStacks = Math.min(player.custom.radiusStacks + 1, 50);
-          player.passiveText = `ระเบิดเวท: รัศมีระเบิดเพิ่มขึ้น (+${(player.custom.radiusStacks*3).toFixed(0)}px) ดาเมจ 2`;
-          
-          game.spawnParticles(target.x, target.y, 10, this.color);
-          player.reverseWeapon();
-      },
-      onHitWeapon(player, enemyPlayer, game) {
-          game.spawnParticles(player.weaponX, player.weaponY, 8, this.color);
-          player.reverseWeapon();
-      },
-      onTakeDamage(player, source, game) {},
-      onUltimateActivate(player, game) {
-          player.custom.radiusStacks = 0; 
-          player.passiveText = `อัลติเมททำงาน! (รีเซ็ตวงกว้าง)`;
-          
-          for (let i = 0; i < 8; i++) {
-              player.custom.projectiles.push({
-                  isUlt: true,
-                  ultState: 'orbit',
-                  orbitAngle: (Math.PI * 2 / 8) * i,
-                  orbitRadius: 70, 
-                  x: player.x,
-                  y: player.y,
-                  vx: 0,
-                  vy: 0,
-                  life: 150 
-              });
-          }
-          
-          game.spawnParticles(player.x, player.y, 40, this.color);
-          game.spawnParticles(player.x, player.y, 20, "#ffffff");
-      }
-  }
+    }
 };
 
 /**
@@ -806,7 +621,8 @@ const WEAPON_REGISTRY = {
  */
 const BOSS_REGISTRY = {
     "Slime King": {
-        name: "Slime King", color: "#00ff7f", radius: 65, maxHp: 1500,
+        name: "Slime King", color: "#4caf50", radius: 65, maxHp: 1500,
+        iFrameDuration: 100, // Boss custom hack
         init(boss) {
             boss.custom.jumpTimer = 2000; boss.custom.spawnTimer = 5000;
             boss.passiveText = "Bounces heavily & spawns minions";
@@ -820,15 +636,15 @@ const BOSS_REGISTRY = {
                 boss.custom.jumpTimer = 3000;
                 let n = MathUtils.normalize(target.x - boss.x, target.y - boss.y);
                 boss.vx += n.x * 20; boss.vy += n.y * 20;
-                game.spawnParticles(boss.x, boss.y, 20, "#00ff7f");
+                game.spawnParticles(boss.x, boss.y, 20, "#4caf50");
             }
             if (boss.custom.spawnTimer <= 0) {
-                boss.custom.spawnTimer = 6000; game.spawnParticles(boss.x, boss.y, 30, "#00ff7f");
+                boss.custom.spawnTimer = 6000; game.spawnParticles(boss.x, boss.y, 30, "#4caf50");
                 this.spawnMiniSlime(boss, game);
             }
         },
         render(ctx, boss, game) {
-            ctx.fillStyle = "#d4af37"; ctx.fillRect(-20, -boss.radius - 15, 40, 20); // Gold crown
+            ctx.fillStyle = "#b89947"; ctx.fillRect(-20, -boss.radius - 15, 40, 20); // Gold crown
             ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(-10, -boss.radius - 15, 5, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(10, -boss.radius - 15, 5, 0, Math.PI*2); ctx.fill();
         },
@@ -837,7 +653,7 @@ const BOSS_REGISTRY = {
             let n = MathUtils.normalize(player.x - boss.x, player.y - boss.y);
             player.applyForce(n.x * 30, n.y * 30);
         },
-        onTakeDamage(boss, source, game) { game.triggerHitStop(10); },
+        onTakeDamage(boss, source, game) { /* Short hitstop for boss */ },
         spawnMiniSlime(owner, game) {
             game.spawn({
                 x: owner.x + (Math.random()*100 - 50), y: owner.y + (Math.random()*100 - 50),
@@ -855,21 +671,22 @@ const BOSS_REGISTRY = {
                     for (let e of enemies) {
                         if (MathUtils.distance(this.x, this.y, e.x, e.y) < this.radius + e.radius) {
                             e.takeDamage(2, "magic", this.owner, g); e.applyForce(this.vx, this.vy);
-                            this.lifetime = 0; g.spawnParticles(this.x, this.y, 10, "#00ff7f"); break;
+                            this.lifetime = 0; g.spawnParticles(this.x, this.y, 10, "#4caf50"); break;
                         }
                     }
                 },
                 render(ctx) {
-                    ctx.globalAlpha = Math.max(0, this.lifetime / this.maxLife); ctx.fillStyle = "#00ff7f";
+                    ctx.globalAlpha = Math.max(0, this.lifetime / this.maxLife); ctx.fillStyle = "#4caf50";
                     ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2); ctx.fill();
-                    ctx.strokeStyle = "#fff"; ctx.lineWidth=2; ctx.stroke(); ctx.globalAlpha = 1.0;
+                    ctx.strokeStyle = "#fff"; ctx.lineWidth=1; ctx.stroke(); ctx.globalAlpha = 1.0;
                 }
             });
         }
     },
     
     "Dark Knight": {
-        name: "Dark Knight", color: "#2b2b2b", radius: 40, maxHp: 1200,
+        name: "Dark Knight", color: "#424242", radius: 40, maxHp: 1200,
+        iFrameDuration: 100, // Boss custom hack
         init(boss) { boss.custom.dashTimer = 3000; boss.custom.isDashing = false; boss.passiveText = "Relentless rusher"; },
         onUpdate(boss, game) {
             boss.custom.dashTimer -= game.delta;
@@ -881,19 +698,18 @@ const BOSS_REGISTRY = {
                     boss.vx = n.x * 35; boss.vy = n.y * 35;
                     boss.custom.dashTimer = 2500 + Math.random()*1000; boss.custom.isDashing = true;
                     setTimeout(() => boss.custom.isDashing = false, 500);
-                    game.spawnParticles(boss.x, boss.y, 15, "#444");
+                    game.spawnParticles(boss.x, boss.y, 15, "#757575");
                 }
             }
         },
         render(ctx, boss, game) {
-            // Helm Visor (Medieval)
-            ctx.fillStyle = "#111"; ctx.fillRect(-15, -15, 30, 10);
-            ctx.fillStyle = "red"; ctx.shadowColor = "red"; ctx.shadowBlur = 10;
+            ctx.fillStyle = "#212121"; ctx.fillRect(-15, -15, 30, 10);
+            ctx.fillStyle = "#d32f2f"; ctx.shadowColor = "#d32f2f"; ctx.shadowBlur = 10;
             ctx.beginPath(); ctx.arc(-6, -10, 3, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(6, -10, 3, 0, Math.PI*2); ctx.fill();
             ctx.shadowBlur = 0;
             
-            if(boss.custom.isDashing) { ctx.strokeStyle = "red"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, boss.radius + 10, 0, Math.PI*2); ctx.stroke(); }
+            if(boss.custom.isDashing) { ctx.strokeStyle = "#d32f2f"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, boss.radius + 10, 0, Math.PI*2); ctx.stroke(); }
         },
         onHitPlayer(boss, player, game) {
             let dmg = boss.custom.isDashing ? 20 : 8;
@@ -902,7 +718,7 @@ const BOSS_REGISTRY = {
         onTakeDamage(boss, source, game) {
             boss.ultimateGauge += 5;
             if (boss.ultimateGauge >= 100) {
-                boss.ultimateGauge = 0; game.spawnParticles(boss.x, boss.y, 50, "black");
+                boss.ultimateGauge = 0; game.spawnParticles(boss.x, boss.y, 50, "#424242");
                 let enemies = game.getEnemies(boss);
                 for(let e of enemies) {
                     let n = MathUtils.normalize(e.x - boss.x, e.y - boss.y);
@@ -941,7 +757,8 @@ class Actor {
         }
     }
     handleWallCollision(arena) {
-        const bounce = 0.95; const perturb = () => (Math.random() - 0.5) * 5; 
+        let bounce = MathUtils.getStat(this, 'wallBounce');
+        const perturb = () => (Math.random() - 0.5) * 5; 
         if (this.x - this.radius < arena.x) { this.x = arena.x + this.radius; this.vx = Math.abs(this.vx) * bounce + perturb(); this.vy += perturb(); }
         else if (this.x + this.radius > arena.x + arena.size) { this.x = arena.x + arena.size - this.radius; this.vx = -Math.abs(this.vx) * bounce + perturb(); this.vy += perturb(); }
         if (this.y - this.radius < arena.y) { this.y = arena.y + this.radius; this.vy = Math.abs(this.vy) * bounce + perturb(); this.vx += perturb(); }
@@ -959,13 +776,31 @@ class Player extends Actor {
     }
     get weaponX() { return this.x + Math.cos(this.weaponRotation) * this.weaponReach; }
     get weaponY() { return this.y + Math.sin(this.weaponRotation) * this.weaponReach; }
+    
     update(game) {
-        let dtMod = game.delta / 16; this.x += this.vx * dtMod; this.y += this.vy * dtMod; this.vx *= 0.995; this.vy *= 0.995;
+        let dtMod = game.delta / 16; 
+        this.x += this.vx * dtMod; this.y += this.vy * dtMod; 
+        
+        let friction = MathUtils.getStat(this, 'friction');
+        let speedCap = MathUtils.getStat(this, 'baseSpeedCap');
+        let maxColSpeed = MathUtils.getStat(this, 'maxCollisionSpeed');
+
         let speed = Math.hypot(this.vx, this.vy);
-        if (speed > 20) { this.vx = (this.vx / speed) * 20; this.vy = (this.vy / speed) * 20; }
-        else if (speed < 5) { if(speed === 0) { this.vx = 2; this.vy = 2; } let n = MathUtils.normalize(this.vx, this.vy); this.vx += n.x * 0.8; this.vy += n.y * 0.8; }
-        if (this.iFrames > 0) this.iFrames -= game.delta; if (this.weaponCooldown > 0) this.weaponCooldown -= game.delta;
+        
+        // Physics Override System
+        if (speed > maxColSpeed) { 
+            this.vx = (this.vx / speed) * maxColSpeed; this.vy = (this.vy / speed) * maxColSpeed; 
+        } else if (speed > speedCap) { 
+            this.vx *= 0.95; this.vy *= 0.95; // Smooth decay to base cap
+        } else {
+            this.vx *= friction; this.vy *= friction;
+        }
+
+        if (this.iFrames > 0) this.iFrames -= game.delta; 
+        if (this.weaponCooldown > 0) this.weaponCooldown -= game.delta;
+        
         this.updateEffects(game);
+        
         if (this.ultimateActive) { this.ultimateTimer -= game.delta; this.ultimateGauge = (this.ultimateTimer / 2000) * 100; if (this.ultimateTimer <= 0) { this.ultimateActive = false; this.ultimateGauge = 0; } }
         if (this.weaponDef && this.weaponDef.onUpdate) {
             let enemies = game.getEnemies(this); let closest = null; let minDist = Infinity;
@@ -974,28 +809,37 @@ class Player extends Actor {
         }
         this.handleWallCollision(game.arena);
     }
+    
     render(ctx, game) {
-        if (this.statusEffects.some(e => e.type === "burn")) { ctx.shadowColor = "#ff5500"; ctx.shadowBlur = 15; }
+        if (this.statusEffects.some(e => e.type === "burn")) { ctx.shadowColor = "#e64a19"; ctx.shadowBlur = 15; }
         ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = this.iFrames > 0 ? "#fff" : this.color; ctx.fill();
-        ctx.lineWidth = 3; ctx.strokeStyle = this.ultimateActive ? "#f6d365" : "#111"; ctx.stroke(); ctx.shadowBlur = 0; 
+        ctx.lineWidth = 2; ctx.strokeStyle = this.ultimateActive ? "#d4af37" : "rgba(44, 36, 27, 0.5)"; ctx.stroke(); ctx.shadowBlur = 0; 
         if (this.weaponDef) {
             let wx = this.weaponX; let wy = this.weaponY; ctx.save(); ctx.translate(wx, wy); ctx.rotate(this.weaponRotation);
             if (this.weaponDef.render) this.weaponDef.render(ctx, this, game);
             else { ctx.fillStyle = this.weaponDef.color; ctx.fillRect(-this.weaponHitboxRadius, -this.weaponHitboxRadius, this.weaponHitboxRadius*2, this.weaponHitboxRadius*2); }
             ctx.restore();
         }
-        ctx.fillStyle = "rgba(243, 229, 171, 0.8)"; ctx.font = "12px 'Cinzel', serif"; ctx.textAlign="center"; ctx.fillText(this.id, this.x, this.y - this.radius - 10);
+        ctx.fillStyle = "rgba(44, 36, 27, 0.8)"; ctx.font = "bold 13px 'Cinzel', serif"; ctx.textAlign="center"; ctx.fillText(this.id, this.x, this.y - this.radius - 12);
     }
+    
     takeDamage(amount, type, source, game) {
-        if (this.iFrames > 0) return; this.hp = Math.max(0, this.hp - amount); this.iFrames = 200; game.triggerHitStop(50); 
+        if (this.iFrames > 0) return; 
+        this.hp = Math.max(0, this.hp - amount); 
+        this.iFrames = MathUtils.getStat(this, 'iFrameDuration'); 
+        
+        let hsTime = MathUtils.getStat(source || this, 'hitStopDuration');
+        game.triggerHitStop(hsTime); 
+        
         game.spawnParticles(this.x, this.y, 15, source ? source.color : "#fff");
-        let dc = "#fff"; if (type === "physical") dc = "#eeeeee"; else if (type === "pierce") dc = "#f6d365"; else if (type === "blunt") dc = "#a9a9a9"; else if (type === "magic") dc = "#e066ff"; else if (type === "burn") dc = "#ff4500";
+        let dc = "#333"; if (type === "physical") dc = "#555"; else if (type === "pierce") dc = "#b89947"; else if (type === "blunt") dc = "#795548"; else if (type === "magic") dc = "#9c27b0"; else if (type === "burn") dc = "#d84315";
         game.spawnFloatingText(this.x, this.y, amount, dc);
         if (source && source.isPlayer && !source.ultimateActive && source.id) {
-            source.ultimateGauge += 20; if (source.ultimateGauge >= 100) { source.ultimateGauge = 100; source.ultimateActive = true; source.ultimateTimer = 2000; if(source.weaponDef && source.weaponDef.onUltimateActivate) source.weaponDef.onUltimateActivate(source, game); game.spawnParticles(source.x, source.y, 40, "#f6d365"); }
+            source.ultimateGauge += 20; if (source.ultimateGauge >= 100) { source.ultimateGauge = 100; source.ultimateActive = true; source.ultimateTimer = 2000; if(source.weaponDef && source.weaponDef.onUltimateActivate) source.weaponDef.onUltimateActivate(source, game); game.spawnParticles(source.x, source.y, 40, "#d4af37"); }
         }
         if (this.weaponDef && this.weaponDef.onTakeDamage) this.weaponDef.onTakeDamage(this, source, game);
     }
+    
     reverseWeapon() { if (this.weaponCooldown <= 0) { this.weaponDir *= -1; this.weaponCooldown = 200; } }
 }
 
@@ -1005,25 +849,46 @@ class Boss extends Actor {
         if(this.bossDef.init) this.bossDef.init(this);
     }
     update(game) {
-        let dtMod = game.delta / 16; this.x += this.vx * dtMod; this.y += this.vy * dtMod; this.vx *= 0.99; this.vy *= 0.99;
+        let dtMod = game.delta / 16; this.x += this.vx * dtMod; this.y += this.vy * dtMod; 
+        
+        let friction = MathUtils.getStat(this, 'friction');
+        let speedCap = MathUtils.getStat(this, 'baseSpeedCap');
+        let maxColSpeed = MathUtils.getStat(this, 'maxCollisionSpeed');
+
+        let speed = Math.hypot(this.vx, this.vy);
+        if (speed > maxColSpeed) { 
+            this.vx = (this.vx / speed) * maxColSpeed; this.vy = (this.vy / speed) * maxColSpeed; 
+        } else if (speed > speedCap) { 
+            this.vx *= 0.95; this.vy *= 0.95; 
+        } else {
+            this.vx *= friction; this.vy *= friction;
+        }
+
         if (this.iFrames > 0) this.iFrames -= game.delta; this.updateEffects(game);
         if (this.bossDef.onUpdate) this.bossDef.onUpdate(this, game);
         this.handleWallCollision(game.arena);
     }
     render(ctx, game) {
-        if (this.statusEffects.some(e => e.type === "burn")) { ctx.shadowColor = "#ff5500"; ctx.shadowBlur = 20; }
+        if (this.statusEffects.some(e => e.type === "burn")) { ctx.shadowColor = "#e64a19"; ctx.shadowBlur = 20; }
         ctx.save(); ctx.translate(this.x, this.y);
         ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fillStyle = this.iFrames > 0 ? "#fff" : this.color; ctx.fill();
-        ctx.lineWidth = 4; ctx.strokeStyle = "#111"; ctx.stroke(); ctx.shadowBlur = 0; 
+        ctx.lineWidth = 3; ctx.strokeStyle = "rgba(44, 36, 27, 0.5)"; ctx.stroke(); ctx.shadowBlur = 0; 
         if (this.bossDef.render) this.bossDef.render(ctx, this, game);
-        ctx.restore(); ctx.fillStyle = "rgba(243, 229, 171, 0.9)"; ctx.font = "bold 16px 'Cinzel', serif"; ctx.textAlign="center"; ctx.fillText(this.bossDef.name, this.x, this.y - this.radius - 15);
+        ctx.restore(); ctx.fillStyle = "rgba(44, 36, 27, 0.9)"; ctx.font = "bold 16px 'Cinzel', serif"; ctx.textAlign="center"; ctx.fillText(this.bossDef.name, this.x, this.y - this.radius - 15);
     }
     takeDamage(amount, type, source, game) {
-        if (this.iFrames > 0) return; this.hp = Math.max(0, this.hp - amount); this.iFrames = 100; game.spawnParticles(this.x, this.y, 20, source ? source.color : "#fff");
-        let dc = "#fff"; if (type === "physical") dc = "#eeeeee"; else if (type === "pierce") dc = "#f6d365"; else if (type === "blunt") dc = "#a9a9a9"; else if (type === "magic") dc = "#e066ff"; else if (type === "burn") dc = "#ff4500";
+        if (this.iFrames > 0) return; 
+        this.hp = Math.max(0, this.hp - amount); 
+        this.iFrames = MathUtils.getStat(this, 'iFrameDuration'); 
+        
+        let hsTime = MathUtils.getStat(source || this, 'hitStopDuration');
+        game.triggerHitStop(hsTime);
+
+        game.spawnParticles(this.x, this.y, 20, source ? source.color : "#fff");
+        let dc = "#333"; if (type === "physical") dc = "#555"; else if (type === "pierce") dc = "#b89947"; else if (type === "blunt") dc = "#795548"; else if (type === "magic") dc = "#9c27b0"; else if (type === "burn") dc = "#d84315";
         game.spawnFloatingText(this.x, this.y, amount, dc);
         if (source && source.isPlayer && !source.ultimateActive && source.id) {
-            source.ultimateGauge += 10; if (source.ultimateGauge >= 100) { source.ultimateGauge = 100; source.ultimateActive = true; source.ultimateTimer = 2000; if(source.weaponDef && source.weaponDef.onUltimateActivate) source.weaponDef.onUltimateActivate(source, game); game.spawnParticles(source.x, source.y, 40, "#f6d365"); }
+            source.ultimateGauge += 10; if (source.ultimateGauge >= 100) { source.ultimateGauge = 100; source.ultimateActive = true; source.ultimateTimer = 2000; if(source.weaponDef && source.weaponDef.onUltimateActivate) source.weaponDef.onUltimateActivate(source, game); game.spawnParticles(source.x, source.y, 40, "#d4af37"); }
         }
         if (this.bossDef.onTakeDamage) this.bossDef.onTakeDamage(this, source, game);
     }
@@ -1038,7 +903,20 @@ const Engine = {
     canvas: document.getElementById('gameCanvas'),
     ctx: document.getElementById('gameCanvas').getContext('2d'),
     width: window.innerWidth, height: window.innerHeight,
-    bgColor: "#e8f0f2", // Default: สว่างสดใส ธรรมชาติ (Soft Breeze/Sky)
+    
+    // Global Configs
+    config: {
+        arenaScale: 1.0,
+        bgColor: "#e8e4d8",
+        baseSpeedCap: 20,
+        collisionBounce: 1.05,
+        maxCollisionSpeed: 40,
+        iFrameDuration: 200,
+        hitStopDuration: 50,
+        wallBounce: 0.95,
+        friction: 0.995
+    },
+    
     arena: { x: 0, y: 0, size: 0, scale: 1.0 }, 
     actors: [], entities: [], particles: [],
     lastTime: 0, delta: 0, hitStop: 0, state: 'MENU', mode: '1v1',
@@ -1049,10 +927,32 @@ const Engine = {
         document.getElementById('game-mode').addEventListener('change', (e) => { this.mode = e.target.value; this.buildMenuUI(); });
         document.getElementById('start-btn').addEventListener('click', () => { this.startGame(); });
         
+        // Settings Sync
+        const configKeys = ['arenaScale', 'baseSpeedCap', 'collisionBounce', 'maxCollisionSpeed', 'iFrameDuration', 'hitStopDuration', 'wallBounce', 'friction'];
+        configKeys.forEach(k => {
+            let el = document.getElementById(`cfg-${k}`);
+            let valEl = document.getElementById(`val-${k}`);
+            if(el) {
+                el.value = this.config[k];
+                if(valEl) valEl.innerText = this.config[k];
+                el.addEventListener('input', e => {
+                    let v = parseFloat(e.target.value);
+                    this.config[k] = v;
+                    if(valEl) valEl.innerText = v;
+                    if(k === 'arenaScale') { this.arena.scale = v; this.resizeCanvas(); }
+                });
+            }
+        });
+        let bgEl = document.getElementById('cfg-bgColor');
+        if(bgEl) {
+            bgEl.value = this.config.bgColor;
+            bgEl.addEventListener('input', e => this.config.bgColor = e.target.value);
+        }
+
         // Open Settings from Main Menu
         document.getElementById('menu-settings-btn').addEventListener('click', () => { 
             document.getElementById('settings-modal').style.display = 'flex'; 
-            document.getElementById('quit-btn').style.display = 'none'; // Hide quit button while in menu
+            document.getElementById('quit-btn').style.display = 'none'; 
             document.getElementById('resume-btn').innerText = 'Close';
         });
 
@@ -1067,26 +967,55 @@ const Engine = {
         // Close Settings
         document.getElementById('resume-btn').addEventListener('click', () => { 
             document.getElementById('settings-modal').style.display = 'none'; 
-            if(this.actors.length > 0) { // Only resume game if actors exist (game has started)
+            if(this.actors.length > 0) { 
                 this.state = 'PLAYING'; 
                 this.lastTime = performance.now(); 
             }
         });
 
+        // Reset Settings
+        document.getElementById('reset-settings-btn').addEventListener('click', () => {
+            this.config = {
+                arenaScale: 1.0,
+                bgColor: "#e8e4d8",
+                baseSpeedCap: 20,
+                collisionBounce: 1.05,
+                maxCollisionSpeed: 40,
+                iFrameDuration: 200,
+                hitStopDuration: 50,
+                wallBounce: 0.95,
+                friction: 0.995
+            };
+            this.arena.scale = 1.0;
+            
+            // Sync UI elements back to default values
+            configKeys.forEach(k => {
+                let el = document.getElementById(`cfg-${k}`);
+                let valEl = document.getElementById(`val-${k}`);
+                if(el) el.value = this.config[k];
+                if(valEl) valEl.innerText = this.config[k];
+            });
+            
+            // Sync Arena scale specifically
+            let oldArenaScaleEl = document.getElementById('arena-scale');
+            let oldArenaScaleVal = document.getElementById('arena-scale-val');
+            if(oldArenaScaleEl) oldArenaScaleEl.value = 1.0;
+            if(oldArenaScaleVal) oldArenaScaleVal.innerText = "100";
+
+            let bgColEl = document.getElementById('cfg-bgColor');
+            let oldBgColEl = document.getElementById('bg-color');
+            if(bgColEl) bgColEl.value = this.config.bgColor;
+            if(oldBgColEl) oldBgColEl.value = this.config.bgColor;
+
+            this.resizeCanvas();
+        });
+
         document.getElementById('quit-btn').addEventListener('click', () => {
             document.getElementById('settings-modal').style.display = 'none'; document.getElementById('game-ui').style.display = 'none';
             document.getElementById('settings-btn').style.display = 'none'; document.getElementById('menu').style.display = 'flex'; this.state = 'MENU';
-            this.actors = []; // Clear current game state
+            this.actors = []; 
         });
 
-        document.getElementById('arena-scale').addEventListener('input', (e) => {
-            this.arena.scale = parseFloat(e.target.value);
-            document.getElementById('arena-scale-val').innerText = Math.round(this.arena.scale * 100);
-            this.resizeCanvas();
-        });
-        document.getElementById('bg-color').addEventListener('input', (e) => {
-            this.bgColor = e.target.value;
-        });
         requestAnimationFrame((t) => this.loop(t));
     },
 
@@ -1113,23 +1042,23 @@ const Engine = {
         const gb = () => { let h = ""; for(let b in BOSS_REGISTRY) h += `<option value="${b}">${b}</option>`; return h; };
         if (this.mode === '1v1') {
             container.innerHTML = `
-                <div class="dynamic-row"><label style="color:var(--team1-color);">P1 Weapon (Left):</label><select id="p1-w">${gw()}</select></div>
-                <div class="dynamic-row"><label style="color:var(--team2-color);">P2 Weapon (Right):</label><select id="p2-w">${gw()}</select></div>`;
+                <div class="dynamic-row" style="border-left-color: var(--team1-color);"><label style="color:var(--text-main); font-weight:bold;">P1 Weapon (Left):</label><select id="p1-w">${gw()}</select></div>
+                <div class="dynamic-row" style="border-left-color: var(--team2-color);"><label style="color:var(--text-main); font-weight:bold;">P2 Weapon (Right):</label><select id="p2-w">${gw()}</select></div>`;
             document.getElementById('p2-w').selectedIndex = 1; 
         } else {
             let div = document.createElement('div');
             div.innerHTML = `
-                <div class="dynamic-row"><label style="color:var(--team1-color);">Players (1-5, Left):</label><input type="number" id="num-players" value="1" min="1" max="5"></div>
+                <div class="dynamic-row" style="border-left-color: var(--team1-color);"><label style="color:var(--text-main); font-weight:bold;">Players (1-5, Left):</label><input type="number" id="num-players" value="1" min="1" max="5"></div>
                 <div id="player-list-container"></div>
-                <div class="dynamic-row" style="margin-top:10px;"><label style="color:var(--team2-color);">Bosses (1-2, Right):</label><input type="number" id="num-bosses" value="1" min="1" max="2"></div>
+                <div class="dynamic-row" style="margin-top:10px; border-left-color: var(--team2-color);"><label style="color:var(--text-main); font-weight:bold;">Bosses (1-2, Right):</label><input type="number" id="num-bosses" value="1" min="1" max="2"></div>
                 <div id="boss-list-container"></div>`;
             container.appendChild(div);
             const update = () => {
                 let pCount = MathUtils.clamp(parseInt(document.getElementById('num-players').value) || 1, 1, 5);
-                let pHTML = ""; for(let i=1; i<=pCount; i++) pHTML += `<div class="dynamic-row"><label>P${i} Weapon:</label><select class="bossmode-p-weapon">${gw()}</select></div>`;
+                let pHTML = ""; for(let i=1; i<=pCount; i++) pHTML += `<div class="dynamic-row" style="border-left: 2px solid var(--border-light); padding-left:25px;"><label>P${i} Weapon:</label><select class="bossmode-p-weapon">${gw()}</select></div>`;
                 document.getElementById('player-list-container').innerHTML = pHTML;
                 let bCount = MathUtils.clamp(parseInt(document.getElementById('num-bosses').value) || 1, 1, 2);
-                let bHTML = ""; for(let i=1; i<=bCount; i++) bHTML += `<div class="dynamic-row"><label>Boss ${i}:</label><select class="bossmode-boss-select">${gb()}</select></div>`;
+                let bHTML = ""; for(let i=1; i<=bCount; i++) bHTML += `<div class="dynamic-row" style="border-left: 2px solid var(--border-light); padding-left:25px;"><label>Boss ${i}:</label><select class="bossmode-boss-select">${gb()}</select></div>`;
                 document.getElementById('boss-list-container').innerHTML = bHTML;
             };
             document.getElementById('num-players').addEventListener('input', update); document.getElementById('num-bosses').addEventListener('input', update);
@@ -1140,8 +1069,8 @@ const Engine = {
     startGame() {
         document.getElementById('menu').style.display = 'none'; document.getElementById('game-ui').style.display = 'block'; document.getElementById('settings-btn').style.display = 'block';
         this.actors = []; this.entities = []; this.particles = []; this.hitStop = 0;
-        let colorsP = ["#4169e1", "#4682b4", "#5f9ea0", "#20b2aa", "#6a5acd"]; // Medieval Team Blues
-        let colorsB = ["#8b0000", "#b22222"]; // Medieval Team Reds
+        let colorsP = ["#4169e1", "#4682b4", "#5f9ea0", "#20b2aa", "#6a5acd"]; // Muted Blues
+        let colorsB = ["#e57373", "#ff8a65"]; // Bright reds for visibility on bright bg
         if (this.mode === '1v1') {
             this.actors.push(new Player("P1", 0, 0, colorsP[0], 1, document.getElementById('p1-w').value));
             this.actors.push(new Player("P2", 0, 0, colorsB[0], 2, document.getElementById('p2-w').value));
@@ -1151,8 +1080,8 @@ const Engine = {
         }
         this.resizeCanvas();
         this.actors.forEach((a, i) => {
-            if(a.team === 1) { a.x = this.arena.x + this.arena.size * 0.2; a.y = this.arena.y + this.arena.size * (0.2 + i*0.1); a.vx = 10; }
-            else { a.x = this.arena.x + this.arena.size * 0.8; a.y = this.arena.y + this.arena.size * (0.2 + (i-this.actors.filter(x=>x.team===1).length)*0.3); a.vx = -10; }
+            if(a.team === 1) { a.x = this.arena.x + this.arena.size * 0.2; a.y = this.arena.y + this.arena.size * (0.2 + i*0.1); a.vx = MathUtils.getStat(a, 'baseSpeedCap')/2; }
+            else { a.x = this.arena.x + this.arena.size * 0.8; a.y = this.arena.y + this.arena.size * (0.2 + (i-this.actors.filter(x=>x.team===1).length)*0.3); a.vx = -MathUtils.getStat(a, 'baseSpeedCap')/2; }
         });
         this.buildHUD(); this.lastTime = performance.now(); this.state = 'PLAYING';
     },
@@ -1161,11 +1090,11 @@ const Engine = {
         const header = document.getElementById('header'); const footer = document.getElementById('footer');
         header.innerHTML = ""; footer.innerHTML = "";
         const cPanel = (a, b) => `
-            <div class="hud-panel" style="border-color:${b?'var(--team2-color)':'var(--team1-color)'}">
-                <div class="hud-title" style="color:${a.color}">${b?a.bossDef.name:`${a.id} (${a.weaponDef.name})`}</div>
+            <div class="hud-panel" style="border-left-color:${b?'var(--team2-color)':'var(--team1-color)'}">
+                <div class="hud-title" style="color:var(--text-main)">${b?a.bossDef.name:`${a.id} (${a.weaponDef.name})`}</div>
                 <div class="stat-row"><span>HP</span><span id="${a.id}-hp-text">${a.maxHp}/${a.maxHp}</span></div>
                 <div class="bar-container"><div class="hp-bar" id="${a.id}-hp" style="background:${a.color};width:100%"></div></div>
-                ${a.isPlayer?`<div class="stat-row"><span style="color:var(--gold)">Ult</span><span id="${a.id}-ult-text">0%</span></div><div class="bar-container"><div class="ult-bar" id="${a.id}-ult"></div></div>`:""}
+                ${a.isPlayer?`<div class="stat-row"><span style="color:var(--gold-dark)">Ult</span><span id="${a.id}-ult-text">0%</span></div><div class="bar-container"><div class="ult-bar" id="${a.id}-ult"></div></div>`:""}
                 <div class="passive-text" id="${a.id}-passive">Passive: --</div>
             </div>`;
         this.actors.filter(a => a.team === 1).forEach(a => footer.innerHTML += cPanel(a, a.isBoss));
@@ -1180,7 +1109,7 @@ const Engine = {
             if(pT) pT.innerText = `Passive: ${a.passiveText || "--"}`;
             if(a.isPlayer) {
                 let uB = document.getElementById(`${a.id}-ult`), uT = document.getElementById(`${a.id}-ult-text`);
-                if(uB) { uB.style.width = `${a.ultimateGauge}%`; uB.style.background = a.ultimateActive?"#fff":"linear-gradient(90deg, #b8860b, #ffd700)"; }
+                if(uB) { uB.style.width = `${a.ultimateGauge}%`; uB.style.background = a.ultimateActive?"#fff":"linear-gradient(90deg, #d4c4a8, var(--gold))"; }
                 if(uT) uT.innerText = a.ultimateActive?"ACTIVE":`${Math.floor(a.ultimateGauge)}%`;
             }
         });
@@ -1189,7 +1118,7 @@ const Engine = {
     getEnemies(a) { return this.actors.filter(x => x.team !== a.team && x.hp > 0); },
     spawn(e) { this.entities.push(e); },
     spawnParticles(x, y, c, col) { for(let i=0; i<c; i++) { let a = Math.random()*Math.PI*2, s = Math.random()*5+2; this.particles.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,color:col,type:"particle"}); } },
-    spawnFloatingText(x, y, amt, col) { this.spawn({x:x+(Math.random()*30-15),y:y-40,vx:(Math.random()-0.5)*2,vy:-2,lifetime:800,maxLife:800,text:Math.ceil(amt).toString(),color:col,type:"text",update(g){this.x+=this.vx*(g.delta/16);this.y+=this.vy*(g.delta/16);this.lifetime-=g.delta;},render(ctx){ctx.save();ctx.globalAlpha=Math.max(0,this.lifetime/this.maxLife);ctx.fillStyle=this.color;ctx.font="bold 24px 'Cinzel', serif";ctx.textAlign="center";ctx.strokeStyle="#111";ctx.lineWidth=4;ctx.strokeText(this.text,this.x,this.y);ctx.fillText(this.text,this.x,this.y);ctx.restore();}}); },
+    spawnFloatingText(x, y, amt, col) { this.spawn({x:x+(Math.random()*30-15),y:y-40,vx:(Math.random()-0.5)*2,vy:-2,lifetime:800,maxLife:800,text:Math.ceil(amt).toString(),color:col,type:"text",update(g){this.x+=this.vx*(g.delta/16);this.y+=this.vy*(g.delta/16);this.lifetime-=g.delta;},render(ctx){ctx.save();ctx.globalAlpha=Math.max(0,this.lifetime/this.maxLife);ctx.fillStyle=this.color;ctx.font="bold 24px 'Cinzel', serif";ctx.textAlign="center";ctx.strokeStyle="rgba(255,255,255,0.8)";ctx.lineWidth=3;ctx.strokeText(this.text,this.x,this.y);ctx.fillText(this.text,this.x,this.y);ctx.restore();}}); },
     triggerHitStop(ms) { this.hitStop = ms; },
 
     checkCollisions() {
@@ -1200,7 +1129,14 @@ const Engine = {
                 if (dist < minDist) {
                     let overlap = minDist-dist, nx = (a2.x-a1.x)/dist, ny = (a2.y-a1.y)/dist;
                     a1.x-=nx*overlap/2; a1.y-=ny*overlap/2; a2.x+=nx*overlap/2; a2.y+=ny*overlap/2;
-                    let tx = a1.vx, ty = a1.vy; a1.vx = a2.vx*1.05; a1.vy = a2.vy*1.05; a2.vx = tx*1.05; a2.vy = ty*1.05;
+                    
+                    let b1 = MathUtils.getStat(a1, 'collisionBounce');
+                    let b2 = MathUtils.getStat(a2, 'collisionBounce');
+                    
+                    let tx = a1.vx, ty = a1.vy; 
+                    a1.vx = a2.vx * b1; a1.vy = a2.vy * b1; 
+                    a2.vx = tx * b2; a2.vy = ty * b2;
+                    
                     if(a1.isBoss && a2.isPlayer && a1.team!==a2.team && a1.bossDef.onHitPlayer) a1.bossDef.onHitPlayer(a1,a2,this);
                     else if(a2.isBoss && a1.isPlayer && a2.team!==a1.team && a2.bossDef.onHitPlayer) a2.bossDef.onHitPlayer(a2,a1,this);
                 }
@@ -1217,7 +1153,7 @@ const Engine = {
         let t1 = this.actors.filter(a => a.team === 1 && a.hp > 0).length > 0, t2 = this.actors.filter(a => a.team === 2 && a.hp > 0).length > 0;
         if (!t1 || !t2) {
             this.state = 'GAMEOVER';
-            setTimeout(() => { alert(`${t1 ? "Honor to the Players!" : "The Abyss Claims Victory!"}`); document.getElementById('menu').style.display='flex'; document.getElementById('game-ui').style.display='none'; document.getElementById('settings-btn').style.display='none'; this.state='MENU'; }, 1000);
+            setTimeout(() => { alert(`${t1 ? "Honor to the Players!" : "The Enemy Claims Victory!"}`); document.getElementById('menu').style.display='flex'; document.getElementById('game-ui').style.display='none'; document.getElementById('settings-btn').style.display='none'; this.state='MENU'; }, 1000);
         }
     },
 
@@ -1225,16 +1161,23 @@ const Engine = {
         this.delta = timestamp - this.lastTime; this.lastTime = timestamp;
         if (this.delta > 100) this.delta = 16; 
         
-        // Background Color (Customizable bright/natural tone)
-        this.ctx.fillStyle = this.bgColor; 
+        // Background Color 
+        this.ctx.fillStyle = this.config.bgColor; 
         this.ctx.fillRect(0, 0, this.width, this.height);
         
-        // Arena Background (Bright glass / light translucent)
-        this.ctx.fillStyle = "rgba(255, 255, 255, 0.7)"; 
+        // Dynamic Radial Gradient for Arena depth
+        let gradient = this.ctx.createRadialGradient(
+            this.arena.x + this.arena.size/2, this.arena.y + this.arena.size/2, 0,
+            this.arena.x + this.arena.size/2, this.arena.y + this.arena.size/2, this.arena.size
+        );
+        gradient.addColorStop(0, "rgba(255, 255, 255, 0.95)");
+        gradient.addColorStop(1, "rgba(235, 230, 220, 0.85)");
+        
+        this.ctx.fillStyle = gradient; 
         this.ctx.fillRect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
         
-        // Medieval Grid (Faint dark lines for bright background)
-        this.ctx.strokeStyle = "rgba(0, 0, 0, 0.1)"; 
+        // Minimal Grid (Faint dark lines)
+        this.ctx.strokeStyle = "rgba(139, 121, 82, 0.15)"; 
         this.ctx.lineWidth = 1; 
         this.ctx.beginPath();
         for(let i=0; i<=this.arena.size; i+=50) { 
@@ -1243,13 +1186,20 @@ const Engine = {
         }
         this.ctx.stroke();
         
-        // Modern-Medieval Borders (Gold & Dark accents)
-        this.ctx.strokeStyle = "#d4af37"; // Gold main border
+        // Dimensional Medieval Borders
+        this.ctx.strokeStyle = "#8b7952"; // Gold-dark border
         this.ctx.lineWidth = 3; 
         this.ctx.strokeRect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
-        this.ctx.strokeStyle = "rgba(0, 0, 0, 0.5)"; // Darker outer shadow/trim
-        this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(this.arena.x - 6, this.arena.y - 6, this.arena.size + 12, this.arena.size + 12);
+        
+        // Inner depth line
+        this.ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(this.arena.x + 2, this.arena.y + 2, this.arena.size - 4, this.arena.size - 4);
+
+        // Outer shadow/trim
+        this.ctx.strokeStyle = "rgba(0, 0, 0, 0.1)";
+        this.ctx.lineWidth = 4;
+        this.ctx.strokeRect(this.arena.x - 2, this.arena.y - 2, this.arena.size + 4, this.arena.size + 4);
         
         // Clipping region for entities
         this.ctx.save(); 
