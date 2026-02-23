@@ -624,7 +624,7 @@ const WEAPON_REGISTRY = {
         name: "Fire Staff", 
         color: "#FF4500", // สีส้มไฟ
         width: 8, 
-        length: 90, 
+        length: 50, // ลดความยาวเหลือ 50 ตามที่ต้องการ
         baseDamage: 0, // ไม่มีดาเมจจากการฟาด (เป็นอาวุธเวทมนตร์)
         
         init(player) { 
@@ -633,6 +633,7 @@ const WEAPON_REGISTRY = {
             player.custom.projectiles = []; // เก็บลูกไฟที่กำลังพุ่งไป
             player.custom.activeBurns = []; // เก็บศัตรูที่กำลังติดไฟ
             player.custom.ultimateZones = []; // เก็บพื้นที่อัลติเมต
+            player.custom.ultProjectiles = []; // เก็บลูกไฟยักษ์จากอัลติเมต
             player.custom.shootTimer = 0; // คูลดาวน์การยิง
             
             player.passiveText = "เผาไหม้ " + player.custom.burnTicks + " ครั้ง"; 
@@ -721,20 +722,45 @@ const WEAPON_REGISTRY = {
                 }
             }
             
-            // 5. อัปเดตพื้นที่จากอัลติเมต
+            // 5. อัปเดตลูกไฟยักษ์จากอัลติเมต
+            if (!player.custom.ultProjectiles) player.custom.ultProjectiles = [];
+            for (let i = player.custom.ultProjectiles.length - 1; i >= 0; i--) {
+                let up = player.custom.ultProjectiles[i];
+                up.x += up.vx * dt;
+                up.y += up.vy * dt;
+                up.life -= game.delta;
+                
+                // เอฟเฟคลูกไฟยักษ์ระหว่างลอย
+                game.spawnParticles(up.x + (Math.random()-0.5)*40, up.y + (Math.random()-0.5)*40, 3, "#FF4500");
+                game.spawnParticles(up.x, up.y, 2, "#FFFF00");
+                
+                if (up.life <= 0) {
+                    // ระเบิดและสร้างพื้นที่เผาไหม้
+                    game.spawnParticles(up.x, up.y, 60, "#FF0000");
+                    player.custom.ultimateZones.push({
+                        x: up.x,
+                        y: up.y,
+                        radius: 120, // รัศมีวงอัลติเมต
+                        life: player.custom.burnTicks * 1000, // คงอยู่ตามจำนวนฮิต (1 ฮิต = 1 วินาที)
+                        tickTimer: 0
+                    });
+                    player.custom.ultProjectiles.splice(i, 1);
+                }
+            }
+            
+            // 6. อัปเดตพื้นที่จากอัลติเมต
             for (let i = player.custom.ultimateZones.length - 1; i >= 0; i--) {
                 let z = player.custom.ultimateZones[i];
                 z.life -= game.delta;
                 z.tickTimer -= game.delta;
                 
                 // เอฟเฟคไฟลุกตามพื้น
-                if (Math.random() > 0.2) {
-                    game.spawnParticles(z.x + (Math.random()-0.5)*z.radius*2, z.y + (Math.random()-0.5)*z.radius*2, 1, "#FF4500");
+                if (Math.random() > 0.3) {
+                    game.spawnParticles(z.x + (Math.random()-0.5)*z.radius*2, z.y + (Math.random()-0.5)*z.radius*2, 2, "#FF4500");
                 }
                 
                 if (z.tickTimer <= 0) {
-                    // คำนวณดาเมจ: 2 ดาเมจตามจำนวนฮิตสะสม
-                    let ultDamage = 2 * player.custom.burnTicks; 
+                    let ultDamage = 2; // ดาเมจต่อฮิตคือ 2 แบบคงที่
                     
                     for (let e of enemies) {
                         let dist = Math.hypot(z.x - e.x, z.y - e.y);
@@ -753,33 +779,94 @@ const WEAPON_REGISTRY = {
         },
         
         render(ctx, player, game) { 
-            // วาดด้ามคทาไม้
-            ctx.fillStyle = "#8B4513"; 
-            ctx.fillRect(-this.width/2, -this.length/2, this.width, this.length);
+            // --- วาดด้ามคทาสุดหรู ---
+            let staffGrad = ctx.createLinearGradient(-this.width/2, 0, this.width/2, 0);
+            staffGrad.addColorStop(0, "#DAA520"); // ทอง
+            staffGrad.addColorStop(0.5, "#FFD700"); // ทองสว่าง
+            staffGrad.addColorStop(1, "#B8860B"); // ทองเข้ม
+            ctx.fillStyle = staffGrad; 
             
-            // วาดลูกแก้วเวทมนตร์บนหัวคทา
+            // วาดด้ามและปลายแหลม
             ctx.beginPath();
-            ctx.arc(0, -this.length/2 - 5, 12, 0, Math.PI * 2);
-            let orbGrad = ctx.createRadialGradient(0, -this.length/2 - 5, 2, 0, -this.length/2 - 5, 12);
-            orbGrad.addColorStop(0, "#FFFF00");
-            orbGrad.addColorStop(0.5, "#FF4500");
+            ctx.moveTo(-this.width/2, -this.length/2);
+            ctx.lineTo(this.width/2, -this.length/2);
+            ctx.lineTo(this.width/2, this.length/2 - 5);
+            ctx.lineTo(0, this.length/2 + 10); // ปลายแหลม
+            ctx.lineTo(-this.width/2, this.length/2 - 5);
+            ctx.fill();
+            
+            // ของตกแต่งด้ามคทา (ลวดลายสีแดง)
+            ctx.fillStyle = "#8B0000";
+            ctx.fillRect(-this.width/2 - 1, 0, this.width + 2, 8);
+            ctx.fillRect(-this.width/2 - 2, -15, this.width + 4, 4);
+            
+            // วาดลูกแก้วเวทมนตร์บนหัวคทา (อลังการขึ้น)
+            ctx.beginPath();
+            ctx.arc(0, -this.length/2 - 8, 14, 0, Math.PI * 2);
+            let orbGrad = ctx.createRadialGradient(0, -this.length/2 - 8, 2, 0, -this.length/2 - 8, 14);
+            orbGrad.addColorStop(0, "#FFFFFF");
+            orbGrad.addColorStop(0.3, "#FFFF00");
+            orbGrad.addColorStop(0.7, "#FF4500");
             orbGrad.addColorStop(1, "#8B0000");
             ctx.fillStyle = orbGrad;
             
-            ctx.shadowBlur = 15;
+            ctx.shadowBlur = 20;
             ctx.shadowColor = "#FF4500";
             ctx.fill();
             ctx.shadowBlur = 0; // รีเซ็ตเงา
             
+            // วงแหวนเวทมนตร์รอบลูกแก้ว
+            ctx.beginPath();
+            ctx.ellipse(0, -this.length/2 - 8, 22, 6, player.weaponRotation * 3, 0, Math.PI*2);
+            ctx.strokeStyle = "rgba(255, 215, 0, 0.8)";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
             // --- แฮควาดกราฟิกทับโลก (วาดของในระยะโกลบอล) ---
             ctx.save();
-            // ยกเลิกการหมุนและตำแหน่งของอาวุธ เพื่ออ้างอิงพิกัด x,y ของโลก
+            // ยกเลิกการหมุนและตำแหน่งของอาวุธ เพื่ออ้างอิงพิกัดโลก
             ctx.rotate(-player.weaponRotation);
             let wX = player.weaponX !== undefined ? player.weaponX : player.x;
             let wY = player.weaponY !== undefined ? player.weaponY : player.y;
             ctx.translate(-wX, -wY);
             
-            // 1. วาดพื้นที่อัลติเมต
+            // 1. วาดหมวกพ่อมดเพลิงบนหัวผู้เล่น
+            ctx.save();
+            ctx.translate(player.x, player.y); // ไปที่ตำแหน่งผู้เล่น
+            
+            // ปีกหมวก
+            ctx.fillStyle = "#8B0000"; 
+            ctx.beginPath();
+            ctx.ellipse(0, -player.radius + 5, player.radius + 15, 8, 0, 0, Math.PI*2);
+            ctx.fill();
+            ctx.strokeStyle = "#FFD700"; // ขอบทอง
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // ยอดหมวก (ทรงกรวยงอๆ)
+            ctx.beginPath();
+            ctx.moveTo(-player.radius + 5, -player.radius + 5); // ฐานซ้าย
+            ctx.lineTo(player.radius - 5, -player.radius + 5);  // ฐานขวา
+            ctx.lineTo(15, -player.radius - 35); // ปลายหมวกงอไปด้านหลัง
+            ctx.lineTo(5, -player.radius - 40);
+            ctx.lineTo(-5, -player.radius - 30);
+            ctx.closePath();
+            
+            let hatGrad = ctx.createLinearGradient(0, -player.radius, 0, -player.radius - 40);
+            hatGrad.addColorStop(0, "#8B0000"); // แดงเข้ม
+            hatGrad.addColorStop(1, "#FF4500"); // ส้ม
+            ctx.fillStyle = hatGrad;
+            ctx.fill();
+            
+            // ลายดาวบนหมวก
+            ctx.fillStyle = "#FFD700";
+            ctx.font = "12px Arial";
+            ctx.fillText("★", -6, -player.radius - 5);
+            ctx.font = "8px Arial";
+            ctx.fillText("✦", 6, -player.radius - 18);
+            ctx.restore();
+            
+            // 2. วาดพื้นที่อัลติเมต
             for (let z of player.custom.ultimateZones) {
                 ctx.beginPath();
                 ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
@@ -790,7 +877,7 @@ const WEAPON_REGISTRY = {
                 ctx.stroke();
             }
             
-            // 2. วาดศัตรูที่กำลังติดไฟ (เอฟเฟคแสงสีส้มหุ้มตัว)
+            // 3. วาดศัตรูที่กำลังติดไฟ (เอฟเฟคแสงสีส้มหุ้มตัว)
             for (let b of player.custom.activeBurns) {
                 if (b.target && b.target.hp > 0) {
                     ctx.beginPath();
@@ -800,7 +887,7 @@ const WEAPON_REGISTRY = {
                 }
             }
             
-            // 3. วาดลูกไฟ
+            // 4. วาดลูกไฟขนาดเล็ก (การโจมตีปกติ)
             for (let p of player.custom.projectiles) {
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
@@ -814,6 +901,19 @@ const WEAPON_REGISTRY = {
                 ctx.shadowColor = "#FF0000";
                 ctx.fill();
                 ctx.shadowBlur = 0;
+            }
+            
+            // 5. วาดลูกไฟยักษ์ (อัลติเมตก่อนระเบิด)
+            for (let up of (player.custom.ultProjectiles || [])) {
+                ctx.beginPath();
+                ctx.arc(up.x, up.y, up.radius, 0, Math.PI * 2);
+                let upGrad = ctx.createRadialGradient(up.x, up.y, 10, up.x, up.y, up.radius);
+                upGrad.addColorStop(0, "#FFFFFF");
+                upGrad.addColorStop(0.3, "#FFFF00");
+                upGrad.addColorStop(0.8, "#FF4500");
+                upGrad.addColorStop(1, "rgba(139, 0, 0, 0)");
+                ctx.fillStyle = upGrad;
+                ctx.fill();
             }
             
             ctx.restore();
@@ -835,34 +935,29 @@ const WEAPON_REGISTRY = {
         
         onUltimateActivate(player, game) {
             let enemies = game.getEnemies(player);
-            let targets = [];
+            let angle = player.weaponRotation; // เล็งไปทางที่หันอยู่เป็นค่าเริ่มต้น
             
             if (enemies.length > 0) {
-                // สุ่มศัตรู 3 ตัวที่จะโดนอุกกาบาต
-                for(let i = 0; i < 3; i++) {
-                    let e = enemies[Math.floor(Math.random() * enemies.length)];
-                    if(e && !targets.includes(e)) targets.push({x: e.x, y: e.y});
-                }
-            } else {
-                // ถ้าไม่มีศัตรู ให้เสกลงมาข้างหน้าผู้เล่นแทน
-                targets.push({
-                    x: player.x + Math.cos(player.weaponRotation) * 150,
-                    y: player.y + Math.sin(player.weaponRotation) * 150
-                });
+                // หาศัตรูที่อยู่ใกล้ที่สุด
+                let closest = enemies.reduce((prev, curr) => 
+                    Math.hypot(curr.x - player.x, curr.y - player.y) < Math.hypot(prev.x - player.x, prev.y - player.y) ? curr : prev
+                );
+                angle = Math.atan2(closest.y - player.y, closest.x - player.x);
             }
             
-            for (let t of targets) {
-                // สร้างพื้นที่เผาไหม้
-                player.custom.ultimateZones.push({
-                    x: t.x,
-                    y: t.y,
-                    radius: 100, // รัศมีวงอัลติเมต
-                    life: 5000, // อยู่ 5 วินาที
-                    tickTimer: 0 // ทำดาเมจครั้งแรกทันทีที่ลงพื้น
-                });
-                // เอฟเฟคตอนลูกไฟตกกระแทกพื้น
-                game.spawnParticles(t.x, t.y, 40, "#FF4500");
-            }
+            if (!player.custom.ultProjectiles) player.custom.ultProjectiles = [];
+            
+            // ยิงลูกไฟขนาดใหญ่
+            player.custom.ultProjectiles.push({
+                x: player.x,
+                y: player.y,
+                vx: Math.cos(angle) * 12, // ความเร็วลูกไฟยักษ์
+                vy: Math.sin(angle) * 12,
+                radius: 35, // ขนาดลูกไฟ
+                life: 1200 // ระยะเวลาลอย (1.2 วินาที) ก่อนจะระเบิดเป็นพื้นที่
+            });
+            
+            game.spawnParticles(player.x, player.y, 30, "#FF4500");
         }
     }
 };
