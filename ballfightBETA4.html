@@ -1092,7 +1092,7 @@ const Engine = {
         let availableW = this.width - (hudWidth * 2) - 60; 
         let availableH = this.height - 60;
         
-        let baseSize = Math.max(0, Math.min(availableW, availableH));
+        let baseSize = Math.max(1, Math.min(availableW, availableH));
         this.arena.size = baseSize * this.arena.scale;
         
         this.arena.x = hudWidth + 30 + (availableW - this.arena.size) / 2;
@@ -1243,7 +1243,7 @@ const Engine = {
         this.ctx.fillStyle = this.config.bgColor; 
         this.ctx.fillRect(0, 0, this.width, this.height);
         
-        let radius = Math.max(0, this.arena.size);
+        let radius = Math.max(1, this.arena.size);
         // Dynamic Radial Gradient for Arena depth
         let gradient = this.ctx.createRadialGradient(
             this.arena.x + this.arena.size/2, this.arena.y + this.arena.size/2, 0,
