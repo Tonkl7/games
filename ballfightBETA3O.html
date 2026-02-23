@@ -426,9 +426,10 @@ const WEAPON_REGISTRY = {
         color: "#a832a8", // สีม่วงเวทมนตร์
         width: 6,
         length: 50,
-        baseDamage: 2,
+        baseDamage: 10,
         init(player) { 
             player.custom.projectiles = [];
+            player.custom.shockwaves = []; // เพิ่ม Array สำหรับจัดการคลื่นระเบิด
             player.custom.fireTimer = 0;
             player.custom.radiusStacks = 0; // เก็บค่าสแตกเพื่อขยายวงกว้างเท่านั้น
             player.passiveText = "ระเบิดเวท: ลูกเวทระเบิดเมื่อเข้าใกล้ศัตรู ยิ่งโดนวงยิ่งกว้าง (ดาเมจ: 10)"; 
@@ -453,7 +454,7 @@ const WEAPON_REGISTRY = {
                         isUlt: false,
                         x: wx,
                         y: wy,
-                        vx: (dx/dist) * 7, // ความเร็วเริ่มต้น (ช้าลงนิดนึงให้ homing ทำงานได้สวย)
+                        vx: (dx/dist) * 7, // ความเร็วเริ่มต้น
                         vy: (dy/dist) * 7,
                         life: 150 // อายุลูกเวทก่อนสลาย
                     });
@@ -536,42 +537,64 @@ const WEAPON_REGISTRY = {
                 // หมดอายุขัย
                 if (p.life <= 0) exploded = true;
     
-                // ระบบระเบิด
+                // ระบบระเบิด - เปลี่ยนเป็นการสร้างคลื่นกระจาย (Shockwave)
                 if (exploded) {
-                    // คำนวณความกว้างวงระเบิด (ดาเมจล็อคที่ baseDamage = 10 เสมอ)
                     let baseRadius = 45; // วงระเบิดเล็กๆ เริ่มต้น
                     let explosionRadius = baseRadius + (player.custom.radiusStacks * 3);
                     let explosionDamage = this.baseDamage;
     
-                    // สร้างเอฟเฟกต์ตอนระเบิด
-                    game.spawnParticles(p.x, p.y, 10 + player.custom.radiusStacks, this.color);
+                    // สร้างเอฟเฟกต์ตอนเริ่มระเบิด
+                    game.spawnParticles(p.x, p.y, 10, this.color);
                     game.spawnParticles(p.x, p.y, 8, "#ffffff");
     
-                    let hitCount = 0;
-                    // สร้างความเสียหายเป็นวงกว้าง (AOE)
-                    for (let e of enemies) {
-                        let edx = e.x - p.x;
-                        let edy = e.y - p.y;
-                        if (Math.sqrt(edx*edx + edy*edy) <= explosionRadius + e.radius) {
-                            e.takeDamage(explosionDamage, "magic", player, game);
-                            hitCount++;
-                        }
-                    }
-    
-                    // พาสซีฟ: ยิ่งโจมตีโดน วงระเบิดยิ่งกว้าง
-                    if (hitCount > 0) {
-                        player.custom.radiusStacks = Math.min(player.custom.radiusStacks + hitCount, 50); // ตันที่ 50 Stacks
-                        player.passiveText = `ระเบิดเวท: รัศมีระเบิดเพิ่มขึ้น (+${(player.custom.radiusStacks*3).toFixed(0)}px) ดาเมจ 10`;
-                    }
+                    // เพิ่มคลื่นกระแทกเข้า array ให้แผ่ออกทีหลัง
+                    player.custom.shockwaves.push({
+                        x: p.x,
+                        y: p.y,
+                        radius: 5, // เริ่มจากจุดเล็กๆ
+                        maxRadius: explosionRadius,
+                        damage: explosionDamage,
+                        hitList: [] // เก็บรายชื่อศัตรูที่โดนคลื่นลูกนี้ไปแล้ว จะได้ไม่โดนซ้ำ
+                    });
     
                     // ลบลูกเวทที่ระเบิดแล้วออก
                     player.custom.projectiles.splice(i, 1);
                 }
             }
+    
+            // อัปเดตการทำงานของคลื่นกระแทกวงกลม (Shockwaves)
+            for (let i = player.custom.shockwaves.length - 1; i >= 0; i--) {
+                let sw = player.custom.shockwaves[i];
+                sw.radius += 8 * (game.delta / 16); // ความเร็วในการขยายวงคลื่น
+                
+                let hitCount = 0;
+                for (let e of enemies) {
+                    // เช็คว่ายังไม่เคยโดนคลื่นลูกนี้
+                    if (!sw.hitList.includes(e)) {
+                        let edx = e.x - sw.x;
+                        let edy = e.y - sw.y;
+                        // ทำดาเมจเมื่อวงคลื่นสัมผัสถึงตัวศัตรู
+                        if (Math.sqrt(edx*edx + edy*edy) <= sw.radius + e.radius) {
+                            e.takeDamage(sw.damage, "magic", player, game);
+                            sw.hitList.push(e); // บันทึกว่าโดนคลื่นกวาดไปแล้ว
+                            hitCount++;
+                        }
+                    }
+                }
+    
+                // พาสซีฟ: ยิ่งคลื่นกระจายไปโดนศัตรู วงครั้งต่อๆ ไปยิ่งกว้าง
+                if (hitCount > 0) {
+                    player.custom.radiusStacks = Math.min(player.custom.radiusStacks + hitCount, 50); // ตันที่ 50 Stacks
+                    player.passiveText = `ระเบิดเวท: รัศมีระเบิดเพิ่มขึ้น (+${(player.custom.radiusStacks*3).toFixed(0)}px) ดาเมจ 10`;
+                }
+    
+                // ลบคลื่นออกเมื่อกระจายไปจนถึงขนาดสูงสุด
+                if (sw.radius >= sw.maxRadius) {
+                    player.custom.shockwaves.splice(i, 1);
+                }
+            }
         },
         render(ctx, player, game) { 
-            // จุดกำเนิด (0,0) อยู่ที่กึ่งกลางอาวุธ
-            
             // วาดด้ามคทาเวทมนตร์
             ctx.fillStyle = "#4a2e15"; // สีไม้
             ctx.fillRect(-this.width/2, -this.length/2, this.width, this.length);
@@ -593,7 +616,7 @@ const WEAPON_REGISTRY = {
     
             // วาดลูกไฟเวทมนตร์ที่กำลังลอยอยู่
             for (let p of player.custom.projectiles) {
-                // แปลงพิกัดโลก (World) เป็นพิกัดของอาวุธที่ถูกหมุนอยู่ (Local) ทำให้วาดลูกแก้วได้อย่างถูกต้องอิสระจากตัวคทา
+                // แปลงพิกัดโลก (World) เป็นพิกัด Local
                 let dx = p.x - wx;
                 let dy = p.y - wy;
                 let localX = dx * Math.cos(-player.weaponRotation) - dy * Math.sin(-player.weaponRotation);
@@ -609,6 +632,23 @@ const WEAPON_REGISTRY = {
                 ctx.arc(localX, localY, p.isUlt ? 5 : 4, 0, Math.PI * 2);
                 ctx.fillStyle = "#ffffff";
                 ctx.fill();
+            }
+    
+            // วาดคลื่นกระแทกวงกลม (Shockwaves)
+            for (let sw of player.custom.shockwaves) {
+                let dx = sw.x - wx;
+                let dy = sw.y - wy;
+                let localX = dx * Math.cos(-player.weaponRotation) - dy * Math.sin(-player.weaponRotation);
+                let localY = dx * Math.sin(-player.weaponRotation) + dy * Math.cos(-player.weaponRotation);
+                
+                ctx.beginPath();
+                ctx.arc(localX, localY, sw.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 3;
+                // ทำให้คลื่นค่อยๆ จางหายไปเมื่อกระจายออก
+                ctx.globalAlpha = Math.max(0, 1 - (sw.radius / sw.maxRadius));
+                ctx.stroke();
+                ctx.globalAlpha = 1.0; // คืนค่า alpha ให้ปกติ
             }
         },
         onHitPlayer(player, target, game) {
