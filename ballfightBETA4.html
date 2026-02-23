@@ -734,6 +734,251 @@ const BOSS_REGISTRY = {
                 }
             }
         }
+    },
+    "Fire Staff": {
+        name: "Fire Staff", 
+        color: "#FF4500", // สีส้มไฟ
+        width: 8, 
+        length: 90, 
+        baseDamage: 0, // ไม่มีดาเมจจากการฟาด (เป็นอาวุธเวทมนตร์)
+        
+        init(player) { 
+            // สร้างตัวแปร Custom สำหรับเก็บข้อมูลการโจมตี
+            player.custom.burnTicks = 5; // จำนวนฮิตเริ่มต้น
+            player.custom.projectiles = []; // เก็บลูกไฟที่กำลังพุ่งไป
+            player.custom.activeBurns = []; // เก็บศัตรูที่กำลังติดไฟ
+            player.custom.ultimateZones = []; // เก็บพื้นที่อัลติเมต
+            player.custom.shootTimer = 0; // คูลดาวน์การยิง
+            
+            player.passiveText = "เผาไหม้ " + player.custom.burnTicks + " ครั้ง"; 
+        },
+        
+        onUpdate(player, closestEnemy, game) {
+            let dt = game.delta / 16;
+            
+            // 1. หมุนคทา
+            player.weaponRotation += 0.05 * player.weaponDir * dt;
+            
+            // 2. ระบบยิงลูกไฟ (ถ้ามีศัตรูอยู่ใกล้ และหมดคูลดาวน์)
+            if (player.custom.shootTimer > 0) {
+                player.custom.shootTimer -= game.delta;
+            } else if (closestEnemy) {
+                // คำนวณมุมที่จะยิงไปหาศัตรู
+                let angle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
+                let wX = player.weaponX !== undefined ? player.weaponX : player.x;
+                let wY = player.weaponY !== undefined ? player.weaponY : player.y;
+                
+                player.custom.projectiles.push({
+                    x: wX,
+                    y: wY,
+                    vx: Math.cos(angle) * 12,
+                    vy: Math.sin(angle) * 12,
+                    radius: 12,
+                    life: 1500 // อยู่ได้ 1.5 วินาที
+                });
+                player.custom.shootTimer = 800; // ยิงทุกๆ 0.8 วินาที (ปรับได้)
+            }
+            
+            let enemies = game.getEnemies(player);
+            
+            // 3. อัปเดตลูกไฟ (พุ่งไปชนศัตรู)
+            for (let i = player.custom.projectiles.length - 1; i >= 0; i--) {
+                let p = player.custom.projectiles[i];
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.life -= game.delta;
+                
+                // เอฟเฟคควัน/ไฟตามทางลูกไฟ
+                if (Math.random() > 0.5) game.spawnParticles(p.x, p.y, 1, "#FFA500");
+                
+                let hit = false;
+                for (let e of enemies) {
+                    let dist = Math.hypot(p.x - e.x, p.y - e.y);
+                    if (dist < p.radius + e.radius) { // เมื่อลูกไฟชนศัตรู
+                        hit = true;
+                        game.spawnParticles(p.x, p.y, 10, "#FF0000"); // ระเบิด
+                        
+                        // [Passive] เพิ่มจำนวนครั้งการเผาไหม้
+                        player.custom.burnTicks += 1;
+                        player.passiveText = "เผาไหม้ " + player.custom.burnTicks + " ครั้ง";
+                        
+                        // ทำให้ศัตรูติดสถานะไฟไหม้
+                        player.custom.activeBurns.push({
+                            target: e,
+                            ticksLeft: player.custom.burnTicks,
+                            tickTimer: 0 // ดาเมจแรกจะทำงานทันที
+                        });
+                        break;
+                    }
+                }
+                if (hit || p.life <= 0) {
+                    player.custom.projectiles.splice(i, 1);
+                }
+            }
+            
+            // 4. อัปเดตสถานะเผาไหม้ (Burn)
+            for (let i = player.custom.activeBurns.length - 1; i >= 0; i--) {
+                let b = player.custom.activeBurns[i];
+                b.tickTimer -= game.delta;
+                
+                if (b.tickTimer <= 0) {
+                    // สร้างดาเมจ 1 หน่วย
+                    b.target.takeDamage(1, "magic", player, game);
+                    game.spawnParticles(b.target.x, b.target.y, 4, "#FF4500");
+                    
+                    b.ticksLeft--;
+                    b.tickTimer = 500; // สร้างดาเมจทุกๆ 0.5 วินาที (ปรับความถี่ตรงนี้)
+                }
+                
+                // ถ้าเผาครบจำนวนครั้ง หรือศัตรูตาย ให้ลบสถานะทิ้ง
+                if (b.ticksLeft <= 0 || b.target.hp <= 0) {
+                    player.custom.activeBurns.splice(i, 1);
+                }
+            }
+            
+            // 5. อัปเดตพื้นที่จากอัลติเมต
+            for (let i = player.custom.ultimateZones.length - 1; i >= 0; i--) {
+                let z = player.custom.ultimateZones[i];
+                z.life -= game.delta;
+                z.tickTimer -= game.delta;
+                
+                // เอฟเฟคไฟลุกตามพื้น
+                if (Math.random() > 0.2) {
+                    game.spawnParticles(z.x + (Math.random()-0.5)*z.radius*2, z.y + (Math.random()-0.5)*z.radius*2, 1, "#FF4500");
+                }
+                
+                if (z.tickTimer <= 0) {
+                    // คำนวณดาเมจ: 2 ดาเมจตามจำนวนฮิตสะสม
+                    let ultDamage = 2 * player.custom.burnTicks; 
+                    
+                    for (let e of enemies) {
+                        let dist = Math.hypot(z.x - e.x, z.y - e.y);
+                        if (dist < z.radius + e.radius) {
+                            e.takeDamage(ultDamage, "magic", player, game);
+                            game.spawnParticles(e.x, e.y, 5, "#FF0000");
+                        }
+                    }
+                    z.tickTimer = 1000; // ทำดาเมจทุกๆ 1 วินาที
+                }
+                
+                if (z.life <= 0) {
+                    player.custom.ultimateZones.splice(i, 1);
+                }
+            }
+        },
+        
+        render(ctx, player, game) { 
+            // วาดด้ามคทาไม้
+            ctx.fillStyle = "#8B4513"; 
+            ctx.fillRect(-this.width/2, -this.length/2, this.width, this.length);
+            
+            // วาดลูกแก้วเวทมนตร์บนหัวคทา
+            ctx.beginPath();
+            ctx.arc(0, -this.length/2 - 5, 12, 0, Math.PI * 2);
+            let orbGrad = ctx.createRadialGradient(0, -this.length/2 - 5, 2, 0, -this.length/2 - 5, 12);
+            orbGrad.addColorStop(0, "#FFFF00");
+            orbGrad.addColorStop(0.5, "#FF4500");
+            orbGrad.addColorStop(1, "#8B0000");
+            ctx.fillStyle = orbGrad;
+            
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "#FF4500";
+            ctx.fill();
+            ctx.shadowBlur = 0; // รีเซ็ตเงา
+            
+            // --- แฮควาดกราฟิกทับโลก (วาดของในระยะโกลบอล) ---
+            ctx.save();
+            // ยกเลิกการหมุนและตำแหน่งของอาวุธ เพื่ออ้างอิงพิกัด x,y ของโลก
+            ctx.rotate(-player.weaponRotation);
+            let wX = player.weaponX !== undefined ? player.weaponX : player.x;
+            let wY = player.weaponY !== undefined ? player.weaponY : player.y;
+            ctx.translate(-wX, -wY);
+            
+            // 1. วาดพื้นที่อัลติเมต
+            for (let z of player.custom.ultimateZones) {
+                ctx.beginPath();
+                ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
+                ctx.fillStyle = "rgba(255, 69, 0, 0.25)";
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = "rgba(255, 0, 0, 0.5)";
+                ctx.stroke();
+            }
+            
+            // 2. วาดศัตรูที่กำลังติดไฟ (เอฟเฟคแสงสีส้มหุ้มตัว)
+            for (let b of player.custom.activeBurns) {
+                if (b.target && b.target.hp > 0) {
+                    ctx.beginPath();
+                    ctx.arc(b.target.x, b.target.y, b.target.radius + 8 + Math.random()*4, 0, Math.PI*2);
+                    ctx.fillStyle = "rgba(255, 69, 0, 0.4)";
+                    ctx.fill();
+                }
+            }
+            
+            // 3. วาดลูกไฟ
+            for (let p of player.custom.projectiles) {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                let pGrad = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, p.radius);
+                pGrad.addColorStop(0, "#FFFFFF");
+                pGrad.addColorStop(0.3, "#FFFF00");
+                pGrad.addColorStop(1, "#FF0000");
+                ctx.fillStyle = pGrad;
+                
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = "#FF0000";
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+            
+            ctx.restore();
+        },
+        
+        onHitPlayer(player, target, game) {
+            // อาวุธไม่มีดาเมจฟาด (Physical) จึงแค่กระเด้งออกไปเฉยๆ
+            player.reverseWeapon();
+        },
+        
+        onHitWeapon(player, enemyPlayer, game) {
+            let wX = player.weaponX !== undefined ? player.weaponX : player.x;
+            let wY = player.weaponY !== undefined ? player.weaponY : player.y;
+            game.spawnParticles(wX, wY, 5, "#FFA500");
+            player.reverseWeapon();
+        },
+        
+        onTakeDamage(player, source, game) {},
+        
+        onUltimateActivate(player, game) {
+            let enemies = game.getEnemies(player);
+            let targets = [];
+            
+            if (enemies.length > 0) {
+                // สุ่มศัตรู 3 ตัวที่จะโดนอุกกาบาต
+                for(let i = 0; i < 3; i++) {
+                    let e = enemies[Math.floor(Math.random() * enemies.length)];
+                    if(e && !targets.includes(e)) targets.push({x: e.x, y: e.y});
+                }
+            } else {
+                // ถ้าไม่มีศัตรู ให้เสกลงมาข้างหน้าผู้เล่นแทน
+                targets.push({
+                    x: player.x + Math.cos(player.weaponRotation) * 150,
+                    y: player.y + Math.sin(player.weaponRotation) * 150
+                });
+            }
+            
+            for (let t of targets) {
+                // สร้างพื้นที่เผาไหม้
+                player.custom.ultimateZones.push({
+                    x: t.x,
+                    y: t.y,
+                    radius: 100, // รัศมีวงอัลติเมต
+                    life: 5000, // อยู่ 5 วินาที
+                    tickTimer: 0 // ทำดาเมจครั้งแรกทันทีที่ลงพื้น
+                });
+                // เอฟเฟคตอนลูกไฟตกกระแทกพื้น
+                game.spawnParticles(t.x, t.y, 40, "#FF4500");
+            }
+        }
     }
 };
 
