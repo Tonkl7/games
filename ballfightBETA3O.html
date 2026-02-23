@@ -426,12 +426,12 @@ const WEAPON_REGISTRY = {
         color: "#a832a8", // สีม่วงเวทมนตร์
         width: 6,
         length: 50,
-        baseDamage: 15,
+        baseDamage: 10,
         init(player) { 
             player.custom.projectiles = [];
             player.custom.fireTimer = 0;
-            player.custom.powerStacks = 0; // เก็บค่าพลังของพาสซีฟ
-            player.passiveText = "วงเวทขยาย: ยิ่งโจมตีโดน การระเบิดยิ่งกว้างและแรงขึ้น"; 
+            player.custom.radiusStacks = 0; // เก็บค่าสแตกเพื่อขยายวงกว้างเท่านั้น
+            player.passiveText = "ระเบิดเวท: ลูกเวทระเบิดเมื่อเข้าใกล้ศัตรู ยิ่งโดนวงยิ่งกว้าง (ดาเมจ: 10)"; 
         },
         onUpdate(player, closestEnemy, game) {
             // หมุนคทา
@@ -444,17 +444,18 @@ const WEAPON_REGISTRY = {
             // ระบบคูลดาวน์และยิงลูกเวทมนตร์
             player.custom.fireTimer -= (game.delta / 16);
             if (player.custom.fireTimer <= 0 && closestEnemy) {
-                player.custom.fireTimer = 70; // ความเร็วการยิง (ประมาณวินาทีกว่าๆ)
+                player.custom.fireTimer = 70; // ความเร็วการยิง
                 let dx = closestEnemy.x - wx;
                 let dy = closestEnemy.y - wy;
                 let dist = Math.sqrt(dx*dx + dy*dy);
                 if (dist > 0) {
                     player.custom.projectiles.push({
+                        isUlt: false,
                         x: wx,
                         y: wy,
-                        vx: (dx/dist) * 9,
-                        vy: (dy/dist) * 9,
-                        life: 120 // อายุลูกเวทก่อนสลาย
+                        vx: (dx/dist) * 7, // ความเร็วเริ่มต้น (ช้าลงนิดนึงให้ homing ทำงานได้สวย)
+                        vy: (dy/dist) * 7,
+                        life: 150 // อายุลูกเวทก่อนสลาย
                     });
                 }
             }
@@ -464,42 +465,87 @@ const WEAPON_REGISTRY = {
             // อัปเดตลูกเวทมนตร์ที่ยิงออกไป
             for (let i = player.custom.projectiles.length - 1; i >= 0; i--) {
                 let p = player.custom.projectiles[i];
-                p.x += p.vx * (game.delta / 16);
-                p.y += p.vy * (game.delta / 16);
                 p.life -= (game.delta / 16);
+    
+                if (p.isUlt) {
+                    // ระบบ Ultimate: หมุนวนรอบตัวก่อนแล้วกระจายออก
+                    if (p.life > 100) { 
+                        // หมุนรอบตัว (ช่วง 50 เฟรมแรก)
+                        p.orbitAngle += 0.08 * (game.delta / 16);
+                        p.x = player.x + Math.cos(p.orbitAngle) * p.orbitRadius;
+                        p.y = player.y + Math.sin(p.orbitAngle) * p.orbitRadius;
+                    } else {
+                        // กระจายตัวออกและหมุนควง (Spiral)
+                        if (p.ultState === 'orbit') {
+                            p.ultState = 'expand';
+                            p.vx = Math.cos(p.orbitAngle) * 6;
+                            p.vy = Math.sin(p.orbitAngle) * 6;
+                        }
+                        let currentAngle = Math.atan2(p.vy, p.vx);
+                        currentAngle += 0.03 * (game.delta / 16); // ความโค้งของการกระจายออก
+                        let speed = Math.sqrt(p.vx*p.vx + p.vy*p.vy);
+                        p.vx = Math.cos(currentAngle) * speed;
+                        p.vy = Math.sin(currentAngle) * speed;
+                        
+                        p.x += p.vx * (game.delta / 16);
+                        p.y += p.vy * (game.delta / 16);
+                    }
+                } else {
+                    // ระบบ Soft Homing ติดตามเป้าหมายแบบหลบได้ สำหรับการโจมตีปกติ
+                    p.x += p.vx * (game.delta / 16);
+                    p.y += p.vy * (game.delta / 16);
+    
+                    if (closestEnemy) {
+                        let targetAngle = Math.atan2(closestEnemy.y - p.y, closestEnemy.x - p.x);
+                        let currentAngle = Math.atan2(p.vy, p.vx);
+                        
+                        let diff = targetAngle - currentAngle;
+                        // ปรับองศาให้เหมาะสมกับการคำนวณ (-PI ถึง PI)
+                        while (diff > Math.PI) diff -= Math.PI * 2;
+                        while (diff < -Math.PI) diff += Math.PI * 2;
+                        
+                        let turnSpeed = 0.025 * (game.delta / 16); // อัตราการหักเลี้ยว (ยิ่งน้อยยิ่งหลบง่าย)
+                        currentAngle += Math.sign(diff) * Math.min(Math.abs(diff), turnSpeed);
+                        
+                        let speed = 7; // ล็อคความเร็ว
+                        p.vx = Math.cos(currentAngle) * speed;
+                        p.vy = Math.sin(currentAngle) * speed;
+                    }
+                }
     
                 let exploded = false;
     
-                // เช็คชนกำแพง (ระยะขอบเขตทั่วไปของหน้าจอ หรือเมื่อหลุดออกจากสนาม)
-                if (p.x < -50 || p.x > 1500 || p.y < -50 || p.y > 1000) {
+                // เช็คชนกำแพง (ระยะขอบเขตทั่วไปของหน้าจอ)
+                if (p.x < -100 || p.x > 1600 || p.y < -100 || p.y > 1100) {
                     exploded = true;
                 }
     
-                // เช็คชนศัตรู
+                // เช็คการเข้าใกล้ศัตรู (Proximity Detonation - ระเบิดเมื่ออยู่ใกล้ๆ โดยไม่ต้องโดนตัว)
                 if (!exploded) {
+                    let triggerRadius = 35; // ระยะตรวจจับเพื่อระเบิดล่วงหน้า
                     for (let e of enemies) {
                         let edx = e.x - p.x;
                         let edy = e.y - p.y;
-                        if (Math.sqrt(edx*edx + edy*edy) < e.radius + 10) { // 10 คือรัศมีลูกเวท
+                        if (Math.sqrt(edx*edx + edy*edy) < e.radius + triggerRadius) { 
                             exploded = true;
                             break;
                         }
                     }
                 }
     
-                // หมดอายุขัย (ยิงวืดและไม่ชนกำแพง)
+                // หมดอายุขัย
                 if (p.life <= 0) exploded = true;
     
                 // ระบบระเบิด
                 if (exploded) {
-                    // คำนวณความกว้างและดาเมจโดยใช้ PowerStacks จากพาสซีฟ
-                    let baseRadius = 60;
-                    let explosionRadius = baseRadius + (player.custom.powerStacks * 2.5);
-                    let explosionDamage = this.baseDamage + (player.custom.powerStacks * 1.5);
+                    // คำนวณความกว้างวงระเบิด (ดาเมจล็อคที่ baseDamage = 10 เสมอ)
+                    let baseRadius = 45; // วงระเบิดเล็กๆ เริ่มต้น
+                    let explosionRadius = baseRadius + (player.custom.radiusStacks * 3);
+                    let explosionDamage = this.baseDamage;
     
                     // สร้างเอฟเฟกต์ตอนระเบิด
-                    game.spawnParticles(p.x, p.y, 15 + player.custom.powerStacks, this.color);
-                    game.spawnParticles(p.x, p.y, 10, "#ffffff");
+                    game.spawnParticles(p.x, p.y, 10 + player.custom.radiusStacks, this.color);
+                    game.spawnParticles(p.x, p.y, 8, "#ffffff");
     
                     let hitCount = 0;
                     // สร้างความเสียหายเป็นวงกว้าง (AOE)
@@ -512,10 +558,10 @@ const WEAPON_REGISTRY = {
                         }
                     }
     
-                    // พาสซีฟ: ยิ่งโจมตีโดนศัตรู วงระเบิดยิ่งกว้างและแรงขึ้น
+                    // พาสซีฟ: ยิ่งโจมตีโดน วงระเบิดยิ่งกว้าง
                     if (hitCount > 0) {
-                        player.custom.powerStacks = Math.min(player.custom.powerStacks + hitCount, 60); // ตันที่ 60 stack ป้องกันเกมพัง
-                        player.passiveText = `วงเวทขยาย: พลังเวทสะสม ${player.custom.powerStacks} (รัศมี +${(player.custom.powerStacks*2.5).toFixed(0)}, ดาเมจ +${(player.custom.powerStacks*1.5).toFixed(0)})`;
+                        player.custom.radiusStacks = Math.min(player.custom.radiusStacks + hitCount, 50); // ตันที่ 50 Stacks
+                        player.passiveText = `ระเบิดเวท: รัศมีระเบิดเพิ่มขึ้น (+${(player.custom.radiusStacks*3).toFixed(0)}px) ดาเมจ 10`;
                     }
     
                     // ลบลูกเวทที่ระเบิดแล้วออก
@@ -554,25 +600,24 @@ const WEAPON_REGISTRY = {
                 let localY = dx * Math.sin(-player.weaponRotation) + dy * Math.cos(-player.weaponRotation);
                 
                 ctx.beginPath();
-                ctx.arc(localX, localY, 8 + (player.custom.powerStacks * 0.05), 0, Math.PI * 2);
+                ctx.arc(localX, localY, p.isUlt ? 10 : (8 + (player.custom.radiusStacks * 0.05)), 0, Math.PI * 2);
                 ctx.fillStyle = this.color;
                 ctx.fill();
                 
                 // แกนกลางลูกไฟ
                 ctx.beginPath();
-                ctx.arc(localX, localY, 4, 0, Math.PI * 2);
+                ctx.arc(localX, localY, p.isUlt ? 5 : 4, 0, Math.PI * 2);
                 ctx.fillStyle = "#ffffff";
                 ctx.fill();
             }
         },
         onHitPlayer(player, target, game) {
-            // กรณีคทาฟาดโดนตัวศัตรูในระยะประชิด
-            let totalDamage = this.baseDamage + (player.custom.powerStacks * 1.5);
-            target.takeDamage(totalDamage, "magic", player, game);
+            // กรณีคทาฟาดโดนตัวศัตรูในระยะประชิด (ล็อคดาเมจที่ 10)
+            target.takeDamage(this.baseDamage, "magic", player, game);
             
-            // การฟาดโดนก็สะสมพาสซีฟเช่นกัน
-            player.custom.powerStacks = Math.min(player.custom.powerStacks + 1, 60);
-            player.passiveText = `วงเวทขยาย: พลังเวทสะสม ${player.custom.powerStacks} (รัศมี +${(player.custom.powerStacks*2.5).toFixed(0)}, ดาเมจ +${(player.custom.powerStacks*1.5).toFixed(0)})`;
+            // การฟาดโดนก็สะสมพาสซีฟให้วงกว้างขึ้นเช่นกัน
+            player.custom.radiusStacks = Math.min(player.custom.radiusStacks + 1, 50);
+            player.passiveText = `ระเบิดเวท: รัศมีระเบิดเพิ่มขึ้น (+${(player.custom.radiusStacks*3).toFixed(0)}px) ดาเมจ 10`;
             
             game.spawnParticles(target.x, target.y, 10, this.color);
             player.reverseWeapon();
@@ -583,14 +628,26 @@ const WEAPON_REGISTRY = {
         },
         onTakeDamage(player, source, game) {},
         onUltimateActivate(player, game) {
-            // อัลติเมท: ได้รับ Stacks มหาศาลทันที, รีเซ็ตการยิง และทำให้หน้าจอกระตุกเล็กน้อยเพื่อความสะใจ
-            player.custom.powerStacks = Math.min(player.custom.powerStacks + 15, 60);
-            player.custom.fireTimer = 0; 
-            player.passiveText = `อัลติเมททำงาน! พลังเวทสะสมเพิ่มขึ้นอย่างมาก (${player.custom.powerStacks})`;
+            // อัลติเมท: สร้างลูกเวทหมุนรอบตัว และรีเซ็ตบัพกว้างของพาสสิฟ
+            player.custom.radiusStacks = 0; 
+            player.passiveText = `อัลติเมททำงาน! (รีเซ็ตวงกว้าง)`;
+            
+            for (let i = 0; i < 8; i++) {
+                player.custom.projectiles.push({
+                    isUlt: true,
+                    ultState: 'orbit',
+                    orbitAngle: (Math.PI * 2 / 8) * i,
+                    orbitRadius: 70, // ระยะหมุนรอบตัว
+                    x: player.x,
+                    y: player.y,
+                    vx: 0,
+                    vy: 0,
+                    life: 150 // 50 เฟรมแรกหมุนรอบตัว, 100 เฟรมหลังกระจายออกเป็น Spiral
+                });
+            }
             
             game.spawnParticles(player.x, player.y, 40, this.color);
             game.spawnParticles(player.x, player.y, 20, "#ffffff");
-            game.triggerHitStop(50);
         }
     }
 };
