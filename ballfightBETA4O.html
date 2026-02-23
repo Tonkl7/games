@@ -734,8 +734,31 @@ const WEAPON_REGISTRY = {
                 game.spawnParticles(up.x + (Math.random()-0.5)*40, up.y + (Math.random()-0.5)*40, 3, "#FF4500");
                 game.spawnParticles(up.x, up.y, 2, "#FFFF00");
                 
-                if (up.life <= 0) {
-                    // ระเบิดและสร้างพื้นที่เผาไหม้
+                let hitTargetOrWall = false;
+                
+                // เช็คการชนศัตรู
+                for (let e of enemies) {
+                    if (Math.hypot(up.x - e.x, up.y - e.y) < up.radius + e.radius) {
+                        hitTargetOrWall = true;
+                        break;
+                    }
+                }
+                
+                // เช็คการชนกำแพง (ขอบ Arena)
+                if (game.arena) {
+                    let isOutTopLeft = (up.x < game.arena.x || up.x > game.arena.x + game.arena.size || up.y < game.arena.y || up.y > game.arena.y + game.arena.size);
+                    let isOutCenter = (Math.abs(up.x - game.arena.x) > game.arena.size / 2 || Math.abs(up.y - game.arena.y) > game.arena.size / 2);
+                    
+                    // รองรับการวาด Arena ทั้งรูปแบบเริ่มที่ (0,0) และแบบจุดศูนย์กลาง
+                    if (game.arena.x === 0 && game.arena.y === 0) {
+                        if (isOutCenter) hitTargetOrWall = true;
+                    } else {
+                        if (isOutTopLeft) hitTargetOrWall = true;
+                    }
+                }
+                
+                if (up.life <= 0 || hitTargetOrWall) {
+                    // ระเบิดและสร้างพื้นที่เผาไหม้ทันทีที่ชน
                     game.spawnParticles(up.x, up.y, 60, "#FF0000");
                     player.custom.ultimateZones.push({
                         x: up.x,
