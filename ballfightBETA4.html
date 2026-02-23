@@ -356,19 +356,23 @@
             <div class="settings-grid">
                 <div class="setting-item">
                     <label>ขนาดสนาม <span id="val-arenaScale">1.0</span></label>
-                    <input type="range" id="cfg-arenaScale" min="0.3" max="1.5" step="0.05">
+                    <input type="range" id="cfg-arenaScale" min="0.1" max="1.5" step="0.05">
                 </div>
                 <div class="setting-item">
                     <label>ความเร็วปกติ <span id="val-baseSpeedCap">20</span></label>
-                    <input type="range" id="cfg-baseSpeedCap" min="5" max="60" step="1">
+                    <input type="range" id="cfg-baseSpeedCap" min="0" max="60" step="1">
+                </div>
+                <div class="setting-item">
+                    <label>ความเร็วขั้นต่ำ (กันหยุดนิ่ง) <span id="val-minSpeed">5</span></label>
+                    <input type="range" id="cfg-minSpeed" min="0" max="30" step="1">
                 </div>
                 <div class="setting-item">
                     <label>ความแรงเวลาชน <span id="val-collisionBounce">1.05</span></label>
-                    <input type="range" id="cfg-collisionBounce" min="0.5" max="3.0" step="0.05">
+                    <input type="range" id="cfg-collisionBounce" min="0" max="3.0" step="0.05">
                 </div>
                 <div class="setting-item">
                     <label>ความเร็วสูงสุด(หลังชน) <span id="val-maxCollisionSpeed">40</span></label>
-                    <input type="range" id="cfg-maxCollisionSpeed" min="10" max="100" step="1">
+                    <input type="range" id="cfg-maxCollisionSpeed" min="0" max="100" step="1">
                 </div>
                 <div class="setting-item">
                     <label>เวลาอมตะ i-Frame (ms) <span id="val-iFrameDuration">200</span></label>
@@ -380,11 +384,11 @@
                 </div>
                 <div class="setting-item">
                     <label>เด้งกำแพง <span id="val-wallBounce">0.95</span></label>
-                    <input type="range" id="cfg-wallBounce" min="0.5" max="1.5" step="0.05">
+                    <input type="range" id="cfg-wallBounce" min="0" max="1.5" step="0.05">
                 </div>
                 <div class="setting-item">
                     <label>แรงเสียดทานลาน <span id="val-friction">0.995</span></label>
-                    <input type="range" id="cfg-friction" min="0.9" max="1.0" step="0.001">
+                    <input type="range" id="cfg-friction" min="0" max="1.0" step="0.001">
                 </div>
                 <div class="setting-item" style="grid-column: span 2; display: flex; flex-direction: row; align-items: center; gap:10px;">
                     <label style="flex-shrink: 0;">สีพื้นหลังนอกสนาม</label>
@@ -783,17 +787,35 @@ class Player extends Actor {
         
         let friction = MathUtils.getStat(this, 'friction');
         let speedCap = MathUtils.getStat(this, 'baseSpeedCap');
+        let minSpeed = MathUtils.getStat(this, 'minSpeed');
         let maxColSpeed = MathUtils.getStat(this, 'maxCollisionSpeed');
 
+        // ทำการลดความเร็วด้วยแรงเสียดทานก่อน
+        this.vx *= friction; 
+        this.vy *= friction;
+        
         let speed = Math.hypot(this.vx, this.vy);
         
-        // Physics Override System
+        // Physics Override System: จัดการความเร็วสูงสุด
         if (speed > maxColSpeed) { 
             this.vx = (this.vx / speed) * maxColSpeed; this.vy = (this.vy / speed) * maxColSpeed; 
         } else if (speed > speedCap) { 
-            this.vx *= 0.95; this.vy *= 0.95; // Smooth decay to base cap
-        } else {
-            this.vx *= friction; this.vy *= friction;
+            this.vx *= 0.95; this.vy *= 0.95; // ค่อยๆ ลดความเร็วลงมาหาจุดปกติ
+        }
+
+        // เช็คความเร็วอีกครั้งหลังหักลบ
+        speed = Math.hypot(this.vx, this.vy);
+
+        // Minimum Speed System: ป้องกันลูกบอลหยุดนิ่งสนิท
+        if (speed < minSpeed) {
+            if (speed === 0) { // กรณีความเร็วเป็น 0 สนิท ให้สุ่มพุ่งไปทางใดทางหนึ่ง
+                let angle = Math.random() * Math.PI * 2;
+                this.vx = Math.cos(angle) * minSpeed;
+                this.vy = Math.sin(angle) * minSpeed;
+            } else { // ดันความเร็วขึ้นให้แตะเส้นขั้นต่ำเสมอ
+                this.vx = (this.vx / speed) * minSpeed;
+                this.vy = (this.vy / speed) * minSpeed;
+            }
         }
 
         if (this.iFrames > 0) this.iFrames -= game.delta; 
@@ -853,15 +875,35 @@ class Boss extends Actor {
         
         let friction = MathUtils.getStat(this, 'friction');
         let speedCap = MathUtils.getStat(this, 'baseSpeedCap');
+        let minSpeed = MathUtils.getStat(this, 'minSpeed');
         let maxColSpeed = MathUtils.getStat(this, 'maxCollisionSpeed');
 
+        // ทำการลดความเร็วด้วยแรงเสียดทานก่อน
+        this.vx *= friction; 
+        this.vy *= friction;
+
         let speed = Math.hypot(this.vx, this.vy);
+        
+        // Physics Override System: จัดการความเร็วสูงสุด
         if (speed > maxColSpeed) { 
             this.vx = (this.vx / speed) * maxColSpeed; this.vy = (this.vy / speed) * maxColSpeed; 
         } else if (speed > speedCap) { 
             this.vx *= 0.95; this.vy *= 0.95; 
-        } else {
-            this.vx *= friction; this.vy *= friction;
+        }
+
+        // เช็คความเร็วอีกครั้งหลังหักลบ
+        speed = Math.hypot(this.vx, this.vy);
+
+        // Minimum Speed System: ป้องกันบอสหยุดนิ่งสนิท
+        if (speed < minSpeed) {
+            if (speed === 0) {
+                let angle = Math.random() * Math.PI * 2;
+                this.vx = Math.cos(angle) * minSpeed;
+                this.vy = Math.sin(angle) * minSpeed;
+            } else {
+                this.vx = (this.vx / speed) * minSpeed;
+                this.vy = (this.vy / speed) * minSpeed;
+            }
         }
 
         if (this.iFrames > 0) this.iFrames -= game.delta; this.updateEffects(game);
@@ -909,6 +951,7 @@ const Engine = {
         arenaScale: 1.0,
         bgColor: "#e8e4d8",
         baseSpeedCap: 20,
+        minSpeed: 5,
         collisionBounce: 1.05,
         maxCollisionSpeed: 40,
         iFrameDuration: 200,
@@ -928,7 +971,7 @@ const Engine = {
         document.getElementById('start-btn').addEventListener('click', () => { this.startGame(); });
         
         // Settings Sync
-        const configKeys = ['arenaScale', 'baseSpeedCap', 'collisionBounce', 'maxCollisionSpeed', 'iFrameDuration', 'hitStopDuration', 'wallBounce', 'friction'];
+        const configKeys = ['arenaScale', 'baseSpeedCap', 'minSpeed', 'collisionBounce', 'maxCollisionSpeed', 'iFrameDuration', 'hitStopDuration', 'wallBounce', 'friction'];
         configKeys.forEach(k => {
             let el = document.getElementById(`cfg-${k}`);
             let valEl = document.getElementById(`val-${k}`);
@@ -979,6 +1022,7 @@ const Engine = {
                 arenaScale: 1.0,
                 bgColor: "#e8e4d8",
                 baseSpeedCap: 20,
+                minSpeed: 5,
                 collisionBounce: 1.05,
                 maxCollisionSpeed: 40,
                 iFrameDuration: 200,
