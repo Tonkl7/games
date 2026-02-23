@@ -391,6 +391,10 @@
                     <input type="range" id="cfg-friction" min="0" max="1.0" step="0.001">
                 </div>
                 <div class="setting-item" style="grid-column: span 2; display: flex; flex-direction: row; align-items: center; gap:10px;">
+                    <label style="flex-shrink: 0;">แสดงฮิตบล็อก (Debug)</label>
+                    <input type="checkbox" id="cfg-showHitboxes" style="width:20px; height:20px; accent-color: var(--gold);">
+                </div>
+                <div class="setting-item" style="grid-column: span 2; display: flex; flex-direction: row; align-items: center; gap:10px;">
                     <label style="flex-shrink: 0;">สีพื้นหลังนอกสนาม</label>
                     <input type="color" id="cfg-bgColor" style="width: 100%; height: 35px; padding: 0; border:none; border-radius:4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">
                 </div>
@@ -762,11 +766,12 @@ class Actor {
     }
     handleWallCollision(arena) {
         let bounce = MathUtils.getStat(this, 'wallBounce');
+        let r = MathUtils.getStat(this, 'actorRadius') ?? this.radius;
         const perturb = () => (Math.random() - 0.5) * 5; 
-        if (this.x - this.radius < arena.x) { this.x = arena.x + this.radius; this.vx = Math.abs(this.vx) * bounce + perturb(); this.vy += perturb(); }
-        else if (this.x + this.radius > arena.x + arena.size) { this.x = arena.x + arena.size - this.radius; this.vx = -Math.abs(this.vx) * bounce + perturb(); this.vy += perturb(); }
-        if (this.y - this.radius < arena.y) { this.y = arena.y + this.radius; this.vy = Math.abs(this.vy) * bounce + perturb(); this.vx += perturb(); }
-        else if (this.y + this.radius > arena.y + arena.size) { this.y = arena.y + arena.size - this.radius; this.vy = -Math.abs(this.vy) * bounce + perturb(); this.vx += perturb(); }
+        if (this.x - r < arena.x) { this.x = arena.x + r; this.vx = Math.abs(this.vx) * bounce + perturb(); this.vy += perturb(); }
+        else if (this.x + r > arena.x + arena.size) { this.x = arena.x + arena.size - r; this.vx = -Math.abs(this.vx) * bounce + perturb(); this.vy += perturb(); }
+        if (this.y - r < arena.y) { this.y = arena.y + r; this.vy = Math.abs(this.vy) * bounce + perturb(); this.vx += perturb(); }
+        else if (this.y + r > arena.y + arena.size) { this.y = arena.y + arena.size - r; this.vy = -Math.abs(this.vy) * bounce + perturb(); this.vx += perturb(); }
     }
 }
 
@@ -833,16 +838,19 @@ class Player extends Actor {
     }
     
     render(ctx, game) {
+        let r = MathUtils.getStat(this, 'actorRadius') ?? this.radius;
+        let wr = MathUtils.getStat(this, 'weaponHitboxRadius') ?? this.weaponHitboxRadius;
+
         if (this.statusEffects.some(e => e.type === "burn")) { ctx.shadowColor = "#e64a19"; ctx.shadowBlur = 15; }
-        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = this.iFrames > 0 ? "#fff" : this.color; ctx.fill();
+        ctx.beginPath(); ctx.arc(this.x, this.y, r, 0, Math.PI * 2); ctx.fillStyle = this.iFrames > 0 ? "#fff" : this.color; ctx.fill();
         ctx.lineWidth = 2; ctx.strokeStyle = this.ultimateActive ? "#d4af37" : "rgba(44, 36, 27, 0.5)"; ctx.stroke(); ctx.shadowBlur = 0; 
         if (this.weaponDef) {
             let wx = this.weaponX; let wy = this.weaponY; ctx.save(); ctx.translate(wx, wy); ctx.rotate(this.weaponRotation);
             if (this.weaponDef.render) this.weaponDef.render(ctx, this, game);
-            else { ctx.fillStyle = this.weaponDef.color; ctx.fillRect(-this.weaponHitboxRadius, -this.weaponHitboxRadius, this.weaponHitboxRadius*2, this.weaponHitboxRadius*2); }
+            else { ctx.fillStyle = this.weaponDef.color; ctx.fillRect(-wr, -wr, wr*2, wr*2); }
             ctx.restore();
         }
-        ctx.fillStyle = "rgba(44, 36, 27, 0.8)"; ctx.font = "bold 13px 'Cinzel', serif"; ctx.textAlign="center"; ctx.fillText(this.id, this.x, this.y - this.radius - 12);
+        ctx.fillStyle = "rgba(44, 36, 27, 0.8)"; ctx.font = "bold 13px 'Cinzel', serif"; ctx.textAlign="center"; ctx.fillText(this.id, this.x, this.y - r - 12);
     }
     
     takeDamage(amount, type, source, game) {
@@ -911,12 +919,13 @@ class Boss extends Actor {
         this.handleWallCollision(game.arena);
     }
     render(ctx, game) {
+        let r = MathUtils.getStat(this, 'actorRadius') ?? this.radius;
         if (this.statusEffects.some(e => e.type === "burn")) { ctx.shadowColor = "#e64a19"; ctx.shadowBlur = 20; }
         ctx.save(); ctx.translate(this.x, this.y);
-        ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fillStyle = this.iFrames > 0 ? "#fff" : this.color; ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = this.iFrames > 0 ? "#fff" : this.color; ctx.fill();
         ctx.lineWidth = 3; ctx.strokeStyle = "rgba(44, 36, 27, 0.5)"; ctx.stroke(); ctx.shadowBlur = 0; 
         if (this.bossDef.render) this.bossDef.render(ctx, this, game);
-        ctx.restore(); ctx.fillStyle = "rgba(44, 36, 27, 0.9)"; ctx.font = "bold 16px 'Cinzel', serif"; ctx.textAlign="center"; ctx.fillText(this.bossDef.name, this.x, this.y - this.radius - 15);
+        ctx.restore(); ctx.fillStyle = "rgba(44, 36, 27, 0.9)"; ctx.font = "bold 16px 'Cinzel', serif"; ctx.textAlign="center"; ctx.fillText(this.bossDef.name, this.x, this.y - r - 15);
     }
     takeDamage(amount, type, source, game) {
         if (this.iFrames > 0) return; 
@@ -957,7 +966,8 @@ const Engine = {
         iFrameDuration: 200,
         hitStopDuration: 50,
         wallBounce: 0.95,
-        friction: 0.995
+        friction: 0.995,
+        showHitboxes: false
     },
     
     arena: { x: 0, y: 0, size: 0, scale: 1.0 }, 
@@ -986,6 +996,11 @@ const Engine = {
                 });
             }
         });
+        let chkHitbox = document.getElementById('cfg-showHitboxes');
+        if(chkHitbox) {
+            chkHitbox.checked = this.config.showHitboxes;
+            chkHitbox.addEventListener('change', e => this.config.showHitboxes = e.target.checked);
+        }
         let bgEl = document.getElementById('cfg-bgColor');
         if(bgEl) {
             bgEl.value = this.config.bgColor;
@@ -1025,22 +1040,26 @@ const Engine = {
                 minSpeed: 5,
                 collisionBounce: 1.05,
                 maxCollisionSpeed: 40,
-                iFrameDuration: 200,
-                hitStopDuration: 50,
-                wallBounce: 0.95,
-                friction: 0.995
-            };
-            this.arena.scale = 1.0;
+            iFrameDuration: 200,
+            hitStopDuration: 50,
+            wallBounce: 0.95,
+            friction: 0.995,
+            showHitboxes: false
+        };
+        this.arena.scale = 1.0;
             
             // Sync UI elements back to default values
             configKeys.forEach(k => {
                 let el = document.getElementById(`cfg-${k}`);
                 let valEl = document.getElementById(`val-${k}`);
-                if(el) el.value = this.config[k];
-                if(valEl) valEl.innerText = this.config[k];
-            });
-            
-            // Sync Arena scale specifically
+            if(el) el.value = this.config[k];
+            if(valEl) valEl.innerText = this.config[k];
+        });
+        
+        let chkHitboxEl = document.getElementById('cfg-showHitboxes');
+        if(chkHitboxEl) chkHitboxEl.checked = this.config.showHitboxes;
+
+        // Sync Arena scale specifically
             let oldArenaScaleEl = document.getElementById('arena-scale');
             let oldArenaScaleVal = document.getElementById('arena-scale-val');
             if(oldArenaScaleEl) oldArenaScaleEl.value = 1.0;
@@ -1169,7 +1188,10 @@ const Engine = {
         let active = this.actors.filter(a => a.hp > 0);
         for(let i=0; i<active.length; i++) {
             for(let j=i+1; j<active.length; j++) {
-                let a1 = active[i], a2 = active[j], dist = Math.hypot(a2.x-a1.x, a2.y-a1.y), minDist = a1.radius+a2.radius;
+                let a1 = active[i], a2 = active[j];
+                let r1 = MathUtils.getStat(a1, 'actorRadius') ?? a1.radius;
+                let r2 = MathUtils.getStat(a2, 'actorRadius') ?? a2.radius;
+                let dist = Math.hypot(a2.x-a1.x, a2.y-a1.y), minDist = r1 + r2;
                 if (dist < minDist) {
                     let overlap = minDist-dist, nx = (a2.x-a1.x)/dist, ny = (a2.y-a1.y)/dist;
                     a1.x-=nx*overlap/2; a1.y-=ny*overlap/2; a2.x+=nx*overlap/2; a2.y+=ny*overlap/2;
@@ -1188,8 +1210,20 @@ const Engine = {
         }
         active.filter(a=>a.isPlayer && a.weaponDef).forEach(att => {
             let enemies = this.getEnemies(att);
-            enemies.forEach(t => { if(MathUtils.distance(att.weaponX, att.weaponY, t.x, t.y) < att.weaponHitboxRadius+t.radius) { if(att.weaponCooldown<=0 && att.weaponDef.onHitPlayer) att.weaponDef.onHitPlayer(att,t,this); } });
-            enemies.filter(e=>e.isPlayer && e.weaponDef).forEach(t => { if(MathUtils.distance(att.weaponX, att.weaponY, t.weaponX, t.weaponY) < att.weaponHitboxRadius+t.weaponHitboxRadius) { if(att.weaponCooldown<=0 && att.weaponDef.onHitWeapon) att.weaponDef.onHitWeapon(att,t,this); if(t.weaponCooldown<=0 && t.weaponDef.onHitWeapon) t.weaponDef.onHitWeapon(t,att,this); } });
+            let wRadius = MathUtils.getStat(att, 'weaponHitboxRadius') ?? att.weaponHitboxRadius;
+            enemies.forEach(t => { 
+                let tr = MathUtils.getStat(t, 'actorRadius') ?? t.radius;
+                if(MathUtils.distance(att.weaponX, att.weaponY, t.x, t.y) < wRadius + tr) { 
+                    if(att.weaponCooldown<=0 && att.weaponDef.onHitPlayer) att.weaponDef.onHitPlayer(att,t,this); 
+                } 
+            });
+            enemies.filter(e=>e.isPlayer && e.weaponDef).forEach(t => { 
+                let ewRadius = MathUtils.getStat(t, 'weaponHitboxRadius') ?? t.weaponHitboxRadius;
+                if(MathUtils.distance(att.weaponX, att.weaponY, t.weaponX, t.weaponY) < wRadius + ewRadius) { 
+                    if(att.weaponCooldown<=0 && att.weaponDef.onHitWeapon) att.weaponDef.onHitWeapon(att,t,this); 
+                    if(t.weaponCooldown<=0 && t.weaponDef.onHitWeapon) t.weaponDef.onHitWeapon(t,att,this); 
+                } 
+            });
         });
     },
 
@@ -1267,7 +1301,31 @@ const Engine = {
             this.particles.forEach(p => { if(p.type === "particle") { this.ctx.fillStyle = p.color; this.ctx.globalAlpha = p.life; this.ctx.beginPath(); this.ctx.arc(p.x, p.y, 4, 0, Math.PI*2); this.ctx.fill(); } });
         }
         this.ctx.restore(); 
-        if(this.state !== 'MENU') this.entities.filter(e => e.type === "text").forEach(e => e.render(this.ctx));
+        if(this.state !== 'MENU') {
+            this.entities.filter(e => e.type === "text").forEach(e => e.render(this.ctx));
+            
+            // --- DEBUG HITBOXES ---
+            if (this.config.showHitboxes) {
+                this.ctx.lineWidth = 1;
+                this.actors.filter(a => a.hp > 0).forEach(a => {
+                    let r = MathUtils.getStat(a, 'actorRadius') ?? a.radius;
+                    this.ctx.strokeStyle = "rgba(0, 255, 255, 0.8)"; // Cyan: Body Hitbox
+                    this.ctx.beginPath(); this.ctx.arc(a.x, a.y, r, 0, Math.PI*2); this.ctx.stroke();
+                    
+                    if (a.isPlayer && a.weaponDef) {
+                        let wr = MathUtils.getStat(a, 'weaponHitboxRadius') ?? a.weaponHitboxRadius;
+                        this.ctx.strokeStyle = "rgba(255, 0, 0, 0.8)"; // Red: Weapon Hitbox
+                        this.ctx.beginPath(); this.ctx.arc(a.weaponX, a.weaponY, wr, 0, Math.PI*2); this.ctx.stroke();
+                    }
+                });
+                this.entities.forEach(e => {
+                    if (e.radius) {
+                        this.ctx.strokeStyle = e.type === "zone" ? "rgba(255, 255, 0, 0.8)" : "rgba(0, 255, 0, 0.8)";
+                        this.ctx.beginPath(); this.ctx.arc(e.x, e.y, e.radius, 0, Math.PI*2); this.ctx.stroke();
+                    }
+                });
+            }
+        }
         requestAnimationFrame((t) => this.loop(t));
     }
 };
