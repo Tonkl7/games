@@ -611,6 +611,170 @@ const WEAPON_REGISTRY = {
         },
         onHitPlayer(player, enemy, game) { enemy.takeDamage(this.baseDamage, "magic", player, game); player.reverseWeapon(); },
         onHitWeapon(player, enemy, game) { player.reverseWeapon(); }
+    },
+    "Unarmed": {
+        name: "Unarmed",
+        color: "#808080", // โทนสีเทา
+        width: 0,  // ไม่ถืออาวุธ
+        length: 0, // ไม่ถืออาวุธ
+        baseDamage: 5,
+        
+        // --- Physics Hacks ---
+        // ทำให้เด้งแรงกว่าตัวอื่นๆ และเคลื่อนที่เร็วกว่าปกติเล็กน้อย
+        baseSpeedCap: 25,          // ความเร็วสูงสุดพื้นฐาน (ปกติ 20)
+        maxCollisionSpeed: 70,     // ความเร็วสูงสุดหลังชน (ปกติ 40)
+        collisionBounce: 1.3,      // แรงเด้งเมื่อชนศัตรู (ปกติ 1.05)
+        wallBounce: 1.15,          // แรงเด้งเมื่อชนกำแพง (ปกติ 0.95)
+    
+        init(player) {
+            // กำหนดค่า Custom เริ่มต้น
+            player.custom.bounceDamage = 0; // แสตคดาเมจที่ได้จากการเด้งกำแพง
+            player.custom.wallHitCooldown = 0; // ป้องกันการนับกำแพงซ้ำรัวๆ
+            
+            // จัดการเกจอัลติเมตเองเพื่อแก้ปัญหา Engine บังคับ +20%
+            player.custom.ultGauge = 0; 
+            player.custom.ultTimer = 0; // ระยะเวลาแสดงผลอัลติเมต (ms)
+    
+            player.passiveText = "พาสซีฟ: เด้งกำแพงเพิ่มดาเมจ +1 | อัลติเพิ่มทีละ 10% (อิสระ)";
+            player.weaponHitboxRadius = player.radius; // ระยะโจมตีเท่ากับตัวผู้เล่น
+        },
+    
+        onUpdate(player, closestEnemy, game) {
+            // 1. จัดการการหมุน (ตามที่ Engine บังคับ)
+            player.weaponRotation += 0.08 * player.weaponDir * (game.delta / 16);
+    
+            // 2. ระบบตรวจจับการเด้งกำแพง
+            let margin = player.radius + 5; // ระยะเผื่อให้ชนกำแพง
+            let hitWall = false;
+    
+            // ตรวจสอบว่าขอบตัวผู้เล่นสัมผัสขอบ Arena (สมมติว่า Arena เป็นสี่เหลี่ยมจัตุรัส)
+            if (player.x <= game.arena.x + margin || 
+                player.x >= game.arena.x + game.arena.size - margin ||
+                player.y <= game.arena.y + margin || 
+                player.y >= game.arena.y + game.arena.size - margin) {
+                hitWall = true;
+            }
+    
+            if (hitWall && player.custom.wallHitCooldown <= 0) {
+                // เพิ่มแสตคดาเมจ +1
+                player.custom.bounceDamage += 1;
+                player.custom.wallHitCooldown = 15; // ดีเลย์ป้องกันบัคนับซ้อน
+                
+                // เพิ่มเกจอันติเมต 10% เมื่อเด้งกำแพง (ถ้าไม่ได้เปิดใช้อัลติอยู่)
+                if (player.custom.ultTimer <= 0) {
+                    player.custom.ultGauge = Math.min(100, player.custom.ultGauge + 10);
+                }
+                game.spawnParticles(player.x, player.y, 3, this.color); // เอฟเฟคฝุ่นตอนชน
+            }
+    
+            // ลดคูลดาวน์การชนกำแพง
+            if (player.custom.wallHitCooldown > 0) {
+                player.custom.wallHitCooldown -= (game.delta / 16);
+            }
+    
+            // 3. ระบบจัดการอัลติเมต 4 วินาที และล็อคเกจจาก Engine
+            if (player.custom.ultGauge >= 100 && player.custom.ultTimer <= 0) {
+                // เปิดใช้งานอัลติเมต
+                player.custom.ultGauge = 100;
+                player.custom.ultTimer = 4000; // 4 วินาที (4000 ms)
+                game.spawnParticles(player.x, player.y, 30, "#ffffff");
+            }
+    
+            if (player.custom.ultTimer > 0) {
+                // ระหว่างใช้งานอัลติเมต
+                player.ultimateActive = true;
+                player.custom.ultTimer -= game.delta;
+    
+                // ค่อยๆ ลดเกจลงตามเวลาที่เหลืออยู่ (ลดจาก 100 ไป 0 ใน 4 วินาที)
+                player.custom.ultGauge = (Math.max(0, player.custom.ultTimer) / 4000) * 100;
+    
+                // พาสซีฟอัลติ: เพิ่มความเร็วในการกระเด้งและพุ่งกระแทก
+                if (Math.abs(player.vx) < 50) player.vx *= 1.05;
+                if (Math.abs(player.vy) < 50) player.vy *= 1.05;
+    
+                // ปิดอัลติเมื่อเวลาหมด
+                if (player.custom.ultTimer <= 0) {
+                    player.ultimateActive = false;
+                    player.custom.ultTimer = 0;
+                    player.custom.ultGauge = 0;
+                }
+            }
+    
+            // Force เขียนทับเกจของ Engine ด้วยเกจที่เราคำนวณเอง (แก้บัค Engine +20%)
+            player.ultimateGauge = player.custom.ultGauge;
+        },
+    
+        render(ctx, player, game) {
+            // Origin (0,0) อยู่ที่จุดศูนย์กลางของอาวุธ
+            ctx.save();
+            // ยกเลิกการหมุนอาวุธ เพื่อวาดเอฟเฟคตามทิศทางความเร็วผู้เล่นแบบ Absolute
+            ctx.rotate(-player.weaponRotation); 
+    
+            // คำนวณความเร็วปัจจุบัน
+            let speed = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
+    
+            // เอฟเฟคภาพติดตา (Fade/Trail) เพื่อแสดงให้เห็นถึงความเร็ว
+            if (speed > 3) {
+                for (let i = 1; i <= 4; i++) {
+                    // ยิ่งห่าง ยิ่งจาง
+                    ctx.globalAlpha = Math.max(0, 0.6 - (i * 0.15));
+                    ctx.beginPath();
+                    // วาดย้อนกลับไปในทิศทางตรงข้ามกับความเร็ว
+                    ctx.arc(-player.vx * i * 0.3, -player.vy * i * 0.3, player.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                }
+            }
+            ctx.restore();
+        },
+    
+        onHitPlayer(player, target, game) {
+            // คำนวณดาเมจพื้นฐาน + แสตคจากกำแพง
+            let totalDamage = this.baseDamage + player.custom.bounceDamage;
+            target.takeDamage(totalDamage, "physical", player, game);
+            player.reverseWeapon();
+    
+            // เพิ่มเกจอันติ 10% เมื่อชนศัตรู
+            if (player.custom.ultTimer <= 0) {
+                player.custom.ultGauge = Math.min(100, player.custom.ultGauge + 10);
+                player.ultimateGauge = player.custom.ultGauge; // Force อัปเดตทันที
+            }
+    
+            // ถ้าอยู่ในสถานะอัลติ จะกระแทกศัตรูแรงขึ้น (ใช้ความเร็วปะทะศัตรู)
+            if (player.custom.ultTimer > 0) {
+                target.applyForce(player.vx * 1.5, player.vy * 1.5);
+                game.triggerHitStop(80); // ดีเลย์หน้าจอนานขึ้นให้ดูรุนแรง
+                game.spawnParticles(target.x, target.y, 10, this.color);
+            } else {
+                game.triggerHitStop(40);
+            }
+        },
+    
+        onHitWeapon(player, enemyPlayer, game) {
+            game.spawnParticles(player.x, player.y, 5, "#fff");
+            player.reverseWeapon();
+    
+            // ชนอาวุธก็ยังนับว่าได้เกจ 10%
+            if (player.custom.ultTimer <= 0) {
+                player.custom.ultGauge = Math.min(100, player.custom.ultGauge + 10);
+                player.ultimateGauge = player.custom.ultGauge; 
+            }
+        },
+    
+        onTakeDamage(player, source, game) {
+            // โดนดาเมจ ก็สามารถได้รับเกจ 10% เช่นกัน (ตามที่ระบุว่ารับเกจอย่างอิสระ)
+            if (player.custom.ultTimer <= 0) {
+                player.custom.ultGauge = Math.min(100, player.custom.ultGauge + 10);
+                player.ultimateGauge = player.custom.ultGauge; 
+            }
+        },
+    
+        onUltimateActivate(player, game) {
+            // ป้องกันไม่ให้ Engine สั่งเปิดอัลติเมตมั่วๆ เราจะให้เกจเต็ม 100 แล้วไปจัดการต่อเองใน onUpdate
+            if (player.custom.ultTimer <= 0) {
+                player.custom.ultGauge = 100;
+            }
+        }
     }
 };
 
