@@ -693,18 +693,43 @@ const WEAPON_REGISTRY = {
                 player.custom.isReal = false;
             }
             
-            // Cooldown ป้องกันการปั๊มลูกน้องจนเกมค้าง (หน่วยเป็น ms)
+            // Cooldown ป้องกันการปั๊มลูกน้องจนเกมค้าง และกันดาเมจรัวเกินไป
             player.custom.cloneCooldown = 0; 
+            player.custom.bodyHitCooldown = 0; 
             player.passiveText = "ชนศัตรูสร้างดาเมจ & แยกร่างลูกน้อง (HP 25%)"; 
         },
         
         onUpdate(player, closestEnemy, game) {
-            // หมุนอาวุธตามปกติ (ถึงจะมองไม่เห็นแต่ Hitbox จะหมุนตาม)
+            // หมุนอาวุธตามปกติ
             player.weaponRotation += 0.08 * player.weaponDir * (game.delta / 16);
             
-            // ลด Cooldown การแยกร่าง
-            if (player.custom.cloneCooldown > 0) {
-                player.custom.cloneCooldown -= game.delta;
+            // ลด Cooldown
+            if (player.custom.cloneCooldown > 0) player.custom.cloneCooldown -= game.delta;
+            if (player.custom.bodyHitCooldown > 0) player.custom.bodyHitCooldown -= game.delta;
+    
+            // เช็คการชนกันด้วยลำตัว (Body Collision) แบบทันทีไม่ต้องรอ Hitbox อาวุธ
+            if (player.custom.bodyHitCooldown <= 0) {
+                let enemies = game.getEnemies(player);
+                for (let enemy of enemies) {
+                    // คำนวณระยะห่างระหว่างเรากับศัตรู
+                    let dx = enemy.x - player.x;
+                    let dy = enemy.y - player.y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // ถ้าระยะห่างน้อยกว่ารัศมีของทั้งสองตัวรวมกัน แปลว่าชนกันแล้ว
+                    let colDist = (player.radius || 35) + (enemy.radius || 35);
+                    
+                    if (dist < colDist) {
+                        // สร้างดาเมจและแยกร่างทันทีเมื่อเดินชน
+                        enemy.takeDamage(this.baseDamage, "physical", player, game);
+                        game.spawnParticles(player.x, player.y, 5, this.color);
+                        this.spawnClone(player, game, 0.25);
+                        
+                        player.custom.bodyHitCooldown = 500; // ติดคูลดาวน์ 0.5 วินาทีต่อการชน 1 ครั้ง
+                        player.reverseWeapon();
+                        break;
+                    }
+                }
             }
         },
         
@@ -735,17 +760,23 @@ const WEAPON_REGISTRY = {
         },
         
         onHitPlayer(player, target, game) {
-            // เมื่อลำตัว(อาวุธล่องหน) ชนศัตรู
+            // เช็ค Cooldown เผื่อในกรณีที่ Hitbox ซ้อนทับกัน
+            if (player.custom.bodyHitCooldown > 0) return;
+            
             target.takeDamage(this.baseDamage, "physical", player, game);
-            this.spawnClone(player, game, 0.25); // เรียกลูกน้อง HP 25%
+            this.spawnClone(player, game, 0.25);
+            player.custom.bodyHitCooldown = 500;
             player.reverseWeapon();
         },
         
         onHitWeapon(player, enemyPlayer, game) {
-            // เมื่อลำตัว(อาวุธล่องหน) ชนอาวุธศัตรู ถือว่าสร้างดาเมจใส่เจ้าของอาวุธนั้นเลย
+            // เช็ค Cooldown เผื่อในกรณีที่ Hitbox ซ้อนทับกัน
+            if (player.custom.bodyHitCooldown > 0) return;
+    
             enemyPlayer.takeDamage(this.baseDamage, "physical", player, game);
             game.spawnParticles(player.x, player.y, 5, this.color);
-            this.spawnClone(player, game, 0.25); // เรียกลูกน้อง HP 25%
+            this.spawnClone(player, game, 0.25);
+            player.custom.bodyHitCooldown = 500;
             player.reverseWeapon();
         },
         
@@ -758,28 +789,22 @@ const WEAPON_REGISTRY = {
     
         // --- ฟังก์ชัน Custom สำหรับจัดการการสร้างร่างแยก ---
         spawnClone(player, game, hpMultiplier) {
-            // ถ้าเป็นการสร้างลูกน้องจากพาสซีฟ ต้องเช็ค Cooldown ก่อน (กันบั๊กแยกร่างรัวเป็นล้านตัวตอนชนค้าง)
             if (hpMultiplier < 1.0 && player.custom.cloneCooldown > 0) return;
     
             // สุ่ม ID ใหม่โดยมี tag _Clone_ แปะไว้
             let cloneId = player.id + "_Clone_" + Math.floor(Math.random() * 100000);
             
-            // ขยับตำแหน่งเกิดเล็กน้อยให้ร่างแยกกระจายตัวออกมา ไม่ซ้อนทับกันเป๊ะๆ
             let offsetX = (Math.random() - 0.5) * 45;
             let offsetY = (Math.random() - 0.5) * 45;
             
-            // สร้าง Object Actor ใหม่
             let clone = new Player(cloneId, player.x + offsetX, player.y + offsetY, player.color, player.team, this.name);
             
-            // นำ Actor เข้าสู่ Engine
             game.spawnActor(clone);
             
-            // ปรับแก้ค่า HP หลังจากถูกสร้างมา
             let targetHp = Math.max(1, player.hp * hpMultiplier);
             clone.hp = targetHp;
             clone.maxHp = targetHp;
             
-            // ตั้งค่า Cooldown ให้ทั้งตัวแม่และตัวลูก (0.5 วินาที) ถ้าเป็นสกิลพาสซีฟ
             if (hpMultiplier < 1.0) {
                 player.custom.cloneCooldown = 500; 
                 if(!clone.custom) clone.custom = {};
