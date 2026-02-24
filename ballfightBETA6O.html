@@ -1176,22 +1176,21 @@ const BOSS_REGISTRY = {
         maxHp: 5000,
         
         // --- Physics Hacks ---
-        baseSpeedCap: 8,       // เดินช้ามาก
+        baseSpeedCap: 8,       
         minSpeed: 1,
-        maxCollisionSpeed: 15, // ถูกชนก็ไม่ค่อยกระเด็น
-        collisionBounce: 1.0,  // ตัวหนักดั่งหินผา ต้านทานการผลัก
-        wallBounce: 0.5,       // ชนกำแพงแล้วดังตึบ ไม่เด้ง
-        friction: 0.998,       // ลดความฝืดลงนิดหน่อยเพื่อให้เวลาพุ่ง (Dash) ไถลไปได้ไกลๆ
-        iFrameDuration: 50,    // เฟรมอมตะสั้นลง โดนรุมตีได้ง่ายขึ้น
+        maxCollisionSpeed: 15, 
+        collisionBounce: 1.0,  
+        wallBounce: 0.5,       
+        friction: 0.998,       
+        iFrameDuration: 50,    
         
         init(boss) {
             boss.custom.state = "idle";
             boss.custom.stateTimer = 2000;
             boss.custom.phase2 = false;
             
-            // แหล่งเก็บ Object พิเศษ
-            boss.custom.projectiles = []; // เก็บก้อนหิน หินยักษ์ และเศษหิน
-            boss.custom.minions = [];     // เก็บลูกน้องโกเลม
+            boss.custom.projectiles = []; 
+            boss.custom.minions = [];     
             
             boss.custom.lastRockThrow = 0;
             boss.custom.boulderTimer = 0;
@@ -1199,21 +1198,41 @@ const BOSS_REGISTRY = {
             
             boss.passiveText = "พาสซีฟ: สะท้อนดาเมจเป็นเศษหิน | เลือด < 50% คลุ้มคลั่งหินถล่ม";
             
-            // ฟังก์ชันช่วยเสกเศษหิน (Debris)
             boss.custom.spawnDebris = function(x, y, count) {
                 for(let i=0; i<count; i++) {
                     let angle = Math.random() * Math.PI * 2;
-                    // ปรับให้เศษหินพุ่งเร็วและไกลขึ้น
                     let speed = 8 + Math.random() * 10; 
                     boss.custom.projectiles.push({
                         id: Math.random(),
                         type: "debris",
                         x: x, y: y, 
-                        r: 18, // ขนาดเศษหินใหญ่ขึ้น (เดิม 12)
+                        r: 18, 
                         vx: Math.cos(angle) * speed,
                         vy: Math.sin(angle) * speed,
-                        life: 6000 // ให้อยู่นานพอที่จะพุ่งชนกำแพงขอบจอแน่นอน
+                        life: 6000 
                     });
+                }
+            };
+    
+            // ฟังก์ชันช่วยจัดการการชนและผลักกัน (Solid Collision)
+            boss.custom.resolveCollision = function(entity, target, weightEntity) {
+                let dx = entity.x - target.x;
+                let dy = entity.y - target.y;
+                let dist = Math.hypot(dx, dy);
+                let minDist = entity.r + target.radius;
+                
+                if (dist < minDist && dist > 0) {
+                    let overlap = minDist - dist;
+                    let nx = dx / dist;
+                    let ny = dy / dist;
+                    
+                    // ผลัก Entity
+                    entity.x += nx * overlap * weightEntity;
+                    entity.y += ny * overlap * weightEntity;
+                    
+                    // ผลัก Target (ผู้เล่น)
+                    target.x -= nx * overlap * (1 - weightEntity);
+                    target.y -= ny * overlap * (1 - weightEntity);
                 }
             };
         },
@@ -1221,17 +1240,14 @@ const BOSS_REGISTRY = {
         getHitboxes(boss, game) {
             let boxes = [];
             
-            // 1. ฮิตบ็อกซ์ของเศษหิน ก้อนหิน และหินยักษ์
             boss.custom.projectiles.forEach(p => {
                 boxes.push({ x: p.x, y: p.y, r: p.r, type: p.type, id: p.id });
             });
             
-            // 2. ฮิตบ็อกซ์ของลูกสมุน (ให้ผู้เล่นตีโดนได้)
             boss.custom.minions.forEach(m => {
                 boxes.push({ x: m.x, y: m.y, r: m.r, type: "minion", id: m.id });
             });
             
-            // 3. ฮิตบ็อกซ์ตอนทุบพื้น (วงกว้าง)
             if (boss.custom.state === "smashing" && boss.custom.smashRadius > 0) {
                 boxes.push({ x: boss.x, y: boss.y, r: boss.custom.smashRadius, type: "smash_aoe" });
             }
@@ -1242,42 +1258,42 @@ const BOSS_REGISTRY = {
         onUpdate(boss, game) {
             let enemies = game.getEnemies(boss);
             if (enemies.length === 0) return;
-            let target = enemies[0]; // ล็อกเป้าคนแรก
+            let target = enemies[0]; 
             
             let deltaSec = game.delta / 16;
-            let halfArena = game.arena.size / 2;
-            let leftBound = game.arena.x - halfArena;
-            let rightBound = game.arena.x + halfArena;
-            let topBound = game.arena.y - halfArena;
-            let bottomBound = game.arena.y + halfArena;
+            
+            // ดึงขอบเขตสนามแบบเป๊ะๆ จากขนาดพื้นที่จริงๆ (Top-Left x,y based)
+            let leftBound = game.arena.x;
+            let rightBound = game.arena.x + game.arena.size;
+            let topBound = game.arena.y;
+            let bottomBound = game.arena.y + game.arena.size;
     
             // --- เช็ค Phase 2 (< 50% HP) ---
             if (!boss.custom.phase2 && boss.hp <= boss.maxHp * 0.5) {
                 boss.custom.phase2 = true;
                 game.triggerScreenShake(20, 1000);
-                game.setArenaBgOverride("rgba(60, 45, 35, 0.8)"); // เปลี่ยนสีพื้นสนามให้ดูน่ากลัวขึ้น
-                boss.custom.spawnDebris(boss.x, boss.y, 15); // ระเบิดหินออกมารอบตัว
+                game.setArenaBgOverride("rgba(60, 45, 35, 0.8)"); 
+                boss.custom.spawnDebris(boss.x, boss.y, 15); 
             }
     
             // --- Phase 2: เสกหินยักษ์ (Boulder) กลิ้งผ่านจอ ---
             if (boss.custom.phase2) {
                 boss.custom.boulderTimer -= game.delta;
                 if (boss.custom.boulderTimer <= 0) {
-                    boss.custom.boulderTimer = 4000; // มาทุกๆ 4 วิ
+                    boss.custom.boulderTimer = 4000; 
                     game.triggerScreenShake(5, 300);
                     
-                    // สุ่มจุดเกิดขอบจอ (ให้เกิดข้างนอกสนามนิดนึงจะได้กลิ้งเข้ามาเนียนๆ)
                     let startX = Math.random() < 0.5 ? leftBound - 100 : rightBound + 100;
-                    let startY = game.arena.y - halfArena + Math.random() * game.arena.size;
-                    let angle = startX < game.arena.x ? 0 : Math.PI; // กลิ้งซ้ายไปขวา หรือขวาไปซ้าย
+                    let startY = topBound + Math.random() * game.arena.size;
+                    let angle = startX < (leftBound + rightBound)/2 ? 0 : Math.PI; 
                     
                     boss.custom.projectiles.push({
                         id: Math.random(), type: "boulder",
                         x: startX, y: startY, 
-                        r: 90, // หินยักษ์ขนาดใหญ่ขึ้นมาก (เดิม 60)
+                        r: 90, 
                         vx: Math.cos(angle) * 5, 
                         vy: Math.sin(angle) * 5,
-                        life: 12000 // ให้อยู่นานขึ้นเพื่อกลิ้งผ่านจอให้พ้น
+                        life: 15000 
                     });
                 }
             }
@@ -1285,36 +1301,40 @@ const BOSS_REGISTRY = {
             // --- อัปเดต Projectiles ---
             for (let i = boss.custom.projectiles.length - 1; i >= 0; i--) {
                 let p = boss.custom.projectiles[i];
+                
+                // มีความฝืดเล็กน้อยให้เศษหินที่ถูกตีค่อยๆ ลดความเร็วลงได้
+                p.vx *= 0.99;
+                p.vy *= 0.99;
+                
                 p.x += p.vx * deltaSec;
                 p.y += p.vy * deltaSec;
                 p.life -= game.delta;
                 
-                // เช็คชนกำแพงสนาม (ใช้ขอบเขตจริงๆ ของอารีนาหักลบรัศมี)
-                let hitWall = (p.x - p.r <= leftBound || p.x + p.r >= rightBound || p.y - p.r <= topBound || p.y + p.r >= bottomBound);
+                // ชนขอบสนามเป๊ะๆ และล็อกพิกัดไม่ให้ทะลุกำแพงก่อนแตก
+                let hitWall = false;
+                if (p.x - p.r <= leftBound) { p.x = leftBound + p.r; hitWall = true; }
+                if (p.x + p.r >= rightBound) { p.x = rightBound - p.r; hitWall = true; }
+                if (p.y - p.r <= topBound) { p.y = topBound + p.r; hitWall = true; }
+                if (p.y + p.r >= bottomBound) { p.y = bottomBound - p.r; hitWall = true; }
                 
-                // จัดการ หินยักษ์ (Boulder) ยกเว้นไม่ให้โดนทำลายด้วยกำแพง จะได้กลิ้งทะลุจอได้
+                // ให้ Object ชนและดันผู้เล่นได้ (Solid presence)
+                boss.custom.resolveCollision(p, target, 0.4);
+    
                 if (p.type === "boulder") {
                     if (p.life <= 0) {
                         game.spawnParticles(p.x, p.y, 40, "#555555");
                         boss.custom.projectiles.splice(i, 1);
                     }
-                    continue; // ข้ามการเช็คชนกำแพงด้านล่างไปเลย
+                    continue; 
                 }
                 
-                // จัดการ ก้อนหิน(Rock) และ เศษหิน(Debris) เมื่อหมดเวลา หรือ ชนกำแพง
                 if (p.life <= 0 || hitWall) {
-                    // ป้องกันพิกัดทะลุกำแพงตอนแตกเพื่อแสดงผล Particle ให้สวยงามตรงขอบกำแพงพอดี
-                    let edgeX = Math.max(leftBound + p.r, Math.min(p.x, rightBound - p.r));
-                    let edgeY = Math.max(topBound + p.r, Math.min(p.y, bottomBound - p.r));
-    
                     if (p.type === "rock" && hitWall) {
-                        // ก้อนหินชนกำแพง แตกกระจายเป็นเศษหินจำนวนเยอะๆ
-                        boss.custom.spawnDebris(edgeX, edgeY, 10); // แตกเป็น 10 ชิ้น
-                        game.spawnParticles(edgeX, edgeY, 20, "#888888");
+                        boss.custom.spawnDebris(p.x, p.y, 10); 
+                        game.spawnParticles(p.x, p.y, 20, "#888888");
                     } 
                     else if (p.type === "debris" && hitWall) {
-                        // เศษหินกระจายไปชนกำแพงจริงๆ ก็จะแตกสลายเป็นฝุ่นควันเล็กๆ
-                        game.spawnParticles(edgeX, edgeY, 5, "#666666");
+                        game.spawnParticles(p.x, p.y, 5, "#666666");
                     }
                     
                     boss.custom.projectiles.splice(i, 1);
@@ -1324,68 +1344,75 @@ const BOSS_REGISTRY = {
             // --- อัปเดต Minions ---
             for (let i = boss.custom.minions.length - 1; i >= 0; i--) {
                 let m = boss.custom.minions[i];
+                
+                // ฝืดเล็กน้อย
+                if(!m.vx) m.vx = 0;
+                if(!m.vy) m.vy = 0;
+                m.vx *= 0.9;
+                m.vy *= 0.9;
+                
                 let dx = target.x - m.x;
                 let dy = target.y - m.y;
                 let dist = Math.hypot(dx, dy);
                 if (dist > 0) {
-                    m.x += (dx / dist) * 3 * deltaSec;
-                    m.y += (dy / dist) * 3 * deltaSec;
+                    m.vx += (dx / dist) * 0.5; // เดินตาม
+                    m.vy += (dy / dist) * 0.5;
                 }
+                
+                m.x += m.vx * deltaSec;
+                m.y += m.vy * deltaSec;
+                
+                // ลูกน้องผลักผู้เล่นได้แบบแข็งๆ
+                boss.custom.resolveCollision(m, target, 0.5);
             }
     
-            // --- AI State Machine (รูปแบบการโจมตี) ---
+            // --- AI State Machine ---
             boss.custom.stateTimer -= game.delta;
             
             if (boss.custom.state === "idle") {
-                // เดินเข้าหาผู้เล่นช้าๆ
                 let angle = Math.atan2(target.y - boss.y, target.x - boss.x);
                 boss.applyForce(Math.cos(angle) * 0.5, Math.sin(angle) * 0.5);
                 
                 if (boss.custom.stateTimer <= 0) {
                     boss.custom.state = "dash_prep";
                     boss.custom.stateTimer = 1000;
-                    boss.custom.dashAngle = angle; // เล็งเป้า
+                    boss.custom.dashAngle = angle; 
                 }
             } 
             else if (boss.custom.state === "dash_prep") {
-                boss.vx *= 0.8; // เบรคตัวเตรียมพุ่ง
+                boss.vx *= 0.8; 
                 boss.vy *= 0.8;
                 if (boss.custom.stateTimer <= 0) {
                     boss.custom.state = "dashing";
                     boss.custom.stateTimer = 1200;
-                    // พุ่งแรงมาก (Physics Hack ทำให้ไถลไปได้ไกล)
                     boss.applyForce(Math.cos(boss.custom.dashAngle) * 40, Math.sin(boss.custom.dashAngle) * 40);
                 }
             }
             else if (boss.custom.state === "dashing") {
-                // เช็คว่าชนกำแพงหรือไม่ระหว่างพุ่ง
                 let hitWall = (boss.x - boss.radius < leftBound+10 || boss.x + boss.radius > rightBound-10 || 
                                boss.y - boss.radius < topBound+10 || boss.y + boss.radius > bottomBound-10);
                 
                 if (hitWall) {
-                    // ท่าชนกำแพงหินถล่ม
                     game.triggerScreenShake(15, 500);
                     game.spawnParticles(boss.x, boss.y, 30, "#aaaaaa");
                     boss.custom.state = "idle";
                     boss.custom.stateTimer = 2000;
                     
-                    // หินหล่นจากฟ้า 5 ก้อน
                     for(let i=0; i<5; i++) {
                         boss.custom.projectiles.push({
                             id: Math.random(), type: "rock",
                             x: leftBound + Math.random() * game.arena.size,
                             y: topBound + 50,
-                            vx: (Math.random()-0.5) * 6, // กระจายกว้างขึ้น
-                            vy: 8 + Math.random() * 6,   // ร่วงเร็วขึ้น
-                            r: 35, // ขนาดใหญ่ขึ้น (เดิม 20)
+                            vx: (Math.random()-0.5) * 6, 
+                            vy: 8 + Math.random() * 6,   
+                            r: 35, 
                             life: 6000 
                         });
                     }
                 } else if (boss.custom.stateTimer <= 0) {
-                    // พุ่งไม่ชนกำแพง จบด้วยการทุบพื้นกว้าง
                     boss.custom.state = "smashing";
                     boss.custom.stateTimer = 500;
-                    boss.custom.smashRadius = 250; // ระยะทุบกว้างมาก
+                    boss.custom.smashRadius = 250; 
                     game.triggerScreenShake(25, 600);
                     game.spawnParticles(boss.x, boss.y, 50, "#664433");
                 }
@@ -1402,10 +1429,9 @@ const BOSS_REGISTRY = {
         
         onHitPlayer(boss, player, game, hitboxObj) {
             if (hitboxObj) {
-                // ดาเมจแยกตามประเภท Hitbox ที่เราสร้าง
                 if (hitboxObj.type === "rock") {
                     player.takeDamage(20, "physical", boss, game);
-                    boss.custom.spawnDebris(hitboxObj.x, hitboxObj.y, 6); // ถ้าโดนตัวก็จะแตกเป็นเศษหินได้
+                    boss.custom.spawnDebris(hitboxObj.x, hitboxObj.y, 6); 
                     boss.custom.projectiles = boss.custom.projectiles.filter(p => p.id !== hitboxObj.id);
                 } 
                 else if (hitboxObj.type === "debris") {
@@ -1414,63 +1440,73 @@ const BOSS_REGISTRY = {
                     boss.custom.projectiles = boss.custom.projectiles.filter(p => p.id !== hitboxObj.id);
                 } 
                 else if (hitboxObj.type === "boulder") {
-                    player.takeDamage(50, "blunt", boss, game); // หินยักษ์ดาเมจหนัก ไม่หายไปเมื่อโดน
+                    player.takeDamage(50, "blunt", boss, game); 
                 } 
                 else if (hitboxObj.type === "smash_aoe") {
-                    // ป้องกันไม่ให้โดนดาเมจทุบรัวๆ ใน 1 เฟรม
                     if (!player.custom.lastSmashHit || Date.now() - player.custom.lastSmashHit > 600) {
                         player.takeDamage(35, "blunt", boss, game);
                         player.custom.lastSmashHit = Date.now();
                     }
                 }
                 else if (hitboxObj.type === "minion") {
-                    // โดนลูกน้องชน
                     if (!player.custom.lastMinionHit || Date.now() - player.custom.lastMinionHit > 500) {
                         player.takeDamage(15, "physical", boss, game);
                         player.custom.lastMinionHit = Date.now();
                     }
                 }
             } else {
-                // โดนตัวบอสหลักชน (Body)
                 player.takeDamage(25, "blunt", boss, game);
             }
         },
         
         onHitWeapon(boss, attacker, game, hitboxObj) {
-            // เมื่ออาวุธของผู้เล่นฟาดโดนฮิตบ็อกซ์ต่างๆ
-            if (hitboxObj && hitboxObj.type === "minion") {
-                // ระบบลูกน้องรับดาเมจ
-                let m = boss.custom.minions.find(x => x.id === hitboxObj.id);
-                if (m) {
-                    m.hp -= (attacker.baseDamage || 10);
-                    game.spawnParticles(hitboxObj.x, hitboxObj.y, 5, "#888888"); // เอฟเฟกต์หินกระจุย
-                    
-                    // ลูกน้องตาย
-                    if (m.hp <= 0) {
-                        game.spawnParticles(m.x, m.y, 40, "#555555");
-                        boss.custom.spawnDebris(m.x, m.y, 8); // แตกเป็นเศษหิน
-                        boss.custom.minions = boss.custom.minions.filter(x => x.id !== m.id);
+            // คำนวณแรงผลัก (Knockback) จากมุมที่อาวุธฟาดมา
+            let angle = Math.atan2(boss.y - attacker.y, boss.x - attacker.x);
+            let knockbackForce = 15;
+    
+            if (hitboxObj) {
+                angle = Math.atan2(hitboxObj.y - attacker.y, hitboxObj.x - attacker.x);
+                
+                if (hitboxObj.type === "minion") {
+                    let m = boss.custom.minions.find(x => x.id === hitboxObj.id);
+                    if (m) {
+                        m.hp -= (attacker.baseDamage || 10);
+                        // ลูกน้องกระเด็นเมื่อโดนตี
+                        m.vx += Math.cos(angle) * knockbackForce;
+                        m.vy += Math.sin(angle) * knockbackForce;
+                        
+                        game.spawnParticles(hitboxObj.x, hitboxObj.y, 5, "#888888"); 
+                        
+                        if (m.hp <= 0) {
+                            game.spawnParticles(m.x, m.y, 40, "#555555");
+                            boss.custom.spawnDebris(m.x, m.y, 8); 
+                            boss.custom.minions = boss.custom.minions.filter(x => x.id !== m.id);
+                        }
                     }
+                } 
+                else if (hitboxObj.type === "rock" || hitboxObj.type === "debris" || hitboxObj.type === "boulder") {
+                    let p = boss.custom.projectiles.find(x => x.id === hitboxObj.id);
+                    if (p) {
+                        // ก้อนหินปลิวตามแรงตีผู้เล่น
+                        p.vx += Math.cos(angle) * knockbackForce;
+                        p.vy += Math.sin(angle) * knockbackForce;
+                    }
+                    game.spawnParticles(hitboxObj.x, hitboxObj.y, 3, "#dddddd");
                 }
-            } else if (hitboxObj && (hitboxObj.type === "rock" || hitboxObj.type === "boulder")) {
-                // ผู้เล่นตีหิน โชว์เอฟเฟกต์ประกายไฟ
-                game.spawnParticles(hitboxObj.x, hitboxObj.y, 3, "#dddddd");
             }
         },
         
         onTakeDamage(boss, source, game) {
             let now = Date.now();
-            // Passive: ถูกโจมตีแล้วสะท้อนก้อนหิน (หน่วงเวลา 0.5 วิกันแสปม)
             if (now - boss.custom.lastRockThrow > 500 && source) {
                 boss.custom.lastRockThrow = now;
                 let angle = Math.atan2(source.y - boss.y, source.x - boss.x);
                 
-                // โยนหินสวนกลับ
                 boss.custom.projectiles.push({
                     id: Math.random(), type: "rock",
                     x: boss.x, y: boss.y, 
-                    r: 35, // ขนาดใหญ่ขึ้น (เดิม 20)
-                    vx: Math.cos(angle) * 16, // ขว้างให้แรงขึ้น
+                    r: 35, 
+                    vx: Math.cos(angle) * 16, 
                     vy: Math.sin(angle) * 16,
                     life: 6000
                 });
@@ -1478,11 +1514,10 @@ const BOSS_REGISTRY = {
         },
         
         onUltimateActivate(boss, game) {
-            // คำรามเสกลูกน้อง 3 ตัว
             game.triggerScreenShake(20, 1000);
             game.spawnParticles(boss.x, boss.y, 80, "#444444");
             
-            let minionMaxHp = boss.maxHp * 0.25; // เลือด 25% ของตัวจริง (1250)
+            let minionMaxHp = boss.maxHp * 0.25; 
             
             for(let i=0; i<3; i++) {
                 let angle = (Math.PI * 2 / 3) * i;
@@ -1492,26 +1527,24 @@ const BOSS_REGISTRY = {
                     y: boss.y + Math.sin(angle) * 120,
                     r: 40, 
                     hp: minionMaxHp, 
-                    maxHp: minionMaxHp
+                    maxHp: minionMaxHp,
+                    vx: 0, vy: 0
                 });
             }
         },
         
         onDeath(boss, killer, game) {
-            // ตายระเบิดเป็นเศษหินทั่วจอ
             game.triggerScreenShake(30, 1500);
             game.spawnParticles(boss.x, boss.y, 200, "#555555");
-            game.clearEnvironmentOverrides(); // ล้างสีฉากกลับเป็นปกติ
+            game.clearEnvironmentOverrides(); 
             
-            boss.custom.spawnDebris(boss.x, boss.y, 30); // สาดเศษหิน 30 ชิ้นทิ้งท้าย
+            boss.custom.spawnDebris(boss.x, boss.y, 30); 
         },
         
         render(ctx, boss, game) {
             ctx.save();
-            // แปลงแกนกลับเป็น Global เพื่อวาด Projectiles/Minions ไม่ให้หมุนตามบอส
             ctx.translate(-boss.x, -boss.y);
             
-            // 1. วาดวงแหวนการทุบ (Smash AoE)
             if (boss.custom.state === "smashing" && boss.custom.smashRadius > 0) {
                 ctx.beginPath();
                 ctx.arc(boss.x, boss.y, boss.custom.smashRadius, 0, Math.PI * 2);
@@ -1522,7 +1555,6 @@ const BOSS_REGISTRY = {
                 ctx.stroke();
             }
             
-            // 2. วาด Projectiles (เศษหิน, หินก้อน, หินยักษ์)
             boss.custom.projectiles.forEach(p => {
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
@@ -1540,19 +1572,16 @@ const BOSS_REGISTRY = {
                 ctx.fill();
             });
             
-            // 3. วาด Minions (ลูกน้อง) พร้อมหลอดเลือด
             boss.custom.minions.forEach(m => {
-                // ตัวลูกน้อง
                 ctx.beginPath();
                 ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
                 ctx.fillStyle = "#666666";
                 ctx.fill();
-                // ตาลูกน้อง
+                
                 ctx.fillStyle = "#ffaa00";
                 ctx.fillRect(m.x - 15, m.y - 10, 8, 8);
                 ctx.fillRect(m.x + 7, m.y - 10, 8, 8);
                 
-                // หลอดเลือดลูกน้อง
                 let hpPct = Math.max(0, m.hp / m.maxHp);
                 ctx.fillStyle = "red";
                 ctx.fillRect(m.x - m.r, m.y - m.r - 15, m.r * 2, 6);
@@ -1560,11 +1589,8 @@ const BOSS_REGISTRY = {
                 ctx.fillRect(m.x - m.r, m.y - m.r - 15, (m.r * 2) * hpPct, 6);
             });
             
-            ctx.restore(); // คืนแกนกลับมาที่ศูนย์กลางบอส
+            ctx.restore(); 
             
-            // 4. วาดตัวบอสหลัก (Origin ตอนนี้คือ 0,0 ตรงกลางบอส)
-            
-            // สั่นตัวตอนกำลังชาร์จพุ่ง
             let shakeX = 0, shakeY = 0;
             if (boss.custom.state === "dash_prep") {
                 shakeX = (Math.random() - 0.5) * 8;
@@ -1572,12 +1598,10 @@ const BOSS_REGISTRY = {
             }
             ctx.translate(shakeX, shakeY);
             
-            // วาดรูปร่างโกเลมหิน (หกเหลี่ยมขรุขระ)
             ctx.beginPath();
             let sides = 8;
             for (let i = 0; i < sides; i++) {
                 let angle = (i * Math.PI * 2) / sides;
-                // สุ่มให้รัศมีขรุขระไม่เท่ากัน
                 let dist = boss.radius - 5 + (i % 2 === 0 ? 10 : -10); 
                 let px = Math.cos(angle) * dist;
                 let py = Math.sin(angle) * dist;
@@ -1591,17 +1615,15 @@ const BOSS_REGISTRY = {
             ctx.strokeStyle = "#333333";
             ctx.stroke();
             
-            // ตาที่น่าเกรงขาม (ถ้าเลือดน้อยกว่า 50% ตาจะเปลี่ยนเป็นแดงคลั่ง)
             let eyeColor = boss.custom.phase2 ? "#ff0000" : "#ffaa00";
             ctx.fillStyle = eyeColor;
             ctx.beginPath();
-            ctx.moveTo(-30, -20); ctx.lineTo(-10, -10); ctx.lineTo(-30, 0); // ตาซ้าย
+            ctx.moveTo(-30, -20); ctx.lineTo(-10, -10); ctx.lineTo(-30, 0); 
             ctx.fill();
             ctx.beginPath();
-            ctx.moveTo(30, -20); ctx.lineTo(10, -10); ctx.lineTo(30, 0);  // ตาขวา
+            ctx.moveTo(30, -20); ctx.lineTo(10, -10); ctx.lineTo(30, 0);  
             ctx.fill();
             
-            // รอยแตกตามตัวถ้าเป็น Phase 2
             if (boss.custom.phase2) {
                 ctx.beginPath();
                 ctx.moveTo(0, -40); ctx.lineTo(10, 0); ctx.lineTo(-20, 30); ctx.lineTo(0, 60);
