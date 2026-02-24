@@ -1047,7 +1047,7 @@ const WEAPON_REGISTRY = {
     
         // Physics Hacks
         actorRadius: 35, // ขนาดตัวละครปกติ
-        weaponHitboxRadius: 35, // แฮ็กระยะอาวุธให้เท่ากับขนาดตัว (เพื่อให้ตีโดนเมื่อเอาตัวชน)
+        weaponHitboxRadius: 55, // แฮ็กระยะอาวุธให้กว้างกว่าขนาดตัว (ขยายฮิตบ็อกซ์การชนให้ใหญ่ขึ้น)
         collisionBounce: 1.2, // เด้งออกเล็กน้อยเมื่อชนศัตรู
     
         init(player) { 
@@ -1055,7 +1055,7 @@ const WEAPON_REGISTRY = {
             if (player.custom.isClone === undefined) {
                 player.custom.isClone = false;
             }
-            player.passiveText = "ทุกครั้งที่ชนศัตรู สร้างร่างก็อปปี้ 50% HP (สูงสุด 50 ร่าง)"; 
+            player.passiveText = "ทุกครั้งที่โจมตี (ชน) สร้างร่างแยกที่มี HP 25% ของตัวจริง (สูงสุด 50 ร่าง)"; 
         },
     
         onUpdate(player, closestEnemy, game) {
@@ -1106,20 +1106,20 @@ const WEAPON_REGISTRY = {
     
             if (!game.custom.activeClones) game.custom.activeClones = [];
     
-            // ตรวจสอบเงื่อนไขไม่ให้เกิน 50 ตัวโคลน (ก็อปตัวเองทุกครั้งที่ชน)
+            // ตรวจสอบเงื่อนไขไม่ให้เกิน 50 ตัวโคลน
             if (game.custom.activeClones.length < 50) {
-                let cloneHp = player.hp * 0.5; // เลือด 50% ของตัวต้นทาง
+                let spawnHp = player.maxHp * 0.25; // เลือด 25% ของตัวจริงเสมอ (ลบหลักการก็อปของก็อปออก)
     
-                // สร้างตัวก็อปปี้ก็ต่อเมื่อเลือดมีค่ามากกว่า 1 เท่านั้น
-                if (cloneHp >= 1) {
+                // สร้างร่างแยก
+                if (spawnHp >= 1) {
                     let clone = {
                         ...player, // ดึงค่าเดิมมาทั้งหมดเพื่อให้จัดทีมและสีตรงกัน
                         x: player.x + (Math.random() * 40 - 20),
                         y: player.y + (Math.random() * 40 - 20),
                         vx: player.vx * -1.5, // กระเด็นออกไปทิศตรงข้ามเล็กน้อย
                         vy: player.vy * -1.5,
-                        hp: cloneHp,
-                        maxHp: player.maxHp * 0.5, // Max HP ก็ลดลงครึ่งนึงด้วย
+                        hp: spawnHp,
+                        maxHp: player.maxHp, // คง Max HP ไว้เท่าตัวจริง
                         ultimateGauge: 0, // โคลนเริ่มเก็บเกจใหม่
                         ultimateActive: false,
                         custom: { isClone: true } // กำหนดว่าเป็นตัวโคลน
