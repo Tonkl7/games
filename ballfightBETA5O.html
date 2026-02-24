@@ -1055,8 +1055,7 @@ const WEAPON_REGISTRY = {
             if (player.custom.isClone === undefined) {
                 player.custom.isClone = false;
             }
-            player.custom.collisionCount = 0;
-            player.passiveText = "ชนศัตรู 2 ครั้ง สร้างร่างก็อปปี้ 50% HP (สูงสุด 50 ร่าง)"; 
+            player.passiveText = "ทุกครั้งที่ชนศัตรู สร้างร่างก็อปปี้ 50% HP (สูงสุด 50 ร่าง)"; 
         },
     
         onUpdate(player, closestEnemy, game) {
@@ -1105,37 +1104,30 @@ const WEAPON_REGISTRY = {
             target.takeDamage(this.baseDamage, "physical", player, game);
             player.reverseWeapon();
     
-            // สะสมจำนวนการชน
-            player.custom.collisionCount = (player.custom.collisionCount || 0) + 1;
+            if (!game.custom.activeClones) game.custom.activeClones = [];
     
-            if (player.custom.collisionCount >= 2) {
-                player.custom.collisionCount = 0; // รีเซ็ตค่า
+            // ตรวจสอบเงื่อนไขไม่ให้เกิน 50 ตัวโคลน (ก็อปตัวเองทุกครั้งที่ชน)
+            if (game.custom.activeClones.length < 50) {
+                let cloneHp = player.hp * 0.5; // เลือด 50% ของตัวต้นทาง
     
-                if (!game.custom.activeClones) game.custom.activeClones = [];
-    
-                // ตรวจสอบเงื่อนไขไม่ให้เกิน 50 ตัวโคลน
-                if (game.custom.activeClones.length < 50) {
-                    let cloneHp = player.hp * 0.5; // เลือด 50% ของตัวต้นทาง
-    
-                    // สร้างตัวก็อปปี้ก็ต่อเมื่อเลือดมีค่ามากกว่า 1 เท่านั้น
-                    if (cloneHp >= 1) {
-                        let clone = {
-                            ...player, // ดึงค่าเดิมมาทั้งหมดเพื่อให้จัดทีมและสีตรงกัน
-                            x: player.x + (Math.random() * 40 - 20),
-                            y: player.y + (Math.random() * 40 - 20),
-                            vx: player.vx * -1.5, // กระเด็นออกไปทิศตรงข้ามเล็กน้อย
-                            vy: player.vy * -1.5,
-                            hp: cloneHp,
-                            maxHp: player.maxHp * 0.5, // Max HP ก็ลดลงครึ่งนึงด้วย
-                            ultimateGauge: 0, // โคลนเริ่มเก็บเกจใหม่
-                            ultimateActive: false,
-                            custom: { isClone: true, collisionCount: 0 } // กำหนดว่าเป็นตัวโคลน
-                        };
-                        
-                        game.spawn(clone);
-                        game.custom.activeClones.push(clone); // บันทึกเข้าระบบนับ
-                        game.spawnParticles(clone.x, clone.y, 15, this.color);
-                    }
+                // สร้างตัวก็อปปี้ก็ต่อเมื่อเลือดมีค่ามากกว่า 1 เท่านั้น
+                if (cloneHp >= 1) {
+                    let clone = {
+                        ...player, // ดึงค่าเดิมมาทั้งหมดเพื่อให้จัดทีมและสีตรงกัน
+                        x: player.x + (Math.random() * 40 - 20),
+                        y: player.y + (Math.random() * 40 - 20),
+                        vx: player.vx * -1.5, // กระเด็นออกไปทิศตรงข้ามเล็กน้อย
+                        vy: player.vy * -1.5,
+                        hp: cloneHp,
+                        maxHp: player.maxHp * 0.5, // Max HP ก็ลดลงครึ่งนึงด้วย
+                        ultimateGauge: 0, // โคลนเริ่มเก็บเกจใหม่
+                        ultimateActive: false,
+                        custom: { isClone: true } // กำหนดว่าเป็นตัวโคลน
+                    };
+                    
+                    game.spawn(clone);
+                    game.custom.activeClones.push(clone); // บันทึกเข้าระบบนับ
+                    game.spawnParticles(clone.x, clone.y, 15, this.color);
                 }
             }
         },
@@ -1160,7 +1152,7 @@ const WEAPON_REGISTRY = {
                 maxHp: player.maxHp,
                 ultimateGauge: 0,
                 ultimateActive: false,
-                custom: { isClone: false, collisionCount: 0 } // กำหนดให้สถานะเป็น "ตัวจริง" (จะมีดาวขึ้นด้วย)
+                custom: { isClone: false } // กำหนดให้สถานะเป็น "ตัวจริง" (จะมีดาวขึ้นด้วย)
             };
             
             game.spawn(realClone);
