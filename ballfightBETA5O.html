@@ -1039,126 +1039,169 @@ const WEAPON_REGISTRY = {
         }
     },
     "Duplicate": {
-        name: "Duplicate",
-        color: "#800080", // สีม่วง
+        name: "Duplicate", 
+        color: "#9b59b6", // สีม่วง
         width: 0, // ซ่อนอาวุธ
         length: 0, // ซ่อนอาวุธ
         baseDamage: 5,
-    
-        // Physics Hacks
-        actorRadius: 35, // ขนาดตัวละครปกติ
-        weaponHitboxRadius: 55, // แฮ็กระยะอาวุธให้กว้างกว่าขนาดตัว (ขยายฮิตบ็อกซ์การชนให้ใหญ่ขึ้น)
-        collisionBounce: 1.2, // เด้งออกเล็กน้อยเมื่อชนศัตรู
-    
+        
+        // Physics Hack: ปรับระยะ Hitbox ของอาวุธให้ครอบคลุมและใหญ่กว่าตัวละครเล็กน้อย
+        // เพื่อให้การเดินชนศัตรู หรือศัตรูเดินมาชน นับเป็นการโจมตีด้วยอาวุธไปในตัว
+        weaponHitboxRadius: 40, 
+        
         init(player) { 
-            // เช็คว่าถ้าไม่ใช่ตัวโคลน ให้เซ็ตสถานะเป็นตัวจริง
+            // เช็คว่าตัวนี้คือร่างต้นหรือร่างแยก
             if (player.custom.isClone === undefined) {
-                player.custom.isClone = false;
+                player.custom.isClone = false; // ถ้าเพิ่งเกิดถือว่าเป็นตัวจริง
             }
-            player.passiveText = "ทุกครั้งที่โจมตี (ชน) สร้างร่างแยกที่มี HP 25% ของตัวจริง (สูงสุด 50 ร่าง)"; 
+            
+            player.custom.hitCooldown = 0; // คูลดาวน์ป้องกันการชนซ้ำรัวๆ จนเกมค้าง
+            player.weaponReach = 0; // ดึงอาวุธให้ติดอยู่กับตัว
+            
+            if (!player.custom.isClone) {
+                player.passiveText = "ชนศัตรูเพื่อสร้างดาเมจและสร้างลูกน้อง (HP 25%)"; 
+            } else {
+                player.passiveText = "ร่างแยก Duplicate";
+            }
         },
-    
+        
         onUpdate(player, closestEnemy, game) {
-            // อัปเดตการหมุนของอาวุธตามระบบ (แม้จะมองไม่เห็นก็ตาม)
+            // Handle rotation (Mandatory ของ Engine)
             player.weaponRotation += 0.08 * player.weaponDir * (game.delta / 16);
             
-            // ระบบจัดการและนับจำนวนตัวโคลนในเกม
-            if (!game.custom) game.custom = {};
-            if (!game.custom.activeClones) game.custom.activeClones = [];
+            // ลดคูลดาวน์การชน
+            if (player.custom.hitCooldown > 0) {
+                player.custom.hitCooldown -= game.delta;
+            }
     
-            // สุ่มตรวจสอบเป็นระยะเพื่อลบตัวโคลนที่ตายแล้วออกจากอาเรย์ (ลดภาระการประมวลผล)
-            if (Math.random() < 0.05) {
-                game.custom.activeClones = game.custom.activeClones.filter(c => c.hp > 0);
+            // เสริมการเช็คระยะชนด้วยตัวเอง (สำรองจากระบบ Physics ของ Engine)
+            if (player.custom.hitCooldown <= 0) {
+                let enemies = game.getEnemies(player);
+                for (let enemy of enemies) {
+                    let dx = enemy.x - player.x;
+                    let dy = enemy.y - player.y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // ถ้าระยะห่างน้อยกว่ารัศมีของทั้งสองฝ่ายรวมกัน = ชนกัน
+                    if (dist < player.radius + enemy.radius) {
+                        this.triggerCollisionHit(player, enemy, game);
+                    }
+                }
             }
         },
-    
+        
         render(ctx, player, game) { 
-            // ไม่มีการวาดอาวุธสี่เหลี่ยมตามปกติ เพราะ length และ width เป็น 0
+            // Origin (0,0) is weapon center.
+            // อาวุธไม่มีรูปร่าง จึงไม่วาดสี่เหลี่ยมอาวุธ
             
-            // วาดสัญลักษณ์ "ดาว" เฉพาะตัวจริงเท่านั้น
+            // วาดดาวระบุ "ตัวจริง" เท่านั้น
             if (!player.custom.isClone) {
                 ctx.save();
+                // หักล้างการหมุนของอาวุธ เพื่อให้ดาวไม่หมุนติ้วๆ และตั้งตรงเสมอ
+                ctx.rotate(-player.weaponRotation);
+                
                 ctx.fillStyle = "#FFD700"; // สีทอง
                 ctx.beginPath();
                 
-                // สร้างรูปดาว 5 แฉกตรงกลางตัว
+                // วาดรูปดาว 5 แฉก บริเวณเหนือหัวผู้เล่น
+                let rot = Math.PI / 2 * 3;
+                let cx = 0;
+                let cy = -25; // ย้ายขึ้นไปบนหัว
+                let step = Math.PI / 5;
+                let outerRadius = 12;
+                let innerRadius = 5;
+                
+                ctx.moveTo(cx, cy - outerRadius);
                 for (let i = 0; i < 5; i++) {
-                    ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * 15,
-                               -Math.sin((18 + i * 72) * Math.PI / 180) * 15);
-                    ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * 6,
-                               -Math.sin((54 + i * 72) * Math.PI / 180) * 6);
+                    let x = cx + Math.cos(rot) * outerRadius;
+                    let y = cy + Math.sin(rot) * outerRadius;
+                    ctx.lineTo(x, y);
+                    rot += step;
+                    x = cx + Math.cos(rot) * innerRadius;
+                    y = cy + Math.sin(rot) * innerRadius;
+                    ctx.lineTo(x, y);
+                    rot += step;
                 }
+                ctx.lineTo(cx, cy - outerRadius);
                 ctx.closePath();
                 ctx.fill();
                 
-                // ขอบดาวเพิ่มความคมชัด
-                ctx.strokeStyle = "#B8860B";
+                // ขอบดาวสวยๆ
+                ctx.strokeStyle = "#FFF";
                 ctx.lineWidth = 1;
                 ctx.stroke();
+                
                 ctx.restore();
             }
         },
-    
-        onHitPlayer(player, target, game) {
-            // สร้างดาเมจเมื่อเอาตัวชน (เพราะ weaponHitboxRadius ทับซ้อนกับตัวละคร)
-            target.takeDamage(this.baseDamage, "physical", player, game);
-            player.reverseWeapon();
-    
-            if (!game.custom.activeClones) game.custom.activeClones = [];
-    
-            // ตรวจสอบเงื่อนไขไม่ให้เกิน 50 ตัวโคลน
-            if (game.custom.activeClones.length < 50) {
-                let spawnHp = player.maxHp * 0.25; // เลือด 25% ของตัวจริงเสมอ (ลบหลักการก็อปของก็อปออก)
-    
-                // สร้างร่างแยก
-                if (spawnHp >= 1) {
-                    let clone = {
-                        ...player, // ดึงค่าเดิมมาทั้งหมดเพื่อให้จัดทีมและสีตรงกัน
-                        x: player.x + (Math.random() * 40 - 20),
-                        y: player.y + (Math.random() * 40 - 20),
-                        vx: player.vx * -1.5, // กระเด็นออกไปทิศตรงข้ามเล็กน้อย
-                        vy: player.vy * -1.5,
-                        hp: spawnHp,
-                        maxHp: player.maxHp, // คง Max HP ไว้เท่าตัวจริง
-                        ultimateGauge: 0, // โคลนเริ่มเก็บเกจใหม่
-                        ultimateActive: false,
-                        custom: { isClone: true } // กำหนดว่าเป็นตัวโคลน
-                    };
-                    
-                    game.spawn(clone);
-                    game.custom.activeClones.push(clone); // บันทึกเข้าระบบนับ
-                    game.spawnParticles(clone.x, clone.y, 15, this.color);
-                }
+        
+        triggerCollisionHit(player, target, game) {
+            if (player.custom.hitCooldown <= 0) {
+                // สร้างดาเมจ
+                target.takeDamage(this.baseDamage, "physical", player, game);
+                game.spawnParticles(target.x, target.y, 5, this.color);
+                
+                // ตั้งคูลดาวน์ 0.8 วินาที เพื่อไม่ให้สร้างร่างแยกออกมาวินาทีละ 60 ตัวเมื่อถูไถศัตรู
+                player.custom.hitCooldown = 800; 
+                
+                // สร้างลูกน้อง เลือด 25% ของ Max HP ตัวแม่
+                this.spawnDuplicate(player, game, 0.25, true);
             }
         },
-    
-        onHitWeapon(player, enemyPlayer, game) {
-            // เมื่ออาวุธ(ตัว) ชนอาวุธศัตรู
-            game.spawnParticles(player.weaponX, player.weaponY, 5, "#fff");
-            player.reverseWeapon();
-        },
-    
-        onTakeDamage(player, source, game) {},
-    
-        onUltimateActivate(player, game) {
-            // สกิลอัลติเมต: สร้างตัวจริงขึ้นมาอีกตัว ด้วยเลือด 100% ณ ปัจจุบัน
-            let realClone = {
-                ...player,
-                x: player.x + (Math.random() * 60 - 30),
-                y: player.y + (Math.random() * 60 - 30),
-                vx: player.vx * -1,
-                vy: player.vy * -1,
-                hp: player.hp, // เลือด 100% ของตอนนั้น
-                maxHp: player.maxHp,
-                ultimateGauge: 0,
+        
+        spawnDuplicate(player, game, hpPercent, isMinion) {
+            // คำนวณเลือด
+            let cloneHp = isMinion ? (player.maxHp * hpPercent) : player.hp; 
+            if (cloneHp < 1) cloneHp = 1;
+            
+            let clone = {
+                x: player.x + (Math.random() * 80 - 40), // สุ่มเกิดรอบๆ ตัว
+                y: player.y + (Math.random() * 80 - 40),
+                vx: Math.random() * 10 - 5,
+                vy: Math.random() * 10 - 5,
+                radius: player.radius,
+                hp: cloneHp,
+                maxHp: isMinion ? cloneHp : player.maxHp, // ถ้าร่างอัลติ ให้ maxHp เท่าเดิม
+                weaponRotation: player.weaponRotation,
+                weaponDir: player.weaponDir,
+                weaponReach: player.weaponReach,
+                weaponHitboxRadius: player.weaponHitboxRadius,
                 ultimateActive: false,
-                custom: { isClone: false } // กำหนดให้สถานะเป็น "ตัวจริง" (จะมีดาวขึ้นด้วย)
+                ultimateGauge: 0,
+                team: player.team, // อยู่ทีมเดียวกับเรา
+                weaponName: "Duplicate", // บังคับใช้อาวุธนี้
+                custom: {
+                    isClone: isMinion, // ถ้ามาจากการชน(ลูกน้อง) = true, ถ้ามาจากอัลติ(ตัวจริงอีกตัว) = false
+                    hitCooldown: 1000 // ดีเลย์ไม่ให้ลูกน้องชนปุ๊บแพร่พันธุ์ปั๊บ
+                }
             };
             
-            game.spawn(realClone);
+            game.spawn(clone);
+            game.spawnParticles(clone.x, clone.y, 15, isMinion ? this.color : "#FFD700");
+        },
+        
+        onHitPlayer(player, target, game) {
+            this.triggerCollisionHit(player, target, game);
+            player.reverseWeapon();
+        },
+        
+        onHitWeapon(player, enemyPlayer, game) {
+            // เมื่ออาวุธ(หรือออร่าตัวละคร) ของเราไปโดนอาวุธศัตรู
+            this.triggerCollisionHit(player, enemyPlayer, game);
+            player.reverseWeapon();
+        },
+        
+        onTakeDamage(player, source, game) {
+            // สามารถเพิ่ม Effect ตอนโดนตีได้ถ้าต้องการ
+        },
+        
+        onUltimateActivate(player, game) {
+            // สร้างตัวจริงมาอีกตัวเลือด 100% ของตัวจริง ณ ตอนนั้น (ไม่ใช่ Minion)
+            this.spawnDuplicate(player, game, 1.0, false);
             
-            // เอฟเฟกต์แสงอลังการตอนใช้อัลติ
-            game.spawnParticles(player.x, player.y, 40, "#FFD700");
+            // เติม Effect อลังการตอนกดอัลติ
+            game.spawnParticles(player.x, player.y, 30, "#FFD700");
+            game.triggerHitStop(100); 
         }
     }
 };
