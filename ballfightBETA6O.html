@@ -1669,7 +1669,7 @@ const WEAPON_REGISTRY = {
         color: "#1a1a1a", // สีดำ
         width: 12, // ความกว้างคทา
         length: 70, // ความยาวคทา
-        baseDamage: 7, // ดาเมจพื้นฐาน
+        baseDamage: 2, // ลดดาเมจพื้นฐานเหลือ 2
         
         // Physics Hacks
         actorRadius: 30, // ปรับขนาดตัวละคร
@@ -1696,7 +1696,7 @@ const WEAPON_REGISTRY = {
             player.custom.ultTimer = 0;
             player.custom.invincibleTimer = 0;
     
-            player.passiveText = "HP 1, Shield 100 (รีเจน 5/12วิ เมื่อต่ำกว่า 50%). โจมตีด้วยลูกบอลคำสาปและรอยเท้า อัลติเมต: คลื่นคำสาปอมตะ"; 
+            player.passiveText = "HP 1, Shield 100 (รับดาเมจ 2เท่า, รีเจน 5/10วิ). คำสาปปกติ +2%, อัลติ +5%"; 
         },
     
         getHitboxes(player, game) {
@@ -1739,7 +1739,7 @@ const WEAPON_REGISTRY = {
                 if (player.custom.shadows[i].alpha <= 0) player.custom.shadows.splice(i, 1);
             }
     
-            // --- 2. ฟื้นฟูโล่คำสาป (ฮีล 5 หน่วย ต่อ 12 วินาที เมื่อต่ำกว่า 50%) ---
+            // --- 2. ฟื้นฟูโล่คำสาป (ฮีล 5 หน่วย ต่อ 10 วินาที เมื่อต่ำกว่า 50%) ---
             if (player.custom.shield < player.custom.maxShield * 0.5) {
                 player.custom.isRegenerating = true; // เริ่มกระบวนการฮีลเมื่อต่ำกว่า 50%
             }
@@ -1750,7 +1750,7 @@ const WEAPON_REGISTRY = {
     
             if (player.custom.isRegenerating) {
                 player.custom.shieldRegenTimer += game.delta;
-                if (player.custom.shieldRegenTimer >= 12000) { // 12 วินาที = 12000 ms
+                if (player.custom.shieldRegenTimer >= 10000) { // ปรับเป็น 10 วินาที = 10000 ms
                     player.custom.shieldRegenTimer = 0;
                     player.custom.shield += 5; // เพิ่มโล่ 5 หน่วย
                 }
@@ -1896,38 +1896,69 @@ const WEAPON_REGISTRY = {
             ctx.restore();
     
             // --- วาดคทาต้องสาปสุดน่ากลัว (จุด Origin (0,0) คือตรงกลางคทา) ---
-            // ด้ามคทา
-            ctx.fillStyle = "#222222"; 
+            
+            // ก้านด้ามคทาสีดำอมม่วง
+            ctx.fillStyle = "#1a0033"; 
             ctx.fillRect(-this.width/2, -this.length/2, this.width, this.length);
     
-            // หัวคทา (แกนผลึกคำสาป)
-            ctx.fillStyle = "#111111"; // สีดำสนิท
-            ctx.shadowColor = "#8A2BE2";
-            ctx.shadowBlur = 20;
+            // วาดรูนเรืองแสงบนด้ามคทา
+            ctx.strokeStyle = "#4B0082";
+            ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.arc(0, this.length/2 + 5, 18, 0, Math.PI * 2);
+            ctx.moveTo(0, -this.length/2 + 10);
+            ctx.lineTo(3, -this.length/4);
+            ctx.lineTo(-2, 0);
+            ctx.lineTo(2, this.length/4);
+            ctx.lineTo(0, this.length/2 - 10);
+            ctx.stroke();
+    
+            // ระดับความสูงของหัวคทา
+            let headY = this.length/2 + 15;
+    
+            // วงแหวนต้องสาปรอบหัวคทา (ลอยและหมุนไปรอบๆ)
+            ctx.save();
+            ctx.translate(0, headY);
+            ctx.rotate(game.frame * 0.05);
+            ctx.strokeStyle = "rgba(138, 43, 226, 0.6)";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(0, 0, 26, 0, Math.PI * 1.5);
+            ctx.stroke();
+            ctx.restore();
+    
+            // เขาสองข้างสุดสยองที่โอบอุ้มลูกแก้ว
+            ctx.fillStyle = "#222222"; // ดำด้าน
+            ctx.shadowColor = "#000000";
+            ctx.shadowBlur = 8;
+            ctx.beginPath();
+            // เขาฝั่งขวา
+            ctx.moveTo(6, this.length/2 - 5);
+            ctx.quadraticCurveTo(35, headY - 5, 12, headY + 28);
+            ctx.quadraticCurveTo(25, headY, 0, headY - 8);
+            // เขาฝั่งซ้าย
+            ctx.moveTo(-6, this.length/2 - 5);
+            ctx.quadraticCurveTo(-35, headY - 5, -12, headY + 28);
+            ctx.quadraticCurveTo(-25, headY, 0, headY - 8);
             ctx.fill();
             ctx.shadowBlur = 0;
     
-            // ของตกแต่ง (หนามแหลม/กระดูกรอบหัวคทา)
-            ctx.fillStyle = "#4B0082"; // สีม่วงเข้ม
+            // ดวงตาปีศาจ / แกนผลึกคำสาปตรงกลาง
+            ctx.fillStyle = "#111111"; // พื้นสีดำสนิท
+            ctx.shadowColor = "#8A2BE2"; // เรืองแสงสีม่วง
+            ctx.shadowBlur = 25;
             ctx.beginPath();
-            ctx.moveTo(0, this.length/2 + 25);
-            ctx.lineTo(12, this.length/2 + 10);
-            ctx.lineTo(-12, this.length/2 + 10);
+            ctx.arc(0, headY, 13, 0, Math.PI * 2);
             ctx.fill();
             
+            // รูม่านตาสีแดงม่วงน่ากลัว (สว่างขึ้นลงตามจังหวะเกมได้)
+            let eyeGlow = Math.abs(Math.sin(game.frame * 0.05));
+            ctx.fillStyle = `rgba(255, 0, 85, ${0.5 + eyeGlow * 0.5})`; 
+            ctx.shadowColor = "#ff0055";
+            ctx.shadowBlur = 10;
             ctx.beginPath();
-            ctx.moveTo(20, this.length/2 + 5);
-            ctx.lineTo(10, this.length/2 + -5);
-            ctx.lineTo(10, this.length/2 + 15);
+            ctx.ellipse(0, headY, 3, 9, 0, 0, Math.PI * 2); // รูปวงรีเหมือนตางู
             ctx.fill();
-    
-            ctx.beginPath();
-            ctx.moveTo(-20, this.length/2 + 5);
-            ctx.lineTo(-10, this.length/2 + -5);
-            ctx.lineTo(-10, this.length/2 + 15);
-            ctx.fill();
+            ctx.shadowBlur = 0;
         },
     
         onHitPlayer(player, target, game, hitBoxUsed) {
@@ -1935,8 +1966,8 @@ const WEAPON_REGISTRY = {
             let stacks = target.custom.curseStacks || 0;
             let ultStacks = target.custom.ultCurseStacks || 0;
             
-            // เพิ่มดาเมจ 5% ต่อ 1 Stack ปกติ และ 10% ต่อ 1 Stack อัลติ
-            let dmgMultiplier = 1 + (stacks * 0.05) + (ultStacks * 0.10); 
+            // ปรับเป็น: เพิ่มดาเมจ 2% ต่อ 1 Stack ปกติ และ 5% ต่อ 1 Stack อัลติ
+            let dmgMultiplier = 1 + (stacks * 0.02) + (ultStacks * 0.05); 
             let type = hitBoxUsed ? hitBoxUsed.type : 'staff';
     
             // ฟังก์ชั่นช่วยสาปเป้าหมาย
@@ -1974,7 +2005,7 @@ const WEAPON_REGISTRY = {
                     target.custom.lastUltHit = game.frame;
                     target.takeDamage(this.baseDamage * dmgMultiplier, "magical", player, game);
                     
-                    // แสตคพิเศษ 10%
+                    // แสตคพิเศษ 5%
                     target.custom.ultCurseStacks = ultStacks + 1;
                     target.color = "#000000"; // ดำสนิท
                     target.vx *= 0.6; // สโลว์หนักมาก
@@ -1996,21 +2027,25 @@ const WEAPON_REGISTRY = {
                 return;
             }
     
-            // --- 2. ระบบ Cursed Shield รับดาเมจแทนเลือด ---
-            // คำนวณดาเมจที่ได้รับเข้ามา (ระบบ Engine มักจะตัดเลือดไปแล้วก่อนเข้า Event นี้)
+            // --- 2. ระบบ Cursed Shield รับดาเมจ 2 เท่า ---
             let damageTaken = 1 - player.hp; // ปกติ maxHp คือ 1
     
             if (damageTaken > 0) {
-                if (player.custom.shield >= damageTaken) {
-                    // ถ้าโล่มีพอรับดาเมจ โล่จะถูกหักออกตามดาเมจนั้น
-                    player.custom.shield -= damageTaken;
+                // โล่ได้รับดาเมจ 2 หน่วยต่อ 1 ดาเมจที่โดน
+                let shieldDamage = damageTaken * 2;
+    
+                if (player.custom.shield >= shieldDamage) {
+                    // ถ้าโล่มีพอรับดาเมจ 2 เท่า
+                    player.custom.shield -= shieldDamage;
                     player.hp = 1; // เติมเลือดกลับเป็น 1 (เสมือนไม่เข้าเลือดจริง)
-                    game.spawnParticles(player.x, player.y, 8, "#8A2BE2"); // เอฟเฟคตีติดโล่
+                    game.spawnParticles(player.x, player.y, 8, "#8A2BE2"); 
                 } else {
-                    // ถ้าโล่แตก ดาเมจทะลุเข้าเลือดที่เหลือ 1 (ตายทันที)
-                    let overflow = damageTaken - player.custom.shield;
+                    // ถ้าโล่แตก ดาเมจที่ทะลุจะถูกหาร 2 กลับไปเป็นเลือดจริง 
+                    let overflowShieldDamage = shieldDamage - player.custom.shield;
+                    let actualOverflowDamage = overflowShieldDamage / 2;
+                    
                     player.custom.shield = 0;
-                    player.hp = 1 - overflow; 
+                    player.hp = 1 - actualOverflowDamage; 
                 }
             }
         },
