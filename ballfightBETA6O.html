@@ -2182,7 +2182,7 @@ const BOSS_REGISTRY = {
             }
         }
     },
-        "DEMON": {
+    "DEMON": {
         name: "DEMON", 
         color: "#000000", 
         radius: 70, 
@@ -2213,6 +2213,91 @@ const BOSS_REGISTRY = {
             };
             boss.ultimateGauge = 0;
             boss.passiveText = "🔥 ออร่าเพลิง & ทิ้งรอยไฟ | 🛡️ กัน CC ทุกชนิด | 🔴 เลือด < 25% เผาทั้งแมพ!";
+
+            // [FIXED] ย้าย Helper Functions มาไว้ใน custom เพื่อป้องกันบั๊ก this undefined ที่ทำให้เกมแครช
+            boss.custom.spawnFirePatch = (game, x, y) => {
+                game.spawn({
+                    id: "demon_fire_" + Math.random(),
+                    x: x, y: y, 
+                    radius: 35, 
+                    color: "#ff4500",
+                    team: boss.team,
+                    custom: { life: 120, tick: 0 }, // อยู่ 2 วิ (120 frames ที่ 60fps)
+                    onUpdate(entity, gameEngine) {
+                        entity.custom.life--;
+                        if (entity.custom.life <= 0) {
+                            entity.hp = 0; // ลบ entity ทิ้ง
+                            return;
+                        }
+                        entity.custom.tick++;
+                        if (entity.custom.tick >= 21) { // ดาเมจ 2 ต่อ 0.35 วิ (21 เฟรม)
+                            entity.custom.tick = 0;
+                            gameEngine.getEnemies(entity).forEach(e => {
+                                let dist = Math.hypot(e.x - entity.x, e.y - entity.y);
+                                if (dist < entity.radius + e.radius) {
+                                    e.takeDamage(2, "fire", boss, gameEngine);
+                                }
+                            });
+                        }
+                    },
+                    render(ctx, entity) {
+                        ctx.globalAlpha = Math.max(0, entity.custom.life / 120); // ค่อยๆ จางหาย (ป้องกันค่าติดลบจนแครช)
+                        ctx.fillStyle = "#ff4500";
+                        ctx.beginPath();
+                        // วาดรอยไฟยึกยือ
+                        for(let i=0; i<5; i++){
+                             ctx.arc(Math.random()*10 - 5, Math.random()*10 - 5, Math.max(0, entity.radius - Math.random()*10), 0, Math.PI * 2);
+                        }
+                        ctx.fill();
+                        ctx.globalAlpha = 1.0;
+                    }
+                });
+            };
+
+            boss.custom.spawnFireball = (game, target) => {
+                if (!target) return;
+                let dirX = target.x - boss.x;
+                let dirY = target.y - boss.y;
+                let dist = Math.hypot(dirX, dirY) || 1; // [FIXED] ป้องกันหาร 0 จนได้ค่า NaN ทำให้ตัวละครหาย
+                let speed = 8;
+                
+                game.spawn({
+                    id: "demon_fireball_" + Math.random(),
+                    x: boss.x, y: boss.y, 
+                    vx: (dirX / dist) * speed, 
+                    vy: (dirY / dist) * speed,
+                    radius: 15, 
+                    color: "#ff0000",
+                    team: boss.team,
+                    onUpdate(entity, gameEngine) {
+                        entity.x += entity.vx;
+                        entity.y += entity.vy;
+                        
+                        // เช็คชนเป้าหมาย หรือ ชนกำแพง
+                        let hitEnemy = gameEngine.getEnemies(entity).find(e => Math.hypot(e.x - entity.x, e.y - entity.y) < e.radius + entity.radius);
+                        let outOfBounds = entity.x < 0 || entity.x > gameEngine.arena.size || entity.y < 0 || entity.y > gameEngine.arena.size;
+                        
+                        if (hitEnemy || outOfBounds) {
+                            // ระเบิดทำดาเมจเล็กน้อย
+                            if (hitEnemy) hitEnemy.takeDamage(15, "fire", boss, gameEngine);
+                            
+                            // วางกองไฟพาสซีฟตรงจุดระเบิด
+                            boss.custom.spawnFirePatch(gameEngine, entity.x, entity.y);
+                            
+                            entity.hp = 0; // สลายลูกไฟทิ้ง
+                        }
+                    },
+                    render(ctx, entity) {
+                        ctx.fillStyle = entity.color;
+                        ctx.shadowBlur = 10;
+                        ctx.shadowColor = "#ff4500";
+                        ctx.beginPath();
+                        ctx.arc(0, 0, entity.radius, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.shadowBlur = 0;
+                    }
+                });
+            };
         },
 
         // สร้าง Custom Hitboxes: รัศมีตัว 70 + รัศมีออร่าไฟ 110
@@ -2227,7 +2312,6 @@ const BOSS_REGISTRY = {
             let enemies = game.getEnemies(boss);
             
             // --- กลไกป้องกัน CC (Anti-Stun Hack) ---
-            // ถ้าศัตรูพยายามหยุดบอส บอสจะพยายามรักษาความเร็วขั้นต่ำหรือเดินหน้าต่อเสมอใน State ที่ต้องขยับ
             if (boss.custom.state === "dashing") {
                 boss.vx = boss.custom.dashVx;
                 boss.vy = boss.custom.dashVy;
@@ -2245,7 +2329,7 @@ const BOSS_REGISTRY = {
             // --- เกรด Ultimate (Fury) ---
             if (boss.custom.state !== "ultimating" && boss.ultimateGauge < 100) {
                 boss.custom.furyTick++;
-                if (boss.custom.furyTick >= 10) { // เพิ่มเกจเรื่อยๆ 
+                if (boss.custom.furyTick >= 10) { 
                     boss.ultimateGauge += 1;
                     boss.custom.furyTick = 0;
                 }
@@ -2267,7 +2351,7 @@ const BOSS_REGISTRY = {
                 boss.custom.trailTimer++;
                 if (boss.custom.trailTimer >= 15) { // ทุกๆ ~0.25 วิ (15 frames) วางไฟ 1 กอง
                     boss.custom.trailTimer = 0;
-                    this.spawnFirePatch(boss, game, boss.x, boss.y);
+                    boss.custom.spawnFirePatch(game, boss.x, boss.y);
                 }
             }
 
@@ -2298,7 +2382,7 @@ const BOSS_REGISTRY = {
                     let target = enemies[0];
                     let dx = target.x - boss.x;
                     let dy = target.y - boss.y;
-                    let dist = Math.hypot(dx, dy);
+                    let dist = Math.hypot(dx, dy) || 1; // ป้องกันการหาร 0
                     if (dist > 0) {
                         boss.vx += (dx / dist) * 0.5;
                         boss.vy += (dy / dist) * 0.5;
@@ -2331,17 +2415,19 @@ const BOSS_REGISTRY = {
                         boss.custom.stateTimer = 40; // พุ่ง 40 เฟรม
                         let dirX = boss.custom.dashTarget.x - boss.x;
                         let dirY = boss.custom.dashTarget.y - boss.y;
-                        let dDist = Math.hypot(dirX, dirY);
+                        let dDist = Math.hypot(dirX, dirY) || 1; 
                         boss.custom.dashVx = (dirX / dDist) * 25; // ความเร็วพุ่ง
                         boss.custom.dashVy = (dirY / dDist) * 25;
+                    } else if (boss.custom.stateTimer <= 0) { // เผื่อ Target ตายก่อนชาร์จเสร็จ
+                        boss.custom.state = "idle";
+                        boss.custom.stateTimer = 60;
                     }
                     break;
 
                 case "dashing":
-                    // พุ่งสุดตัว (Physics ถูกบังคับด้านบนแล้ว)
                     // ทิ้งรอยไฟถี่ขึ้นตอนพุ่ง
                     if (boss.custom.stateTimer % 3 === 0) {
-                        this.spawnFirePatch(boss, game, boss.x, boss.y);
+                        boss.custom.spawnFirePatch(game, boss.x, boss.y);
                     }
                     if (boss.custom.stateTimer <= 0) {
                         boss.custom.state = "idle";
@@ -2351,9 +2437,8 @@ const BOSS_REGISTRY = {
 
                 case "fireball":
                     if (boss.custom.stateTimer === 20) {
-                        // โยนบอลไฟใส่เป้าหมายสุ่ม
                         let fTarget = enemies[Math.floor(Math.random() * enemies.length)];
-                        this.spawnFireball(boss, game, fTarget);
+                        boss.custom.spawnFireball(game, fTarget);
                     }
                     if (boss.custom.stateTimer <= 0) {
                         boss.custom.state = "idle";
@@ -2378,7 +2463,7 @@ const BOSS_REGISTRY = {
                     if (boss.custom.stateTimer % 10 === 0) {
                         let angle = Math.random() * Math.PI * 2;
                         let spawnDist = boss.radius + 30;
-                        this.spawnFirePatch(boss, game, boss.x + Math.cos(angle)*spawnDist, boss.y + Math.sin(angle)*spawnDist);
+                        boss.custom.spawnFirePatch(game, boss.x + Math.cos(angle)*spawnDist, boss.y + Math.sin(angle)*spawnDist);
                     }
                     if (boss.custom.stateTimer <= 0) {
                         boss.custom.state = "idle";
@@ -2414,8 +2499,8 @@ const BOSS_REGISTRY = {
                     
                     // ถ้าพุ่งชนเป้าหมาย ให้ติดสตันท์และวางไฟใส่
                     if (boss.custom.state === "dashing") {
-                        player.addStatus({ type: "stun", duration: 1500 });
-                        this.spawnFirePatch(boss, game, player.x, player.y);
+                        if (player.addStatus) player.addStatus({ type: "stun", duration: 1500 }); // [FIXED] เช็คกัน API ไม่มีในบางระบบ
+                        boss.custom.spawnFirePatch(game, player.x, player.y);
                     }
                 }
             }
@@ -2434,12 +2519,12 @@ const BOSS_REGISTRY = {
             let pulse = Math.sin(Date.now() / 150) * 5;
             ctx.fillStyle = "rgba(255, 69, 0, 0.3)";
             ctx.beginPath();
-            ctx.arc(0, 0, boss.radius + 35 + pulse, 0, Math.PI * 2);
+            ctx.arc(0, 0, Math.max(0, boss.radius + 35 + pulse), 0, Math.PI * 2); // [FIXED] ป้องกัน Radius < 0 จนเกิดบั๊ก Canvas
             ctx.fill();
 
             ctx.fillStyle = "rgba(255, 140, 0, 0.5)";
             ctx.beginPath();
-            ctx.arc(0, 0, boss.radius + 15 + pulse/2, 0, Math.PI * 2);
+            ctx.arc(0, 0, Math.max(0, boss.radius + 15 + pulse/2), 0, Math.PI * 2);
             ctx.fill();
 
             // ปีกปีศาจ (วาดด้านหลังลำตัว)
@@ -2507,92 +2592,6 @@ const BOSS_REGISTRY = {
                 ctx.stroke();
                 ctx.setLineDash([]);
             }
-        },
-
-        // Helper Function: สร้างกองไฟที่เผาต่อเนื่อง
-        spawnFirePatch(boss, game, x, y) {
-            game.spawn({
-                id: "demon_fire_" + Math.random(),
-                x: x, y: y, 
-                radius: 35, 
-                color: "#ff4500",
-                team: boss.team,
-                custom: { life: 120, tick: 0 }, // อยู่ 2 วิ (120 frames ที่ 60fps)
-                onUpdate(entity, game) {
-                    entity.custom.life--;
-                    if (entity.custom.life <= 0) {
-                        entity.hp = 0; // ลบ entity ทิ้ง
-                        return;
-                    }
-                    entity.custom.tick++;
-                    if (entity.custom.tick >= 21) { // ดาเมจ 2 ต่อ 0.35 วิ (21 เฟรม)
-                        entity.custom.tick = 0;
-                        game.getEnemies(entity).forEach(e => {
-                            let dist = Math.hypot(e.x - entity.x, e.y - entity.y);
-                            if (dist < entity.radius + e.radius) {
-                                e.takeDamage(2, "fire", boss, game);
-                            }
-                        });
-                    }
-                },
-                render(ctx, entity) {
-                    ctx.globalAlpha = entity.custom.life / 120; // ค่อยๆ จางหาย
-                    ctx.fillStyle = "#ff4500";
-                    ctx.beginPath();
-                    // วาดรอยไฟยึกยือ
-                    for(let i=0; i<5; i++){
-                         ctx.arc(Math.random()*10 - 5, Math.random()*10 - 5, entity.radius - Math.random()*10, 0, Math.PI * 2);
-                    }
-                    ctx.fill();
-                    ctx.globalAlpha = 1.0;
-                }
-            });
-        },
-
-        // Helper Function: โยนลูกไฟระเบิด
-        spawnFireball(boss, game, target) {
-            if (!target) return;
-            let dirX = target.x - boss.x;
-            let dirY = target.y - boss.y;
-            let dist = Math.hypot(dirX, dirY);
-            let speed = 8;
-            
-            game.spawn({
-                id: "demon_fireball_" + Math.random(),
-                x: boss.x, y: boss.y, 
-                vx: (dirX / dist) * speed, 
-                vy: (dirY / dist) * speed,
-                radius: 15, 
-                color: "#ff0000",
-                team: boss.team,
-                onUpdate(entity, game) {
-                    entity.x += entity.vx;
-                    entity.y += entity.vy;
-                    
-                    // เช็คชนเป้าหมาย หรือ ชนกำแพง
-                    let hitEnemy = game.getEnemies(entity).find(e => Math.hypot(e.x - entity.x, e.y - entity.y) < e.radius + entity.radius);
-                    let outOfBounds = entity.x < 0 || entity.x > game.arena.size || entity.y < 0 || entity.y > game.arena.size;
-                    
-                    if (hitEnemy || outOfBounds) {
-                        // ระเบิดทำดาเมจเล็กน้อย
-                        if (hitEnemy) hitEnemy.takeDamage(15, "fire", boss, game);
-                        
-                        // วางกองไฟพาสซีฟตรงจุดระเบิด
-                        DemonBoss["DEMON"].spawnFirePatch(boss, game, entity.x, entity.y);
-                        
-                        entity.hp = 0; // สลายลูกไฟทิ้ง
-                    }
-                },
-                render(ctx, entity) {
-                    ctx.fillStyle = entity.color;
-                    ctx.shadowBlur = 10;
-                    ctx.shadowColor = "#ff4500";
-                    ctx.beginPath();
-                    ctx.arc(0, 0, entity.radius, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
-                }
-            });
         }
     }
 };
