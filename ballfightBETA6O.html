@@ -812,39 +812,37 @@ const WEAPON_REGISTRY = {
     },
    "Cross Bow": {
         name: "Cross Bow", 
-        color: "#5C4033", // สีไม้เข้ม
-        width: 20, 
-        length: 45, 
+        color: "#8B5A2B", // สีไม้สว่างขึ้น (สไตล์การ์ตูน)
+        width: 25,  // ขยายขนาดความกว้าง
+        length: 55, // ขยายขนาดความยาว
         baseDamage: 20,
         
         // --- Physics Hacks ---
-        baseSpeedCap: 30, // ทำให้เคลื่อนที่เร็วขึ้น (ค่าปกติ 20)
-        minSpeed: 15,     // ความเร็วขั้นต่ำเพิ่มขึ้น
+        baseSpeedCap: 26, // ลดความเร็วลงนิดนึง (จากเดิม 30)
+        minSpeed: 12,     // ลดความเร็วขั้นต่ำ (จากเดิม 15)
     
         init(player) { 
-            // กำหนดเลือดเป็น 75 ตามเงื่อนไข
             player.maxHp = 75;
             player.hp = 75;
             
-            // กำหนด State ของหน้าไม้
-            player.custom.state = 'charging'; // เริ่มต้นด้วยการง้าง
+            player.custom.state = 'charging';
             player.custom.charge = 0;
-            player.custom.maxCharge = 20; // ดาเมจสูงสุดเริ่มต้น (จะเพิ่มขึ้นเรื่อยๆ เมื่อยิงโดน)
+            player.custom.maxCharge = 20; 
             player.custom.loadedTimer = 0;
             
-            player.custom.arrows = []; // เก็บลูกธนูที่ถูกยิงออกไป
+            player.custom.arrows = []; 
             player.custom.invisible = false;
+            player.custom.stealthTimer = 0; // ตัวจับเวลาอันติเมต 4 วินาที
             
-            player.passiveText = "หยุดง้างเพื่อบรรจุลูก เดินต่อได้เมื่อบรรจุเสร็จ ยิงออโตเมื่อง้างหันตรงศัตรู | ยิงโดน Max DMG +1 ถาวร";
+            player.passiveText = "ง้างอัตโนมัติ | ยิงโดน Max DMG +1 | อัลติ: ล่องหน 4 วิ (ศัตรูล็อกเป้าไม่ได้)";
     
-            // ฟังก์ชันช่วยเหลือสำหรับยิงธนู
             player.custom.fireArrow = (damage) => {
-                let speed = 35; // ความเร็วลูกธนู
+                let speed = 35; 
                 let dirX = Math.cos(player.weaponRotation);
                 let dirY = Math.sin(player.weaponRotation);
                 player.custom.arrows.push({
-                    x: player.weaponX + (dirX * 20),
-                    y: player.weaponY + (dirY * 20),
+                    x: player.weaponX + (dirX * 25), // ขยับจุดยิงออกมาให้เหมาะกับปืนที่ใหญ่ขึ้น
+                    y: player.weaponY + (dirY * 25),
                     vx: dirX * speed,
                     vy: dirY * speed,
                     damage: Math.max(1, Math.floor(damage)),
@@ -856,57 +854,47 @@ const WEAPON_REGISTRY = {
     
         getHitboxes(player, game) {
             let hitboxes = [];
-    
-            // 1. ฮิตบ็อกซ์ของคันหน้าไม้ (ซ้ายและขวา) - ทำดาเมจ 1
             let perpX = Math.cos(player.weaponRotation + Math.PI/2);
             let perpY = Math.sin(player.weaponRotation + Math.PI/2);
     
-            hitboxes.push({
-                x: player.weaponX + perpX * 18,
-                y: player.weaponY + perpY * 18,
-                r: 10,
-                isBow: true // Tag พิเศษเพื่อแยกชนิดฮิตบ็อกซ์
-            });
-            hitboxes.push({
-                x: player.weaponX - perpX * 18,
-                y: player.weaponY - perpY * 18,
-                r: 10,
-                isBow: true
-            });
+            // ขยายรัศมีฮิตบ็อกซ์หน้าไม้ให้สอดคล้องกับภาพ
+            hitboxes.push({ x: player.weaponX + perpX * 22, y: player.weaponY + perpY * 22, r: 14, isBow: true });
+            hitboxes.push({ x: player.weaponX - perpX * 22, y: player.weaponY - perpY * 22, r: 14, isBow: true });
     
-            // 2. ฮิตบ็อกซ์ของลูกธนูแต่ละลูกที่ยิงออกไปแล้ว
             for (let arrow of player.custom.arrows) {
                 if (arrow.active) {
-                    hitboxes.push({
-                        x: arrow.x,
-                        y: arrow.y,
-                        r: 8,
-                        isArrow: true, // Tag สำหรับลูกธนู
-                        arrowRef: arrow,
-                        damage: arrow.damage
-                    });
+                    // ขยายรัศมีลูกธนู
+                    hitboxes.push({ x: arrow.x, y: arrow.y, r: 12, isArrow: true, arrowRef: arrow, damage: arrow.damage });
                 }
             }
-    
             return hitboxes;
         },
     
         onUpdate(player, closestEnemy, game) {
-            // อัปเดตการหมุนของอาวุธตามปกติ
             player.weaponRotation += 0.08 * player.weaponDir * (game.delta / 16);
     
-            // ตรวจสอบการหายตัวจากอัลติเมต
-            if (!player.ultimateActive || player.ultimateGauge <= 0) {
+            // --- ระบบอัลติเมตล่องหน 4 วินาที ---
+            if (player.custom.stealthTimer > 0) {
+                player.custom.stealthTimer -= game.delta;
+                player.custom.invisible = true;
+                
+                // Hack: แจ้งให้ Engine ทราบว่าผู้เล่นไม่สามารถถูกล็อกเป้าได้ (Stealth/Untargetable)
+                player.targetable = false; 
+                player.untargetable = true;
+                player.stealth = true;
+            } else {
                 player.custom.invisible = false;
+                // ยกเลิกสถานะล่องหน
+                player.targetable = true;
+                player.untargetable = false;
+                player.stealth = false;
             }
     
-            // อัปเดตตำแหน่งลูกธนู (โปรเจคไทล์)
             for (let i = player.custom.arrows.length - 1; i >= 0; i--) {
                 let arrow = player.custom.arrows[i];
                 if (arrow.active) {
                     arrow.x += arrow.vx * (game.delta / 16);
                     arrow.y += arrow.vy * (game.delta / 16);
-                    // ลบลูกธนูเมื่อออกนอกจอ
                     if (arrow.x < -100 || arrow.x > game.arena.size + 100 || arrow.y < -100 || arrow.y > game.arena.size + 100) {
                         arrow.active = false;
                     }
@@ -915,38 +903,26 @@ const WEAPON_REGISTRY = {
                 }
             }
     
-            // --- State Machine ---
             if (player.custom.state === 'charging') {
-                // 1. สถานะง้าง: หยุดเดิน
                 player.vx *= 0.05;
                 player.vy *= 0.05;
     
-                // เพิ่มดาเมจตามระยะเวลาที่ง้าง
-                player.custom.charge += 0.4 * (game.delta / 16); // ความเร็วการง้าง
+                player.custom.charge += 0.4 * (game.delta / 16); 
                 if (player.custom.charge >= player.custom.maxCharge) {
                     player.custom.charge = player.custom.maxCharge;
                     player.custom.state = 'loaded';
-                    player.custom.loadedTimer = 500; // ดีเลย์ 0.5 วินาทีก่อนจะเริ่มเช็คยิง
+                    player.custom.loadedTimer = 500; 
                 }
             } else if (player.custom.state === 'loaded') {
-                // 2. สถานะบรรจุเสร็จ: เดินต่อได้ปกติ (ไม่ลด vx/vy)
-                
                 player.custom.loadedTimer -= game.delta;
-                
-                // ผ่านไปสักพัก (หมดดีเลย์) และมีศัตรู
-                if (player.custom.loadedTimer <= 0 && closestEnemy) {
-                    // คำนวณมุมระหว่างหน้าไม้กับศัตรู
+                if (player.custom.loadedTimer <= 0 && closestEnemy && !player.custom.invisible) {
                     let dx = closestEnemy.x - player.weaponX;
                     let dy = closestEnemy.y - player.weaponY;
                     let angleToEnemy = Math.atan2(dy, dx);
-                    
-                    // หาความต่างของมุม (Normalize ให้เป็น -PI ถึง PI)
                     let angleDiff = Math.atan2(Math.sin(angleToEnemy - player.weaponRotation), Math.cos(angleToEnemy - player.weaponRotation));
                     
-                    // ถ้ายิงหันไปตรงกับศัตรู (คลาดเคลื่อนได้ประมาณ 17 องศา หรือ 0.3 rad)
                     if (Math.abs(angleDiff) < 0.3) {
                         player.custom.fireArrow(player.custom.charge);
-                        // ยิงเสร็จ กลับไปง้างใหม่
                         player.custom.state = 'charging';
                         player.custom.charge = 0;
                     }
@@ -957,12 +933,11 @@ const WEAPON_REGISTRY = {
         render(ctx, player, game) {
             ctx.save();
     
-            // เอฟเฟกต์หายตัวจากสกิลอัลติเมต
             if (player.custom.invisible) {
-                ctx.globalAlpha = 0.3;
+                ctx.globalAlpha = 0.4; // โปร่งแสงขึ้นนิดนึงให้ดูเป็นสไตล์การ์ตูน
             }
     
-            // --- 1. วาดผ้าคลุม (อัปเกรดความสวยงาม) ---
+            // --- 1. วาดผ้าคลุม (ใหญ่ขึ้น & มีขอบดำแบบการ์ตูน) ---
             ctx.save();
             ctx.rotate(-player.weaponRotation);
             ctx.translate(-player.weaponX, -player.weaponY);
@@ -974,109 +949,113 @@ const WEAPON_REGISTRY = {
             }
             ctx.rotate(moveAngle + Math.PI); 
             
-            // เอฟเฟกต์ผ้าพริ้วตามเวลา
             let time = Date.now() * 0.005;
-            let wave = Math.sin(time) * 4;
+            let wave = Math.sin(time) * 5; // พริ้วแรงขึ้น
     
-            // เงาผ้าคลุมชั้นล่าง (มิติความลึก)
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = "#000"; // ขอบดำสไตล์การ์ตูน
+    
+            // ผ้าคลุมชั้นล่าง
             ctx.fillStyle = "#1A4A28"; 
             ctx.beginPath();
-            ctx.moveTo(-16, 12);
-            ctx.lineTo(16, 12);
-            ctx.quadraticCurveTo(25 + wave, 35, 18 + wave, 50);
-            ctx.lineTo(-18 + wave, 50);
-            ctx.quadraticCurveTo(-25 + wave, 35, -16, 12);
+            ctx.moveTo(-20, 15);
+            ctx.lineTo(20, 15);
+            ctx.quadraticCurveTo(30 + wave, 45, 22 + wave, 60); // ขยายยาวขึ้น
+            ctx.lineTo(-22 + wave, 60);
+            ctx.quadraticCurveTo(-30 + wave, 45, -20, 15);
             ctx.fill();
+            ctx.stroke();
     
-            // สีผ้าคลุมชั้นบน (Highlight)
-            ctx.fillStyle = "#2E8B57"; 
+            // ผ้าคลุมชั้นบน (Highlight)
+            ctx.fillStyle = "#32CD32"; // สีเขียวสว่างขึ้น
             ctx.beginPath();
-            ctx.moveTo(-12, 14);
-            ctx.lineTo(12, 14);
-            ctx.quadraticCurveTo(18 + wave, 35, 12 + wave, 48);
-            ctx.lineTo(-12 + wave, 48);
-            ctx.quadraticCurveTo(-18 + wave, 35, -12, 14);
+            ctx.moveTo(-15, 18);
+            ctx.lineTo(15, 18);
+            ctx.quadraticCurveTo(22 + wave, 45, 15 + wave, 58);
+            ctx.lineTo(-15 + wave, 58);
+            ctx.quadraticCurveTo(-22 + wave, 45, -15, 18);
             ctx.fill();
+            ctx.stroke();
             ctx.restore();
             
-            // --- 2. วาดหน้าไม้ (อัปเกรดรายละเอียด) ---
+            // --- 2. วาดหน้าไม้ (ใหญ่ & การ์ตูน) ---
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = "#111";
+    
             // ด้ามปืน/รางไม้
-            ctx.fillStyle = "#4A2F1D"; // สีไม้เข้ม
-            ctx.fillRect(-22, -4, 44, 8);
-            ctx.fillStyle = "#331E10"; // ลายไม้/เงา
-            ctx.fillRect(-22, 1, 44, 3);
+            ctx.fillStyle = this.color; 
+            ctx.beginPath();
+            ctx.rect(-28, -6, 56, 12); // ใหญ่ขึ้น
+            ctx.fill();
+            ctx.stroke();
+            
+            // ลายไม้แบบง่ายๆ (การ์ตูน)
+            ctx.fillStyle = "#6B4226"; 
+            ctx.fillRect(-24, 2, 48, 4);
             
             // ชิ้นส่วนเหล็ก/ไกปืน
-            ctx.fillStyle = "#888";
-            ctx.fillRect(-15, -6, 12, 12); // กล่องไกปืน
-            ctx.fillStyle = "#555";
-            ctx.fillRect(-12, 4, 6, 4); // ด้ามจับล่าง
+            ctx.fillStyle = "#999";
+            ctx.fillRect(-18, -8, 16, 16); 
+            ctx.strokeRect(-18, -8, 16, 16);
     
-            // คำนวณระยะดึงสาย
             let pullBack = 0;
             if (player.custom.state === 'charging') {
-                pullBack = (player.custom.charge / player.custom.maxCharge) * 18;
+                pullBack = (player.custom.charge / player.custom.maxCharge) * 22; // ดึงสายยาวขึ้น
             } else if (player.custom.state === 'loaded') {
-                pullBack = 18;
+                pullBack = 22;
             }
     
-            // คันหน้าไม้ (Prod) - วัสดุผสมโลหะ
+            // คันหน้าไม้ (หนาและโค้งชัดเจน)
             ctx.beginPath();
-            ctx.moveTo(12, -30);
-            ctx.quadraticCurveTo(20 - (pullBack*0.2), 0, 12, 30);
-            ctx.lineWidth = 5;
-            ctx.strokeStyle = "#222"; // โครงเข้ม
+            ctx.moveTo(15, -38);
+            ctx.quadraticCurveTo(25 - (pullBack*0.25), 0, 15, 38);
+            ctx.lineWidth = 8;
+            ctx.strokeStyle = "#333";
             ctx.stroke();
+            
+            // ไฮไลท์คันหน้าไม้
             ctx.beginPath();
-            ctx.moveTo(12, -28);
-            ctx.quadraticCurveTo(18 - (pullBack*0.2), 0, 12, 28);
+            ctx.moveTo(15, -36);
+            ctx.quadraticCurveTo(23 - (pullBack*0.25), 0, 15, 36);
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = "#777";
+            ctx.stroke();
+    
+            // รอกลูกกลิ้ง ใหญ่ขึ้น
+            ctx.fillStyle = "#CCC";
             ctx.lineWidth = 2;
-            ctx.strokeStyle = "#555"; // ไฮไลท์โครง
-            ctx.stroke();
+            ctx.beginPath(); ctx.arc(15, -38, 5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.arc(15, 38, 5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
     
-            // รอกลูกกลิ้ง (Cams) ที่ปลายคันหน้าไม้
-            ctx.fillStyle = "#AAA";
-            ctx.beginPath(); ctx.arc(12, -30, 3, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(12, 30, 3, 0, Math.PI*2); ctx.fill();
-    
-            // สายหน้าไม้ (Bow string)
+            // สายหน้าไม้
             ctx.beginPath();
-            ctx.moveTo(12, -30);
-            ctx.lineTo(8 - pullBack, 0);
-            ctx.lineTo(12, 30);
-            ctx.lineWidth = 1.5;
-            ctx.strokeStyle = "#DDD";
+            ctx.moveTo(15, -38);
+            ctx.lineTo(10 - pullBack, 0);
+            ctx.lineTo(15, 38);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "#E0E0E0";
             ctx.stroke();
     
-            // วาดลูกธนูที่กำลังชาร์จ/เตรียมยิง (บนราง)
+            // วาดลูกธนูบนราง (ใหญ่และสีสด)
             if (player.custom.state === 'charging' || player.custom.state === 'loaded') {
-                // ก้านธนู (Shaft)
-                ctx.fillStyle = "#222"; 
-                ctx.fillRect(8 - pullBack, -1.5, 26, 3);
+                ctx.fillStyle = "#FFEA00"; // เหลืองสว่าง
+                ctx.lineWidth = 2;
                 
-                // ขนนกหางธนู (Fletching) - สีแดง
-                ctx.fillStyle = "#D32F2F";
-                ctx.beginPath();
-                ctx.moveTo(8 - pullBack, -1.5);
-                ctx.lineTo(4 - pullBack, -4);
-                ctx.lineTo(12 - pullBack, -1.5);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.moveTo(8 - pullBack, 1.5);
-                ctx.lineTo(4 - pullBack, 4);
-                ctx.lineTo(12 - pullBack, 1.5);
-                ctx.fill();
+                // ก้านธนู
+                ctx.fillRect(8 - pullBack, -2.5, 32, 5);
+                ctx.strokeRect(8 - pullBack, -2.5, 32, 5);
+                
+                // ขนนกหางธนู ใหญ่ขึ้น
+                ctx.fillStyle = "#FF3333";
+                ctx.beginPath(); ctx.moveTo(8 - pullBack, -2.5); ctx.lineTo(2 - pullBack, -8); ctx.lineTo(14 - pullBack, -2.5); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(8 - pullBack, 2.5); ctx.lineTo(2 - pullBack, 8); ctx.lineTo(14 - pullBack, 2.5); ctx.fill(); ctx.stroke();
     
-                // หัวธนู (Broadhead) - สีเงิน
-                ctx.fillStyle = "#E0E0E0";
-                ctx.beginPath();
-                ctx.moveTo(34 - pullBack, -3);
-                ctx.lineTo(42 - pullBack, 0);
-                ctx.lineTo(34 - pullBack, 3);
-                ctx.fill();
+                // หัวธนูใหญ่เว่อร์ๆ
+                ctx.fillStyle = "#FFF";
+                ctx.beginPath(); ctx.moveTo(40 - pullBack, -5); ctx.lineTo(52 - pullBack, 0); ctx.lineTo(40 - pullBack, 5); ctx.fill(); ctx.stroke();
             }
     
-            // --- 3. วาดลูกธนูที่พุ่งออกไป (อัปเกรดความสวยงาม) ---
+            // --- 3. วาดลูกธนูที่พุ่งออกไป (ใหญ่ & สไตล์การ์ตูน) ---
             ctx.rotate(-player.weaponRotation);
             ctx.translate(-player.weaponX, -player.weaponY);
             
@@ -1085,22 +1064,22 @@ const WEAPON_REGISTRY = {
                     ctx.translate(arrow.x, arrow.y);
                     ctx.rotate(arrow.rot);
                     
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = "#000";
+                    
                     // ก้าน
-                    ctx.fillStyle = "#222";
-                    ctx.fillRect(-13, -1.5, 26, 3);
+                    ctx.fillStyle = "#FFEA00";
+                    ctx.fillRect(-16, -2.5, 32, 5);
+                    ctx.strokeRect(-16, -2.5, 32, 5);
                     
                     // หางขนนกแดง
-                    ctx.fillStyle = "#D32F2F";
-                    ctx.beginPath(); ctx.moveTo(-13, -1.5); ctx.lineTo(-17, -4); ctx.lineTo(-9, -1.5); ctx.fill();
-                    ctx.beginPath(); ctx.moveTo(-13, 1.5); ctx.lineTo(-17, 4); ctx.lineTo(-9, 1.5); ctx.fill();
+                    ctx.fillStyle = "#FF3333";
+                    ctx.beginPath(); ctx.moveTo(-16, -2.5); ctx.lineTo(-22, -8); ctx.lineTo(-10, -2.5); ctx.fill(); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-16, 2.5); ctx.lineTo(-22, 8); ctx.lineTo(-10, 2.5); ctx.fill(); ctx.stroke();
     
-                    // หัวโลหะแหลม
+                    // หัวโลหะ
                     ctx.fillStyle = "#FFF";
-                    ctx.beginPath();
-                    ctx.moveTo(13, -3);
-                    ctx.lineTo(21, 0);
-                    ctx.lineTo(13, 3);
-                    ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(16, -5); ctx.lineTo(28, 0); ctx.lineTo(16, 5); ctx.fill(); ctx.stroke();
                     
                     ctx.rotate(-arrow.rot);
                     ctx.translate(-arrow.x, -arrow.y);
@@ -1111,42 +1090,42 @@ const WEAPON_REGISTRY = {
     
         onHitPlayer(player, target, game, hitBoxUsed) {
             if (hitBoxUsed && hitBoxUsed.isArrow) {
-                // โดนลูกธนู
                 target.takeDamage(hitBoxUsed.damage, "physical", player, game);
-                hitBoxUsed.arrowRef.active = false; // ทำลายลูกธนู
+                hitBoxUsed.arrowRef.active = false; 
                 
-                // --- พาสซีพใหม่: เพิ่ม Max Damage +1 แบบถาวร เมื่อยิงโดน ---
                 player.custom.maxCharge += 1;
-                
-                // สร้างเอฟเฟกต์ Partical สีทองบอกว่าดาเมจเพิ่ม
-                game.spawnParticles(target.x, target.y, 10, "#FFD700"); 
+                game.spawnParticles(target.x, target.y, 15, "#FFEA00"); // Particle อลังการขึ้น
     
             } else if (hitBoxUsed && hitBoxUsed.isBow) {
-                // เอาคันหน้าไม้ไปฟาด (ดาเมจ 1)
                 target.takeDamage(1, "physical", player, game);
                 player.reverseWeapon();
             }
         },
     
         onHitWeapon(player, enemyPlayer, game) {
-            game.spawnParticles(player.weaponX, player.weaponY, 5, "#ccc");
+            game.spawnParticles(player.weaponX, player.weaponY, 8, "#EEE");
             player.reverseWeapon();
         },
     
         onTakeDamage(player, source, game) {
-            // หากถูกโจมตีระหว่างการง้าง จะบังคับยิงสวนทันที
+            // อมตะต่อดาเมจระยะไกลช่วงอัลติ
+            if (player.custom.invisible) {
+                // ไม่รับดาเมจ หรือฮีลคืนเพื่อต้านทานการยิงแบบสุ่มโดน
+                return;
+            }
+    
             if (player.custom.state === 'charging') {
                 player.custom.fireArrow(Math.max(1, player.custom.charge));
                 player.custom.charge = 0;
-                player.custom.state = 'charging'; // เริ่มง้างลูกใหม่
+                player.custom.state = 'charging';
             } else if (player.custom.state === 'loaded') {
-                // หากโดนโจมตีตอนบรรจุเสร็จ ดาเมจลูกดอกที่ถืออยู่จะลดเหลือ 1
                 player.custom.charge = 1; 
             }
         },
     
         onUltimateActivate(player, game) {
-            // เปิดโหมดผ้าคลุมหายตัว
+            // ตั้งเวลาสกิลล่องหนเป็น 4 วินาที (4000 ms)
+            player.custom.stealthTimer = 4000;
             player.custom.invisible = true;
         }
     }
