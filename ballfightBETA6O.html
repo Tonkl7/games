@@ -809,6 +809,287 @@ const WEAPON_REGISTRY = {
                 clone.custom.cloneCooldown = 500;
             }
         }
+    },
+    "Joker": {
+        name: "Joker",
+        color: "#FFD700", // สีเหลืองทอง
+        width: 25, 
+        length: 0, // อาวุธซ้อนกับตัวละคร
+        baseDamage: 0, // ดาเมจพื้นฐานเป็น 0 เพราะจะสุ่มดาเมจผ่านการยิงการ์ด
+        
+        init(player) { 
+            // Physics Hack: ตั้งค่าเลือดเริ่มต้น 120
+            player.hp = 120;
+            player.maxHp = 120;
+    
+            // Custom Variables สำหรับจัดการระบบดวงและการ์ด
+            player.custom.luck = 1; // ค่าโชคเริ่มต้น
+            player.custom.projectiles = []; // เก็บ Array ของการ์ดที่ยิงออกไป
+            player.custom.attackCooldown = 0;
+            
+            // ตัวแปรสำหรับ Ultimate สล็อต
+            player.custom.slotTimer = 0;
+            player.custom.slots = [1, 2, 3];
+            
+            player.passiveText = "โชค: 1 | สุ่มยิงการ์ด (อิงตามโชค) | อัลติ: หมุนสล็อต"; 
+        },
+        
+        // คืนค่า Hitbox ว่างเปล่า เพื่อปิดการโจมตีระยะประชิด (ให้เป็นการยิงล้วนๆ)
+        getHitboxes(player, game) {
+            return [];
+        },
+        
+        onUpdate(player, closestEnemy, game) {
+            // หมุนอาวุธ (ระบบต้องการ)
+            player.weaponRotation += 0.08 * player.weaponDir * (game.delta / 16);
+    
+            // ==========================================
+            // 1. ระบบ Ultimate (หมุนสล็อตแมชชีน 1.5 วิ)
+            // ==========================================
+            if (player.custom.slotTimer > 0) {
+                // ล็อกตัวละครให้อยู่กับที่
+                player.vx = 0; 
+                player.vy = 0;
+                player.custom.slotTimer -= game.delta;
+    
+                // รันอนิเมชั่นสุ่มเลขระหว่างที่เวลายังไม่หมด
+                if (player.custom.slotTimer > 0) {
+                    if (Math.random() < 0.2) { // อัปเดตเลขสล็อตเป็นระยะๆ
+                        player.custom.slots = [
+                            Math.floor(Math.random() * 9) + 1,
+                            Math.floor(Math.random() * 9) + 1,
+                            Math.floor(Math.random() * 9) + 1
+                        ];
+                    }
+                } else {
+                    // คำนวณผลลัพธ์เมื่อจบการหมุน
+                    let s = player.custom.slots;
+                    if (s[0] === s[1] && s[1] === s[2]) {
+                        // ตรง 3 ตัว: โชคพุ่งกระฉูด
+                        player.custom.luck += 50;
+                        game.spawnParticles(player.x, player.y, 50, "#FFD700");
+                    } else if (s[0] === s[1] || s[1] === s[2] || s[0] === s[2]) {
+                        // ตรง 2 ตัว: ได้โชคเล็กน้อย
+                        player.custom.luck += 10;
+                        game.spawnParticles(player.x, player.y, 20, "#FFFFFF");
+                    } else {
+                        // ไม่ตรงเลย: เสียโชคทั้งหมดกลับไปที่ 1
+                        player.custom.luck = 1;
+                        game.spawnParticles(player.x, player.y, 10, "#000000");
+                    }
+                    player.passiveText = `โชค: ${player.custom.luck} | สุ่มยิงการ์ด | อัลติ: หมุนสล็อต`;
+                }
+                return; // ข้ามการโจมตีขณะใช้อัลติเมต
+            }
+    
+            // ==========================================
+            // 2. ระบบโจมตี (ยิงการ์ด)
+            // ==========================================
+            if (player.custom.attackCooldown > 0) {
+                player.custom.attackCooldown -= game.delta;
+            } else if (closestEnemy) {
+                player.custom.attackCooldown = 1200; // โจมตีทุกๆ 1.2 วินาที
+    
+                // คำนวณโบนัสโชค (Luck Bonus)
+                let luckBonus = Math.min(0.9, player.custom.luck * 0.02); // ตันที่ 90%
+                
+                // สุ่มจำนวนการ์ด 1 - 44 ใบ (โชคเยอะยิ่งมีโอกาสได้การ์ดเยอะ)
+                let rollCards = Math.random() + luckBonus;
+                let numCards = Math.floor(1 + 43 * Math.min(1, rollCards));
+    
+                // สุ่มดาเมจของการ์ดชุดนี้ 1 - 10 
+                let rollDmg = Math.random() + luckBonus;
+                let cardDmg = Math.floor(1 + 9 * Math.min(1, rollDmg));
+    
+                // เช็คเงื่อนไขรีเซ็ตโชค (ถ้าได้การ์ดเกิน 25 ใบถือว่าเยอะ จะโดนรีเซ็ต)
+                if (numCards >= 25) {
+                    player.custom.luck = 1; 
+                } else {
+                    player.custom.luck += 1; // เพิ่มโชคทีละ 1 เมื่อโจมตีปกติ
+                }
+                player.passiveText = `โชค: ${player.custom.luck} | สุ่มยิงการ์ด | อัลติ: หมุนสล็อต`;
+    
+                // สุ่มสร้างการ์ดตามจำนวน
+                let baseAngle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
+                for (let i = 0; i < numCards; i++) {
+                    // กระจายมุมยิงการ์ด
+                    let angle = baseAngle + (Math.random() - 0.5) * 1.5;
+                    let speed = 8 + Math.random() * 5;
+                    
+                    // สุ่มประเภทการ์ด
+                    let types = ["root", "aoe", "debuff", "normal"];
+                    let type = types[Math.floor(Math.random() * types.length)];
+                    let colors = { "root": "#8A2BE2", "aoe": "#FF4500", "debuff": "#32CD32", "normal": "#FFFFFF" };
+    
+                    player.custom.projectiles.push({
+                        x: player.x,
+                        y: player.y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        damage: cardDmg,
+                        type: type,
+                        color: colors[type],
+                        life: 1500 // อายุการ์ด 1.5 วิ
+                    });
+                }
+            }
+    
+            // ==========================================
+            // 3. จัดการกระสุนการ์ด (Projectiles)
+            // ==========================================
+            let enemies = game.getEnemies(player);
+            for (let i = player.custom.projectiles.length - 1; i >= 0; i--) {
+                let p = player.custom.projectiles[i];
+                p.life -= game.delta;
+                p.x += p.vx * (game.delta / 16);
+                p.y += p.vy * (game.delta / 16);
+    
+                if (p.life <= 0) {
+                    player.custom.projectiles.splice(i, 1);
+                    continue;
+                }
+    
+                // เช็คการชนกับศัตรู
+                for (let e of enemies) {
+                    let dx = e.x - p.x;
+                    let dy = e.y - p.y;
+                    let hitRadius = (e.radius || 35);
+    
+                    if (dx*dx + dy*dy < hitRadius * hitRadius) {
+                        
+                        // เพิ่มเกจ Ultimate ทีละ 1% ต่อ 1 ฮิต
+                        if (player.ultimateGauge !== undefined) {
+                            player.ultimateGauge = Math.min(100, player.ultimateGauge + 1);
+                        }
+    
+                        // คำนวณดาเมจเพิ่มเติมจาก Debuff
+                        let finalDmg = p.damage;
+                        if (e.custom && e.custom.jokerDebuff) {
+                            finalDmg *= 1.1; // รับดาเมจเพิ่ม 10%
+                        }
+    
+                        e.takeDamage(finalDmg, "physical", player, game);
+    
+                        // ==========================================
+                        // 4. เอฟเฟกต์ของการ์ด
+                        // ==========================================
+                        if (p.type === "root") {
+                            // ตรึง 2 วิ
+                            e.addStatus({ name: "Stun", duration: 2000, speedModifier: 0, color: "#8A2BE2" });
+                        } 
+                        else if (p.type === "aoe") {
+                            // ระเบิดวงกว้าง
+                            game.spawnParticles(e.x, e.y, 10, "#FF4500");
+                            for (let e2 of enemies) {
+                                if (e2 === e) continue;
+                                let distSq = (e2.x - e.x)**2 + (e2.y - e.y)**2;
+                                if (distSq < 15000) { 
+                                    let aoeDmg = finalDmg * 0.5; // โดนรอบข้างครึ่งนึง
+                                    if (e2.custom && e2.custom.jokerDebuff) aoeDmg *= 1.1;
+                                    e2.takeDamage(aoeDmg, "physical", player, game);
+                                }
+                            }
+                        } 
+                        else if (p.type === "debuff") {
+                            // แปะตราสัญลักษณ์ลดเกราะ
+                            if (!e.custom) e.custom = {};
+                            e.custom.jokerDebuff = true;
+                        }
+    
+                        // ลบการ์ดเมื่อชน
+                        game.spawnParticles(p.x, p.y, 3, p.color);
+                        player.custom.projectiles.splice(i, 1);
+                        break; // ออกจากลูปศัตรูเพื่อประมวลผลการ์ดใบต่อไป
+                    }
+                }
+            }
+        },
+        
+        render(ctx, player, game) { 
+            ctx.save();
+            // รีเซ็ตมุมหมุนเพราะอาวุธเราซ้อนกับตัวละครตรงๆ
+            ctx.rotate(-player.weaponRotation);
+            
+            // --- 1. วาดหมวก Joker บนหัว ---
+            let headY = -player.radius;
+            ctx.fillStyle = "#FF1493"; // ด้านซ้ายสีชมพู
+            ctx.beginPath();
+            ctx.moveTo(-15, headY); ctx.lineTo(-25, headY - 20); ctx.lineTo(0, headY - 10); ctx.fill();
+            ctx.fillStyle = "#FFD700"; // ด้านขวาสีเหลือง
+            ctx.beginPath();
+            ctx.moveTo(15, headY); ctx.lineTo(25, headY - 20); ctx.lineTo(0, headY - 10); ctx.fill();
+            // กระดิ่งหมวก
+            ctx.fillStyle = "#FFF";
+            ctx.beginPath(); ctx.arc(-25, headY - 20, 5, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(25, headY - 20, 5, 0, Math.PI*2); ctx.fill();
+    
+            // --- 2. วาดสำรับไพ่ในมือ ---
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(player.radius - 5, -10, 15, 20);
+            ctx.strokeStyle = "#000000";
+            ctx.strokeRect(player.radius - 5, -10, 15, 20);
+            ctx.fillStyle = "#FF0000";
+            ctx.font = "12px Arial";
+            ctx.fillText("J", player.radius - 3, 5);
+    
+            // --- 3. วาด UI สล็อตแมชชีนตอนใช้อัลติ ---
+            if (player.custom.slotTimer > 0) {
+                ctx.fillStyle = "rgba(0,0,0,0.8)";
+                ctx.fillRect(-35, headY - 45, 70, 25);
+                ctx.fillStyle = "#FFD700";
+                ctx.font = "16px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText(player.custom.slots.join("   "), 0, headY - 28);
+            }
+            ctx.restore();
+    
+            // --- 4. วาดการ์ดที่ยิงออกไป (Projectiles) ---
+            for (let p of player.custom.projectiles) {
+                ctx.save();
+                ctx.translate(p.x - player.x, p.y - player.y);
+                
+                // วาดรูปไพ่
+                ctx.fillStyle = "#FFFFFF";
+                ctx.fillRect(-6, -8, 12, 16);
+                ctx.strokeStyle = "#000000";
+                ctx.strokeRect(-6, -8, 12, 16);
+                
+                // แต้มสีตามประเภทการ์ด
+                ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI*2); ctx.fill();
+                ctx.restore();
+            }
+    
+            // --- 5. วาดสัญลักษณ์ Target บนศัตรูที่ติด Debuff ---
+            let enemies = game.getEnemies(player);
+            for (let e of enemies) {
+                if (e.custom && e.custom.jokerDebuff) {
+                    ctx.save();
+                    ctx.translate(e.x - player.x, e.y - player.y);
+                    
+                    // สัญลักษณ์เป้าเล็งสีเขียว (หรือแดง) บนหัวศัตรู
+                    ctx.strokeStyle = "#32CD32"; // สีเขียวสะท้อนแสง
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(0, -(e.radius || 35) - 15, 8, 0, Math.PI*2);
+                    ctx.moveTo(-12, -(e.radius || 35) - 15); ctx.lineTo(12, -(e.radius || 35) - 15);
+                    ctx.moveTo(0, -(e.radius || 35) - 27); ctx.lineTo(0, -(e.radius || 35) - 3);
+                    ctx.stroke();
+                    
+                    ctx.restore();
+                }
+            }
+        },
+        
+        onHitPlayer(player, target, game, hitBoxUsed) {}, // ไม่ใช้เพราะเป็นการโจมตีระยะไกล
+        onHitWeapon(player, enemyPlayer, game) {}, // ไม่ใช้
+        
+        onTakeDamage(player, source, game) {},
+        
+        onUltimateActivate(player, game) {
+            // ล็อกตัวละคร 1.5 วินาที เพื่อเริ่มหมุนสล็อต
+            player.custom.slotTimer = 1500;
+        }
     }
 };
 
