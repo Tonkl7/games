@@ -2218,7 +2218,7 @@ const BOSS_REGISTRY = {
             boss.custom.spawnFirePatch = (game, x, y) => {
                 game.spawn({
                     id: "demon_fire_" + Math.random(),
-                    x: x, y: y, 
+                    x: x || 0, y: y || 0, 
                     radius: 40, 
                     color: "#ff4500",
                     team: boss.team,
@@ -2235,9 +2235,10 @@ const BOSS_REGISTRY = {
                         entity.custom.tickTimer += dt;
                         if (entity.custom.tickTimer >= 350) { // ดาเมจ 2 ต่อ 0.35 วิ (350 ms)
                             entity.custom.tickTimer = 0;
-                            gameEngine.getEnemies(entity).forEach(e => {
+                            let list = gameEngine.getEnemies(entity) || []; // [FIXED] ดักค่า null
+                            list.forEach(e => {
                                 let dist = Math.hypot(e.x - entity.x, e.y - entity.y);
-                                if (dist < entity.radius + e.radius) {
+                                if (dist < entity.radius + (e.radius || 15)) {
                                     e.takeDamage(2, "fire", boss, gameEngine);
                                 }
                             });
@@ -2261,7 +2262,7 @@ const BOSS_REGISTRY = {
     
             // --- ฟังก์ชันเสกลูกไฟระเบิด ---
             boss.custom.spawnFireball = (game, target) => {
-                if (!target) return;
+                if (!target || target.x === undefined) return;
                 let dirX = target.x - boss.x;
                 let dirY = target.y - boss.y;
                 let dist = Math.hypot(dirX, dirY) || 1;
@@ -2279,8 +2280,11 @@ const BOSS_REGISTRY = {
                         entity.x += entity.vx;
                         entity.y += entity.vy;
                         
-                        let hitEnemy = gameEngine.getEnemies(entity).find(e => Math.hypot(e.x - entity.x, e.y - entity.y) < e.radius + entity.radius);
-                        let outOfBounds = entity.x < 0 || entity.x > gameEngine.arena.size || entity.y < 0 || entity.y > gameEngine.arena.size;
+                        let list = gameEngine.getEnemies(entity) || []; // [FIXED] ดักค่า null
+                        let hitEnemy = list.find(e => Math.hypot(e.x - entity.x, e.y - entity.y) < e.radius + (entity.radius || 18));
+                        
+                        let arenaSize = gameEngine.arena ? gameEngine.arena.size : 800; // [FIXED] ดักตัวแปร arena หาย
+                        let outOfBounds = entity.x < 0 || entity.x > arenaSize || entity.y < 0 || entity.y > arenaSize;
                         
                         if (hitEnemy || outOfBounds) {
                             if (hitEnemy) hitEnemy.takeDamage(15, "fire", boss, gameEngine);
@@ -2311,8 +2315,17 @@ const BOSS_REGISTRY = {
     
         onUpdate(boss, game) {
             let dt = game.delta || 16.6; // ใช้ delta time เพื่อความแม่นยำ
-            let enemies = game.getEnemies(boss);
+            let enemies = game.getEnemies(boss) || [];
             
+            // --- อมตะ (Invulnerable Hack) ---
+            if (boss.custom.invulnerable) {
+                if (boss.hp < boss.custom.lockedHp) {
+                    boss.hp = boss.custom.lockedHp; // เด้งเลือดกลับแทนเพื่อป้องกัน error ตอนโดนดาเมจแปลกๆ
+                }
+            } else {
+                boss.custom.lockedHp = boss.hp;
+            }
+    
             // --- กลไกป้องกันการหยุด/สตันท์ (Anti-CC Force) ---
             if (boss.custom.state === "dashing") {
                 // บังคับความเร็วตอนพุ่งเสมอ ไม่ให้โดนสกิลผลักหรือหยุด
@@ -2345,6 +2358,9 @@ const BOSS_REGISTRY = {
             }
     
             // --- พาสซีฟ: ทิ้งรอยไฟตามทางเดิน ---
+            if (boss.custom.lastPos.x === undefined) {
+                boss.custom.lastPos = { x: boss.x, y: boss.y }; // [FIXED] ตั้งค่าพิกัดใหม่ถ้าก่อนหน้าบั๊กเป็น undefined
+            }
             let distMoved = Math.hypot(boss.x - boss.custom.lastPos.x, boss.y - boss.custom.lastPos.y);
             if (distMoved > 40) { // วางกองไฟทุกๆ ระยะ 40 พิกเซลที่เดิน
                 boss.custom.spawnFirePatch(game, boss.x, boss.y);
@@ -2356,7 +2372,9 @@ const BOSS_REGISTRY = {
                 boss.custom.mapBurnTimer += dt;
                 if (boss.custom.mapBurnTimer >= 350) { // 1 ดาเมจ ต่อ 0.35 วิ
                     boss.custom.mapBurnTimer = 0;
-                    enemies.forEach(e => e.takeDamage(1, "fire", boss, game));
+                    enemies.forEach(e => {
+                        if (e && e.takeDamage) e.takeDamage(1, "fire", boss, game); // [FIXED] ดักป้องกัน entity ผิดปกติ
+                    });
                 }
             }
     
@@ -2376,11 +2394,13 @@ const BOSS_REGISTRY = {
                 case "idle":
                     // เดินเข้าหาศัตรูช้าๆ (ความเร็วถูกแคปไว้ด้วย baseSpeedCap: 4)
                     let target = enemies[0];
-                    let dx = target.x - boss.x;
-                    let dy = target.y - boss.y;
-                    let dist = Math.hypot(dx, dy) || 1;
-                    boss.vx += (dx / dist) * 0.8;
-                    boss.vy += (dy / dist) * 0.8;
+                    if (target && target.x !== undefined) {
+                        let dx = target.x - boss.x;
+                        let dy = target.y - boss.y;
+                        let dist = Math.hypot(dx, dy) || 1;
+                        boss.vx += (dx / dist) * 0.8;
+                        boss.vy += (dy / dist) * 0.8;
+                    }
     
                     if (boss.custom.stateTimer <= 0) {
                         let rand = Math.random();
@@ -2470,6 +2490,8 @@ const BOSS_REGISTRY = {
         onHitPlayer(boss, player, game, hitboxObj) {
             let now = Date.now();
     
+            if (!player || !player.custom) return; // [FIXED] ป้องกัน player object ไม่สมบูรณ์
+    
             if (hitboxObj && hitboxObj.type === "fire_aura") {
                 // ออร่าเบิร์น: 1 ดาเมจ ทุกๆ 0.10 วิ
                 if (!player.custom.lastDemonAura || now - player.custom.lastDemonAura >= 100) {
@@ -2492,11 +2514,8 @@ const BOSS_REGISTRY = {
         },
     
         onTakeDamage(boss, source, game) {
-            // อมตะ: รีเซ็ตเลือดตัวเองถ้าโดนตี
-            if (boss.custom.invulnerable) {
-                boss.hp += source.damage || 0; 
-                if (boss.hp > boss.maxHp) boss.hp = boss.maxHp;
-            }
+            // [FIXED] โค้ดอมตะถูกย้ายไปที่ onUpdate เพื่อความปลอดภัย 
+            // ฟังก์ชันนี้ปล่อยว่างไว้เพื่อป้องกันเอนจินส่ง source ขยะหรือ undefined มาจนเกมค้าง
         },
     
         render(ctx, boss, game) {
