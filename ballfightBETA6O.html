@@ -826,7 +826,7 @@ const BOSS_REGISTRY = {
             }
         }
     },
-    "DEMON": {
+        "DEMON": {
         name: "DEMON", 
         color: "#000000", // ตัวสีดำ
         radius: 70, 
@@ -863,17 +863,36 @@ const BOSS_REGISTRY = {
             boss.custom.debrisSpawned = 0;
             boss.custom.debrisTimer = 0;
             
-            boss.passiveText = "Slow | Fire Trail | Counter-Roar (Heal 5%) | Phase 2: Hellfire";
+            // ความเร็วที่ใช้ล็อกตอนพุ่ง
+            boss.custom.dashVx = 0;
+            boss.custom.dashVy = 0;
+            
+            boss.passiveText = "Aura Burn | Unstoppable Dash | Orange Roar (Meteor Shower)";
         },
         
         onUpdate(boss, game) {
             let enemies = game.getEnemies(boss);
             if (enemies.length === 0) return;
             
+            let now = Date.now();
+
             // ฮาร์ดโค้ดล้างสถานะ CC สตันท์ทั้งหมด (Anti-CC)
             if (boss.statuses && boss.statuses.length > 0) {
                 boss.statuses = boss.statuses.filter(s => s.type !== "stun" && s.type !== "freeze" && s.type !== "root");
             }
+
+            // --- 1. ระบบออร่าไฟรอบตัว (เช็คระยะ ไม่ใช้อาวุธ) ---
+            let auraRadius = boss.radius + 25;
+            enemies.forEach(p => {
+                let dx = p.x - boss.x;
+                let dy = p.y - boss.y;
+                if (Math.sqrt(dx*dx + dy*dy) <= auraRadius + p.radius) {
+                    if (!boss.custom.auraDebounce[p.id] || now - boss.custom.auraDebounce[p.id] > 100) {
+                        boss.custom.auraDebounce[p.id] = now;
+                        p.takeDamage(1, "fire", boss, game); // ดาเมจ 1 ทุก 0.10 วิ
+                    }
+                }
+            });
 
             // --- ระบบคำนวณ Burst Damage เพื่อสั่งให้คำรามฮีลเลือด ---
             let hpLoss = boss.custom.prevHp - boss.hp;
@@ -881,21 +900,18 @@ const BOSS_REGISTRY = {
             boss.custom.prevHp = boss.hp;
 
             boss.custom.burstTimer += game.delta;
-            if (boss.custom.burstTimer > 2000) { // รีเซ็ตการสะสมดาเมจทุก 2 วินาที
+            if (boss.custom.burstTimer > 2000) {
                 boss.custom.burstTimer = 0;
                 boss.custom.burstDmg = 0;
             }
 
-            // ถ้าโดนดาเมจเกิน 10% ของ Max HP (ประมาณ 666 หน่วย) ภายใน 2 วิ
             if (boss.custom.burstDmg > boss.maxHp * 0.1 && 
-                !["roaring", "ultimate", "phase_transition"].includes(boss.custom.state)) {
+                !["roaring", "ultimate", "phase_transition", "meteor_roar"].includes(boss.custom.state)) {
                 
                 boss.custom.state = "roaring";
                 boss.custom.stateTimer = 2000;
                 boss.custom.burstDmg = 0; 
                 boss.custom.invincible = true;
-                
-                // ฮีลเลือด 5%
                 boss.hp = Math.min(boss.maxHp, boss.hp + (boss.maxHp * 0.05));
                 game.triggerScreenShake(15, 1000);
             }
@@ -903,19 +919,17 @@ const BOSS_REGISTRY = {
             // --- ตรวจสอบ Phase 2 (เลือด < 25%) ---
             if (boss.hp < boss.maxHp * 0.25 && !boss.custom.phase2) {
                 boss.custom.phase2 = true;
-                boss.hp = boss.maxHp * 0.5; // ฮีลกลับเป็น 50%
-                game.triggerScreenShake(30, 2000); // หน้าจอสั่นสะเทือน
-                game.setArenaBgOverride("rgba(150, 30, 0, 0.4)"); // เปลี่ยนพื้นหลังอารีน่าเป็นสีแดงไฟ
+                boss.hp = boss.maxHp * 0.5; 
+                game.triggerScreenShake(30, 2000); 
+                game.setArenaBgOverride("rgba(150, 30, 0, 0.4)"); 
                 
                 boss.custom.state = "phase_transition";
                 boss.custom.stateTimer = 2000;
                 boss.vx = 0; boss.vy = 0;
                 
-                // เอฟเฟกต์ทุบพื้นเปลี่ยนเฟส
                 this.spawnFirePool(game, boss.x, boss.y, 200, 2000, 0, 999, boss);
             }
 
-            // --- ดาเมจเผาไหม้ทั้งแมพ (Phase 2) 1 ดาเมจต่อ 0.35 วิ ---
             if (boss.custom.phase2) {
                 boss.custom.mapFireTimer -= game.delta;
                 if (boss.custom.mapFireTimer <= 0) {
@@ -928,18 +942,16 @@ const BOSS_REGISTRY = {
             if (Math.abs(boss.vx) > 0.5 || Math.abs(boss.vy) > 0.5) {
                 boss.custom.trailTimer -= game.delta;
                 if (boss.custom.trailTimer <= 0) {
-                    boss.custom.trailTimer = 300; // ทิ้งรอยทุกๆ 0.3 วินาทีตอนขยับ
-                    // พาสซีฟปกติ: ดาเมจ 2 ต่อ 0.35 วิ คงอยู่ 2 วิ
+                    boss.custom.trailTimer = 300; 
                     this.spawnFirePool(game, boss.x, boss.y, 40, 2000, 2, 350, boss); 
                 }
             }
 
             // --- AI & State Machine ---
-            let target = enemies[0]; // ล็อกเป้าตัวที่ใกล้สุดหรือตัวแรก
+            let target = enemies[0];
             
             switch (boss.custom.state) {
                 case "idle":
-                    // เดินเข้าหาเป้าหมายช้าๆ
                     let dx = target.x - boss.x;
                     let dy = target.y - boss.y;
                     let dist = Math.sqrt(dx*dx + dy*dy);
@@ -948,21 +960,22 @@ const BOSS_REGISTRY = {
 
                     boss.custom.skillTimer -= game.delta;
                     if (boss.custom.skillTimer <= 0) {
-                        // สุ่มสกิล (เอาคำรามออกไปเป็นระบบตอบโต้แทน แล้วใส่ทุบพื้น)
                         let rand = Math.random();
-                        if (rand < 0.35) {
-                            boss.custom.state = "charging"; // สกิลพุ่ง
-                            boss.custom.stateTimer = 2000; // ชาร์จ 2 วิ
-                            
-                            // สุ่มจำนวนเศษไฟ 3-8 ลูก
+                        if (rand < 0.25) {
+                            boss.custom.state = "charging"; // 2. สกิลพุ่งใหม่
+                            boss.custom.stateTimer = 2000;
                             boss.custom.debrisCount = Math.floor(Math.random() * 6) + 3;
                             boss.custom.debrisSpawned = 0;
                             boss.custom.debrisTimer = 0;
-                        } else if (rand < 0.65) {
-                            boss.custom.state = "fireball"; // โยนบอลไฟ
+                        } else if (rand < 0.50) {
+                            boss.custom.state = "meteor_roar"; // 3. สกิลคำรามสีส้ม (อุกกาบาต)
+                            boss.custom.stateTimer = 10000; // คงอยู่ 10 วิ
+                            boss.custom.meteorTimer = 0;
+                        } else if (rand < 0.75) {
+                            boss.custom.state = "fireball"; 
                             boss.custom.stateTimer = 500;
                         } else {
-                            boss.custom.state = "smashing_charge"; // ชาร์จทุบพื้น
+                            boss.custom.state = "smashing_charge"; 
                             boss.custom.stateTimer = 1000;
                         }
                         boss.custom.skillTimer = 4000 + Math.random() * 2000;
@@ -970,49 +983,86 @@ const BOSS_REGISTRY = {
                     break;
 
                 case "charging":
-                    boss.vx *= 0.8; boss.vy *= 0.8;
+                    // ล็อกความเร็วไม่ให้โดนผลัก
+                    boss.vx = 0; boss.vy = 0;
                     boss.custom.stateTimer -= game.delta;
                     if (boss.custom.stateTimer <= 0) {
                         boss.custom.state = "dashing";
-                        boss.custom.stateTimer = 800; // พุ่งเป็นเวลา 0.8 วิ
                         let cx = target.x - boss.x;
                         let cy = target.y - boss.y;
                         let cdist = Math.sqrt(cx*cx + cy*cy);
-                        boss.vx = (cx / cdist) * 25; 
-                        boss.vy = (cy / cdist) * 25;
+                        // ล็อกเวกเตอร์ความเร็วสำหรับพุ่ง
+                        boss.custom.dashVx = (cx / cdist) * 30; 
+                        boss.custom.dashVy = (cy / cdist) * 30;
                     }
                     break;
 
                 case "dashing":
-                    // ขณะพุ่ง จะทิ้งรอยไฟและกระเด็นเศษลูกไฟออกไปตามทาง
+                    // บังคับความเร็วพุ่ง ทะลุการผลักหรือ CC ใดๆ
+                    boss.vx = boss.custom.dashVx;
+                    boss.vy = boss.custom.dashVy;
+                    
                     boss.custom.trailTimer -= game.delta;
                     if (boss.custom.trailTimer <= 0) {
-                        boss.custom.trailTimer = 100; // ทิ้งรอยถี่ขึ้น
+                        boss.custom.trailTimer = 100;
                         this.spawnFirePool(game, boss.x, boss.y, 50, 2000, 2, 350, boss);
                     }
                     
-                    // ปล่อยเศษไฟ 3-8 ลูก ระหว่างช่วงที่พุ่ง
                     boss.custom.debrisTimer -= game.delta;
                     if (boss.custom.debrisTimer <= 0 && boss.custom.debrisSpawned < boss.custom.debrisCount) {
-                        boss.custom.debrisTimer = 800 / boss.custom.debrisCount; // หารเวลาตามจำนวนลูก
+                        boss.custom.debrisTimer = 200; 
                         boss.custom.debrisSpawned++;
-                        
                         let angle = Math.random() * Math.PI * 2;
-                        let speed = 8 + Math.random() * 6; // ความเร็วกระเด็นออก
+                        let speed = 8 + Math.random() * 6;
                         this.spawnFireDebris(game, boss, boss.x, boss.y, Math.cos(angle)*speed, Math.sin(angle)*speed);
                     }
 
+                    // เช็คชนกำแพง (พุ่งจนกว่าจะชนกำแพง)
+                    let arenaLimit = game.arena.size || 1000; // เผื่อกว้างยาวอารีน่า
+                    if (boss.x <= boss.radius || boss.x >= arenaLimit - boss.radius || 
+                        boss.y <= boss.radius || boss.y >= arenaLimit - boss.radius) {
+                        
+                        boss.custom.state = "stunned";
+                        boss.custom.stateTimer = 2000; // ติดสตันท์ 2 วิเมื่อชนกำแพง
+                        game.triggerScreenShake(20, 500);
+                        boss.vx = 0; boss.vy = 0;
+                    }
+                    break;
+                    
+                case "stunned":
+                    // หยุดนิ่ง
+                    boss.vx = 0; boss.vy = 0;
                     boss.custom.stateTimer -= game.delta;
                     if (boss.custom.stateTimer <= 0) boss.custom.state = "idle";
                     break;
                     
+                case "meteor_roar":
+                    // ยืนคำราม ปล่อยอุกกาบาต 10 วินาที
+                    boss.vx = 0; boss.vy = 0;
+                    boss.custom.stateTimer -= game.delta;
+                    boss.custom.meteorTimer -= game.delta;
+                    
+                    if (boss.custom.stateTimer % 400 < 50) game.triggerScreenShake(3, 50);
+
+                    // สุ่มดรอปลูกไฟลงมาทุกๆ 0.4 วินาที
+                    if (boss.custom.meteorTimer <= 0) {
+                        boss.custom.meteorTimer = 400;
+                        let arenaLimit = game.arena.size || 1000;
+                        let rx = Math.random() * arenaLimit;
+                        let ry = Math.random() * arenaLimit;
+                        this.spawnFallingMeteor(game, boss, rx, ry);
+                    }
+
+                    if (boss.custom.stateTimer <= 0) boss.custom.state = "idle";
+                    break;
+
                 case "smashing_charge":
                     boss.vx *= 0.5; boss.vy *= 0.5;
                     boss.custom.stateTimer -= game.delta;
                     if (boss.custom.stateTimer <= 0) {
                         boss.custom.state = "idle";
-                        game.triggerScreenShake(20, 500); // สั่นรุนแรงจากการทุบพื้น
-                        this.spawnShockwave(game, boss); // สร้างคลื่นกระแทกสตันท์
+                        game.triggerScreenShake(20, 500);
+                        this.spawnShockwave(game, boss);
                     }
                     break;
 
@@ -1025,7 +1075,7 @@ const BOSS_REGISTRY = {
                     }
                     break;
 
-                case "roaring": // ทำงานเมื่อโดนดาเมจหนัก
+                case "roaring": 
                     boss.vx = 0; boss.vy = 0; 
                     boss.custom.stateTimer -= game.delta;
                     if (boss.custom.stateTimer % 200 < 50) game.triggerScreenShake(5, 50); 
@@ -1033,7 +1083,7 @@ const BOSS_REGISTRY = {
                     if (boss.custom.stateTimer <= 0) {
                         boss.custom.invincible = false;
                         boss.custom.state = "idle";
-                        boss.custom.prevHp = boss.hp; // ป้องกันการนับ HP ที่ฮีลขึ้นมาเป็นดาเมจขากลับ
+                        boss.custom.prevHp = boss.hp; 
                     }
                     break;
 
@@ -1057,37 +1107,29 @@ const BOSS_REGISTRY = {
             }
         },
 
-        // --- CUSTOM HITBOXES ---
-        getHitboxes(boss, game) {
-            return [
-                { x: boss.x, y: boss.y, r: boss.radius + 25, isAura: true }
-            ];
-        },
-
-        onHitPlayer(boss, player, game, hitboxObj) {
+        // --- ลบ getHitboxes ออกเพื่อให้ออร่าไม่นับเป็นอาวุธ ---
+        
+        onHitPlayer(boss, player, game) {
             let now = Date.now();
-            
-            if (hitboxObj && hitboxObj.isAura) {
-                if (!boss.custom.auraDebounce[player.id] || now - boss.custom.auraDebounce[player.id] > 100) {
-                    boss.custom.auraDebounce[player.id] = now;
-                    player.takeDamage(1, "fire", boss, game);
-                }
-            } else {
-                if (!boss.custom.bumpDebounce[player.id] || now - boss.custom.bumpDebounce[player.id] > 500) {
-                    boss.custom.bumpDebounce[player.id] = now;
-                    player.takeDamage(25, "blunt", boss, game);
+            if (!boss.custom.bumpDebounce[player.id] || now - boss.custom.bumpDebounce[player.id] > 500) {
+                boss.custom.bumpDebounce[player.id] = now;
+                
+                if (boss.custom.state === "dashing") {
+                    // ถ้าพุ่งโดนศัตรู สร้างดาเมจเผาไหม้รุนแรง
+                    player.takeDamage(50, "fire", boss, game);
+                    boss.custom.state = "idle"; // ยกเลิกพุ่ง
                     
-                    if (boss.custom.state === "dashing") {
-                        if (!player.statuses) player.statuses = [];
-                        player.statuses.push({ type: "stun", duration: 1500 });
-                        player.vx = 0; player.vy = 0; 
-                    }
+                    // สร้างไฟเผาไหม้ใต้เท้าเป้าหมาย
+                    this.spawnFirePool(game, player.x, player.y, 60, 3000, 5, 200, boss);
+                    game.triggerScreenShake(15, 300);
+                } else {
+                    // ชนปกติ
+                    player.takeDamage(25, "blunt", boss, game);
                 }
             }
         },
 
         onTakeDamage(boss, source, game) {
-            // อมตะตอนกำลังคำรามฮีล
             if (boss.custom.invincible) {
                 boss.hp += source.amount || 0; 
                 return false; 
@@ -1103,7 +1145,7 @@ const BOSS_REGISTRY = {
         },
 
         render(ctx, boss, game) {
-            // ออร่าไฟเบาๆ
+            // ออร่าไฟเบาๆ (แสดงผลภาพอย่างเดียว ดาเมจย้ายไป onUpdate แล้ว)
             ctx.fillStyle = "rgba(255, 69, 0, 0.3)";
             ctx.beginPath();
             ctx.arc(0, 0, boss.radius + 25 + Math.sin(Date.now() / 100) * 5, 0, Math.PI * 2);
@@ -1147,11 +1189,30 @@ const BOSS_REGISTRY = {
                 ctx.setLineDash([]);
             }
             
+            // เอฟเฟกต์สตันท์
+            if (boss.custom.state === "stunned") {
+                ctx.fillStyle = "#FFFF00";
+                let t = Date.now() / 150;
+                for(let i=0; i<3; i++) {
+                    ctx.beginPath();
+                    ctx.arc(Math.cos(t + i * 2) * 40, -boss.radius - 20 + Math.sin(t + i * 2) * 10, 6, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            }
+            
+            // เอฟเฟกต์คำรามเรียกอุกกาบาต (สีส้ม)
+            if (boss.custom.state === "meteor_roar") {
+                ctx.strokeStyle = "rgba(255, 140, 0, 0.8)"; 
+                ctx.lineWidth = 8;
+                ctx.beginPath(); 
+                ctx.arc(0, 0, boss.radius + 15 + Math.random() * 10, 0, Math.PI * 2); 
+                ctx.stroke();
+            }
+
             // เอฟเฟกต์ชาร์จทุบพื้น
             if (boss.custom.state === "smashing_charge") {
                 ctx.fillStyle = "rgba(255, 69, 0, 0.4)";
                 ctx.beginPath(); 
-                // วงกลมขยายเตรียมระเบิด
                 ctx.arc(0, 0, boss.radius + (1000 - boss.custom.stateTimer)/5, 0, Math.PI * 2); 
                 ctx.fill();
             }
@@ -1184,22 +1245,56 @@ const BOSS_REGISTRY = {
             });
         },
         
+        spawnFallingMeteor(game, boss, x, y) {
+            game.spawn({
+                id: "meteor_" + Math.random(),
+                x: x, y: y, radius: 40, team: boss.team,
+                custom: { life: 800, bossRef: boss }, // ตกจากฟ้า 0.8 วิ
+                update(entity, g) {
+                    entity.custom.life -= g.delta;
+                    if (entity.custom.life <= 0) {
+                        // คงอยู่ 4 วินาทีเมื่อระเบิด ดาเมจเผาไหม้
+                        DemonBoss.DEMON.spawnFirePool(g, entity.x, entity.y, 70, 4000, 3, 250, entity.custom.bossRef);
+                        g.remove(entity);
+                    }
+                },
+                render(ctx) {
+                    // วงแหวนเตือนจุดตกเป้าหมาย
+                    ctx.strokeStyle = "rgba(255, 69, 0, 0.8)";
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                    
+                    // วาดอุกกาบาตตกลงมา (สมมติแกน y สูงขึ้นเรื่อยๆ)
+                    let dropHeight = (this.custom.life / 800) * 600;
+                    ctx.fillStyle = "#FF4500";
+                    ctx.beginPath();
+                    ctx.arc(0, -dropHeight, 20, 0, Math.PI*2);
+                    ctx.fill();
+                    // หางไฟ
+                    ctx.fillStyle = "rgba(255, 140, 0, 0.5)";
+                    ctx.beginPath();
+                    ctx.arc(0, -dropHeight - 20, 15, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            });
+        },
+        
         spawnFireDebris(game, boss, x, y, vx, vy) {
             game.spawn({
                 id: "debris_" + Math.random(),
                 x: x, y: y, vx: vx, vy: vy,
                 radius: 12, color: "#FFA500", team: boss.team,
-                custom: { life: 400, bossRef: boss }, // ลอยกลางอากาศ 0.4 วินาที
+                custom: { life: 400, bossRef: boss },
                 update(entity, g) {
                     entity.custom.life -= g.delta;
                     entity.x += entity.vx;
                     entity.y += entity.vy;
-                    // สร้างความหนืดให้ตกถึงพื้น
                     entity.vx *= 0.92;
                     entity.vy *= 0.92;
                     
                     if (entity.custom.life <= 0) {
-                        // เมื่อตกถึงพื้น ระเบิดเป็นกองเพลิง 5 วิ (ทำดาเมจ 2 ต่อ 0.15 วิ)
                         DemonBoss.DEMON.spawnFirePool(g, entity.x, entity.y, 60, 5000, 2, 150, entity.custom.bossRef);
                         g.remove(entity);
                     }
@@ -1221,16 +1316,14 @@ const BOSS_REGISTRY = {
                 custom: { life: 800, maxRadius: 350, bossRef: boss, hitList: [] },
                 update(entity, g) {
                     entity.custom.life -= g.delta;
-                    // ขยายวงแหวน
                     entity.radius += (entity.custom.maxRadius - entity.radius) * 0.15; 
                     
                     g.getEnemies(entity).forEach(p => {
                         if (!entity.custom.hitList.includes(p.id)) {
                             let dx = p.x - entity.x; let dy = p.y - entity.y;
                             if (Math.sqrt(dx*dx + dy*dy) < entity.radius + p.radius) {
-                                entity.custom.hitList.push(p.id); // จำไว้ว่าโดนแล้ว
+                                entity.custom.hitList.push(p.id); 
                                 p.takeDamage(20, "fire", entity.custom.bossRef, g);
-                                // ทำให้ติดสถานะสตันท์
                                 if (!p.statuses) p.statuses = [];
                                 p.statuses.push({ type: "stun", duration: 1500 });
                             }
@@ -1241,7 +1334,7 @@ const BOSS_REGISTRY = {
                 },
                 render(ctx) {
                     ctx.strokeStyle = this.color;
-                    ctx.lineWidth = 15 * (this.custom.life / 800); // เส้นขอบเล็กลงเรื่อยๆ ตามเวลา
+                    ctx.lineWidth = 15 * (this.custom.life / 800); 
                     ctx.beginPath();
                     ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
                     ctx.stroke();
