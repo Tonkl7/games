@@ -1156,8 +1156,8 @@ const WEAPON_REGISTRY = {
         },
     
         getHitboxes(player, game) {
-            // ฮิตบล็อกผ่ามิติ (กวาดทั้งแมพตอนพุ่งฟัน)
-            if (player.custom.state === "SLASH_IMPACT") {
+            // ฮิตบล็อกผ่ามิติ (กวาดพื้นที่กว้างมากระหว่างการพุ่ง)
+            if (player.custom.state === "SLASH_DASH") {
                 return [{ x: player.x, y: player.y, r: 2500 }];
             }
             // ฮิตบล็อกมีดสั้นกาลเวลา
@@ -1171,13 +1171,13 @@ const WEAPON_REGISTRY = {
             // บังคับล็อกเกจอันติ
             player.ultimateGauge = st.realGauge; 
     
-            // สร้างเงาติดตา (Afterimage) ตลอดเวลาแต่อยู่ในมิติจะชัดขึ้น
+            // สร้างเงาติดตา (Afterimage) ตลอดเวลา
             if (game.tick % 2 === 0) {
                 st.trail.push({x: player.x, y: player.y, rot: player.weaponRotation, time: Date.now()});
                 if (st.trail.length > 15) st.trail.shift();
             }
     
-            if (st.state !== "SLASH_IMPACT") st.hitSet.clear();
+            if (st.state !== "SLASH_DASH") st.hitSet.clear();
     
             // ---------------- STATE MACHINE ----------------
             switch(st.state) {
@@ -1197,43 +1197,47 @@ const WEAPON_REGISTRY = {
                     // หยุดศัตรูทั้งหมด (แช่แข็ง)
                     game.getEnemies(player).forEach(e => { e.vx = 0; e.vy = 0; });
                     
-                    if (st.timer >= 4800) { // ก่อนครบ 5 วิเล็กน้อย เตรียมพุ่ง
-                        st.state = "DASH_PREP";
+                    if (st.timer >= 4800) { // เตรียมพุ่งในช่วงเสี้ยววิสุดท้าย
+                        st.state = "SLASH_DASH";
+                        st.timer = 0;
                         st.slashStart = {x: player.x, y: player.y};
-                        // หาเป้าหมายที่ไกลที่สุด หรือพุ่งทะลุฉาก
+                        
+                        // หาเป้าหมายที่ไกลที่สุด หรือพุ่งทะลุเป้าหมายไปเลย
                         let target = closestEnemy ? closestEnemy : {x: game.arena.size/2, y: game.arena.size/2};
                         let angle = Math.atan2(target.y - player.y, target.x - player.x);
+                        
+                        // พุ่งทะลุศัตรูไปไกลๆ เพื่อความเท่
                         st.slashEnd = {
-                            x: player.x + Math.cos(angle) * 1000, 
-                            y: player.y + Math.sin(angle) * 1000
+                            x: player.x + Math.cos(angle) * 1500, 
+                            y: player.y + Math.sin(angle) * 1500
                         };
+                        st.shards = [];
                     }
                     break;
     
-                case "DASH_PREP": // วาร์ปพุ่งตัว (แค่ไม่กี่เฟรม)
-                    player.passiveText = `สู่วความว่างเปล่า...`;
-                    player.x = st.slashEnd.x; // วาร์ปไปจุดจบการพุ่ง
-                    player.y = st.slashEnd.y;
-                    st.state = "SLASH_IMPACT";
-                    st.timer = 0;
+                case "SLASH_DASH": // จังหวะพุ่งตัวผ่ามิติ (ลากเส้นและเคลื่อนที่ไปพร้อมกัน)
+                    player.passiveText = `[ผ่ามิติเวลา!!]`;
                     
-                    // สร้างเศษกระจกมิติ
-                    st.shards = [];
-                    for(let i=0; i<20; i++) {
+                    // คำนวณความคืบหน้าของการพุ่ง (ให้เสร็จภายใน 200ms)
+                    let progress = Math.min(1, st.timer / 200);
+                    
+                    // ทำให้ผู้เล่นพุ่งไปข้างหน้าตามเส้นผ่ามิติ
+                    player.x = st.slashStart.x + (st.slashEnd.x - st.slashStart.x) * progress;
+                    player.y = st.slashStart.y + (st.slashEnd.y - st.slashStart.y) * progress;
+    
+                    // สร้างเศษกระจกมิติตามทางที่พุ่งผ่าน
+                    if (game.tick % 2 === 0) {
                         st.shards.push({
-                            x: player.x + (Math.random()-0.5)*800,
-                            y: player.y + (Math.random()-0.5)*800,
-                            vx: (Math.random()-0.5)*15,
-                            vy: (Math.random()-0.5)*15,
+                            x: player.x + (Math.random()-0.5)*150,
+                            y: player.y + (Math.random()-0.5)*150,
+                            vx: (Math.random()-0.5)*12,
+                            vy: (Math.random()-0.5)*12,
                             rot: Math.random()*Math.PI*2,
-                            size: 10 + Math.random()*40
+                            size: 15 + Math.random()*35
                         });
                     }
-                    break;
     
-                case "SLASH_IMPACT": // จังหวะฟันผ่ามิติ (ฮิตบล็อกทำงาน)
-                    player.passiveText = `[ผ่ามิติเวลา!!]`;
-                    if (st.timer >= 150) { // จบการฟันอย่างรวดเร็ว
+                    if (st.timer >= 200) { // จบการพุ่งอย่างรวดเร็ว
                         st.state = "COOLDOWN";
                         st.timer = 0;
                         game.triggerHitStop(300); // กระตุกหน้าจออย่างแรง มิติแตก
@@ -1243,7 +1247,7 @@ const WEAPON_REGISTRY = {
                 case "COOLDOWN": // มิติพังทลาย
                     player.passiveText = `มิติพังทลาย คูลดาวน์ (${Math.max(0, 5 - st.timer/1000).toFixed(1)}s)`;
                     
-                    // อัพเดทเศษกระจกให้ปลิวออก
+                    // อัพเดทเศษกระจกให้ปลิวออกและกระจายบนสนาม
                     st.shards.forEach(s => { s.x += s.vx; s.y += s.vy; s.rot += 0.1; });
     
                     if (st.timer >= 5000) {
@@ -1272,7 +1276,7 @@ const WEAPON_REGISTRY = {
                     break;
             }
     
-            if (st.state !== "EXHAUST" && st.state !== "DASH_PREP") {
+            if (st.state !== "EXHAUST") {
                 player.weaponRotation += 0.15 * player.weaponDir * (game.delta / 16);
             }
         },
@@ -1281,32 +1285,37 @@ const WEAPON_REGISTRY = {
             let st = player.custom;
             let aSize = (game.arena && game.arena.size) ? game.arena.size : 2000;
     
-            // ================= 1. RENDER ฉากหลัง (มิติเวลา) =================
-            if (st.state === "DIMENSION" || st.state === "DASH_PREP" || st.state === "ULT_STOP") {
-                // 1.1 ความมืดระดับหน้าจอ (Screen Space)
+            // =========================================================================
+            // 1. RENDER WORLD SPACE (วาดลงบนสนามโดยตรง ไม่ตามตัวละคร)
+            // =========================================================================
+            ctx.save();
+            // หักล้างพิกัดอาวุธ เพื่อนำจุดอ้างอิง (0,0) กลับไปยังมุมซ้ายบนของ World 
+            ctx.translate(-player.weaponX, -player.weaponY); 
+    
+            // 1.1 วาดความมืดระดับหน้าจอ (Screen Space Overlay)
+            if (st.state === "DIMENSION" || st.state === "SLASH_DASH" || st.state === "ULT_STOP") {
                 ctx.save();
-                ctx.setTransform(1, 0, 0, 1, 0, 0); 
+                ctx.setTransform(1, 0, 0, 1, 0, 0); // รีเซ็ต Transform เพื่อคลุมทั้งจอ
                 let bgAlpha = st.state === "ULT_STOP" ? 0.8 : 0.4;
                 ctx.fillStyle = `rgba(0, 10, 30, ${bgAlpha})`;
-                ctx.fillRect(0, 0, 5000, 5000); // วาดเผื่อครอบคลุมหน้าจอทุกขนาด
+                ctx.fillRect(0, 0, 5000, 5000); 
                 ctx.restore();
-                
-                // 1.2 วาดนาฬิกาเวทมนตร์กึ่งกลางสนามจริง (World Space)
+            }
+    
+            // 1.2 วาดนาฬิกาเวทมนตร์ ให้อยู่ "ตรงกลางสนามแข่ง" แบบตายตัว
+            if (st.state === "DIMENSION" || st.state === "SLASH_DASH" || st.state === "ULT_STOP") {
                 ctx.save();
                 let arenaCenterX = game.arena ? (game.arena.x || 0) + aSize / 2 : 1000;
                 let arenaCenterY = game.arena ? (game.arena.y || 0) + aSize / 2 : 1000;
                 ctx.translate(arenaCenterX, arenaCenterY);
                 
                 let timeRot = Date.now() / 800;
-                
                 ctx.globalCompositeOperation = "screen";
                 ctx.strokeStyle = "rgba(0, 255, 255, 0.3)";
                 
-                // วงแหวนนาฬิกา
+                // วงแหวนและขีดนาฬิกา
                 ctx.beginPath(); ctx.arc(0, 0, 600, 0, Math.PI*2); ctx.lineWidth = 5; ctx.stroke();
                 ctx.beginPath(); ctx.arc(0, 0, 580, 0, Math.PI*2); ctx.lineWidth = 1; ctx.stroke();
-                
-                // ขีดบอกเวลา
                 for(let i=0; i<12; i++) {
                     ctx.save();
                     ctx.rotate((Math.PI*2/12) * i);
@@ -1315,39 +1324,74 @@ const WEAPON_REGISTRY = {
                     ctx.restore();
                 }
     
-                // เข็มนาฬิกา (ถ้าเป็นอัลติ เข็มจะหยุดนิ่ง)
+                // เข็มนาฬิกา (หยุดเดินตอนแช่แข็ง)
                 let handRot = st.state === "ULT_STOP" ? 0 : timeRot;
                 ctx.rotate(handRot);
-                ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -400); // เข็มยาว
+                ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -400); 
                 ctx.lineWidth = 15; ctx.strokeStyle = "rgba(0, 255, 255, 0.8)"; ctx.stroke();
                 ctx.rotate(Math.PI/3);
-                ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -250); // เข็มสั้น
+                ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -250); 
                 ctx.lineWidth = 25; ctx.stroke();
-                
                 ctx.restore();
             }
-            
-            // ================= เอฟเฟคผ่ามิติ & มิติแตก =================
-            if (st.state === "SLASH_IMPACT" || (st.state === "COOLDOWN" && st.timer < 1000)) {
-                // แสงสว่างวาบระดับหน้าจอ (Screen Space)
+    
+            // 1.3 วาดเงาติดตา (Afterimages) ไว้บนสนามตรงตำแหน่งที่เดินผ่านมา
+            if (st.state !== "EXHAUST") {
+                st.trail.forEach((t, i) => {
+                    let alpha = (i / st.trail.length) * 0.4;
+                    if (st.state === "DIMENSION" || st.state === "SLASH_DASH") alpha *= 2; 
+                    
+                    ctx.save();
+                    ctx.translate(t.x, t.y); // ไปยังตำแหน่งจริงใน World Space
+                    
+                    // เงาร่างตัวละคร
+                    ctx.beginPath(); ctx.arc(0, 0, player.radius, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(0, 255, 255, ${alpha})`; ctx.fill();
+                    
+                    // เงาอาวุธ
+                    ctx.rotate(t.rot);
+                    ctx.translate(player.weaponReach, 0);
+                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -this.width/2); ctx.lineTo(this.length, 0); ctx.lineTo(0, this.width/2);
+                    ctx.fill();
+                    ctx.restore();
+                });
+            }
+    
+            // 1.4 เอฟเฟคผ่ามิติ & มิติแตก (วาดจากตำแหน่งเริ่มพุ่ง ไปยังจุดที่ตัวละครอยู่)
+            if (st.state === "SLASH_DASH" || (st.state === "COOLDOWN" && st.timer < 1000)) {
+                
+                // แสงสว่างวาบทั่วจอตอนมิติแตก
                 ctx.save();
                 ctx.setTransform(1, 0, 0, 1, 0, 0);
                 ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0, 1 - st.timer/500)})`;
                 ctx.fillRect(0, 0, 5000, 5000);
                 ctx.restore();
                 
-                // รอยฟันและกระจก (World Space)
+                // เส้นรอยฟันผ่าฉาก (วาดบนสนาม)
+                let drawEndX = st.state === "SLASH_DASH" ? player.x : st.slashEnd.x;
+                let drawEndY = st.state === "SLASH_DASH" ? player.y : st.slashEnd.y;
+    
                 ctx.save();
-                ctx.strokeStyle = "#00FFFF";
-                ctx.lineWidth = 40 * Math.max(0, 1 - st.timer/800);
+                ctx.lineCap = "round";
                 ctx.shadowBlur = 30; ctx.shadowColor = "#FFFFFF";
+                
+                // ออร่าสีฟ้ารอบเส้น
+                ctx.strokeStyle = "#00FFFF";
+                ctx.lineWidth = st.state === "SLASH_DASH" ? 60 : 60 * Math.max(0, 1 - st.timer/1000);
                 ctx.beginPath();
-                ctx.moveTo(st.slashStart.x - 2000, st.slashStart.y - 1000);
-                ctx.lineTo(st.slashEnd.x + 2000, st.slashEnd.y + 1000);
+                ctx.moveTo(st.slashStart.x, st.slashStart.y);
+                ctx.lineTo(drawEndX, drawEndY);
+                ctx.stroke();
+    
+                // แกนเส้นแสงสีขาว
+                ctx.strokeStyle = "#FFFFFF";
+                ctx.lineWidth = st.state === "SLASH_DASH" ? 20 : 20 * Math.max(0, 1 - st.timer/1000);
                 ctx.stroke();
                 ctx.shadowBlur = 0;
                 
-                // วาดเศษกระจก (มิติแตก)
+                // วาดเศษกระจกมิติ (ปลิวอยู่บนสนาม)
                 st.shards.forEach(s => {
                     ctx.save();
                     ctx.translate(s.x, s.y);
@@ -1360,38 +1404,16 @@ const WEAPON_REGISTRY = {
                 });
                 ctx.restore();
             }
+            ctx.restore(); // จบการวาดแบบ World Space
     
-            // ================= 2. RENDER ตัวละคร & อาวุธ =================
+            // =========================================================================
+            // 2. RENDER LOCAL SPACE (ตัวละครและอาวุธปัจจุบัน)
+            // =========================================================================
             ctx.save();
-            ctx.translate(-player.weaponX + player.x, -player.weaponY + player.y); // กลับไปที่ตัวละคร
+            ctx.translate(-player.weaponX + player.x, -player.weaponY + player.y); // ไปที่ตัวละคร
             ctx.rotate(-player.weaponRotation); // หักล้างมุมอาวุธ
             
-            // --- เงาติดตา (Afterimages) ---
-            if (st.state !== "EXHAUST") {
-                st.trail.forEach((t, i) => {
-                    let alpha = (i / st.trail.length) * 0.4;
-                    if (st.state === "DIMENSION" || st.state === "SLASH_IMPACT") alpha *= 2; // เงาชัดขึ้นในมิติ
-                    
-                    ctx.save();
-                    // แปลงพิกัดกลับไปยังตำแหน่งในอดีต
-                    ctx.translate(t.x - player.x, t.y - player.y); 
-                    
-                    // วาดเงาตัวละคร
-                    ctx.beginPath(); ctx.arc(0, 0, player.radius, 0, Math.PI*2);
-                    ctx.fillStyle = `rgba(0, 255, 255, ${alpha})`; ctx.fill();
-                    
-                    // วาดเงาอาวุธ (เส้นร่างโฮโลแกรมเรียบๆ)
-                    ctx.rotate(t.rot);
-                    ctx.translate(player.weaponReach, 0);
-                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-                    ctx.beginPath();
-                    ctx.moveTo(0, -this.width/2); ctx.lineTo(this.length, 0); ctx.lineTo(0, this.width/2);
-                    ctx.fill();
-                    ctx.restore();
-                });
-            }
-    
-            // --- ตัวละครหลัก ---
+            // ตัวละครหลัก
             ctx.beginPath();
             ctx.arc(0, 0, player.radius + 5, 0, Math.PI * 2);
             ctx.strokeStyle = st.state === "ULT_STOP" ? "#FFD700" : "#00FFFF";
@@ -1403,54 +1425,37 @@ const WEAPON_REGISTRY = {
             ctx.beginPath(); ctx.arc(0, 0, player.radius, Math.PI/2, Math.PI*1.5); ctx.fill();
             ctx.restore();
     
-            // ================= 3. RENDER อาวุธ (Chronos Dagger) =================
-            // ตำแหน่ง (0,0) ตอนนี้คือปลายแขน (weaponX, weaponY)
+            // 3. RENDER อาวุธ (Chronos Dagger) ตรงปลายแขน (0,0) ปัจจุบัน
             ctx.shadowBlur = 15;
             ctx.shadowColor = "#00FFFF";
-    
             let timePulse = Math.abs(Math.sin(Date.now() / 200));
     
-            // 3.1 ด้ามจับล้ำยุค (Cyber Handle)
-            ctx.fillStyle = "#0a192f"; // สีกรมท่าเข้ม
-            ctx.beginPath();
-            ctx.moveTo(-10, -4);
-            ctx.lineTo(15, -4);
-            ctx.lineTo(15, 4);
-            ctx.lineTo(-10, 4);
-            ctx.fill();
+            // ด้ามจับล้ำยุค
+            ctx.fillStyle = "#0a192f"; 
+            ctx.beginPath(); ctx.moveTo(-10, -4); ctx.lineTo(15, -4); ctx.lineTo(15, 4); ctx.lineTo(-10, 4); ctx.fill();
     
-            // 3.2 ฟันเฟืองกาลเวลา (Time Gear Guard) หมุนตลอดเวลาตรงโกร่งดาบ
+            // ฟันเฟืองกาลเวลาหมุนตลอด
             ctx.save();
             ctx.translate(5, 0);
             ctx.rotate(Date.now() / 300);
-            ctx.fillStyle = "#FFD700"; // สีทองกาลเวลา
-            for(let i=0; i<6; i++) {
-                ctx.rotate(Math.PI / 3);
-                ctx.fillRect(0, -2, 12, 4);
-            }
+            ctx.fillStyle = "#FFD700"; 
+            for(let i=0; i<6; i++) { ctx.rotate(Math.PI / 3); ctx.fillRect(0, -2, 12, 4); }
             ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "#000"; // รูกลางเฟือง
+            ctx.fillStyle = "#000"; 
             ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI*2); ctx.fill();
             ctx.restore();
     
-            // 3.3 แกนพลังงานใบมีด (Energy Core)
+            // แกนพลังงานใบมีด
             ctx.fillStyle = "#FFFFFF";
-            ctx.beginPath();
-            ctx.moveTo(10, -2);
-            ctx.lineTo(this.length, 0);
-            ctx.lineTo(10, 2);
-            ctx.fill();
+            ctx.beginPath(); ctx.moveTo(10, -2); ctx.lineTo(this.length, 0); ctx.lineTo(10, 2); ctx.fill();
     
-            // 3.4 ใบมีดมิติเวลาโฮโลแกรม (Holo Blade)
+            // ใบมีดมิติเวลาโฮโลแกรม
             ctx.fillStyle = `rgba(0, 255, 255, ${0.7 + timePulse * 0.3})`;
             ctx.beginPath();
-            ctx.moveTo(8, -this.width * 0.6); // ฐานบน
-            ctx.lineTo(this.length * 1.1, 0); // ปลายแหลมเฟี้ยว
-            ctx.lineTo(15, this.width * 0.2); // ฐานล่าง
-            ctx.lineTo(25, 0); // รอยเว้าตรงกลางใบมีดให้ดูไซไฟ
-            ctx.fill();
+            ctx.moveTo(8, -this.width * 0.6); ctx.lineTo(this.length * 1.1, 0);
+            ctx.lineTo(15, this.width * 0.2); ctx.lineTo(25, 0); ctx.fill();
     
-            // 3.5 ออร่าเส้นพลังงานแตกแขนง (Fractal Edge)
+            // ออร่าเส้นพลังงานแตกแขนง
             ctx.strokeStyle = "#E0FFFF";
             ctx.lineWidth = 1.5;
             ctx.beginPath();
@@ -1472,9 +1477,8 @@ const WEAPON_REGISTRY = {
                     
                     player.custom.hitSet.add(target.id);
                     
-                    // เกจอันติเพิ่มเฉพาะการฟันผ่ามิติ (โดน 1 ตัวได้ 20 หน่วย, 5 ตัวเต็มพอดี)
+                    // เกจอันติเพิ่มเฉพาะการฟันผ่ามิติ
                     player.custom.realGauge = Math.min(100, player.custom.realGauge + 20);
-                    
                     game.spawnParticles(target.x, target.y, 40, "#FFFFFF");
                 }
             } else {
