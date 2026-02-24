@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ball Fight betaV6</title>
+    <style>
+        /* --- THEME: DIMENSIONAL MINIMAL MEDIEVAL --- */
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Lato:wght@400;700&display=swap');
+
+        :root {
+            --gold: #b89947;
+            --gold-dark: #8b7952;
+            --bg-light: #e8e4d8; /* Slightly darker parchment for depth */
+            --panel-bg: rgba(252, 250, 245, 0.95);
+            --text-main: #3d3124; /* Dark ink brown */
+            --text-accent: #5c4e3a; /* Muted brown */
+            --team1-color: #3b5998; /* Muted Royal Blue */
+            --team2-color: #8b2222; /* Muted Dark Red */
+            --border-light: #c8bca7;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-light);
+            color: var(--text-main);
+            font-family: 'Lato', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+            touch-action: manipulation; /* Prevent mobile zooming */
+        }
+
+        h1, h2, .hud-title {
+            font-family: 'Cinzel', serif;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-main);
+            margin: 0;
+            text-shadow: 1px 1px 0px rgba(255, 255, 255, 0.8); /* Emboss effect */
+        }
+
+        /* Menu Scene */
+        #menu {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at center, #ffffff 0%, #dcd7ca 100%);
+            z-index: 100;
+        }
+        
+        .menu-box {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(240, 236, 227, 0.9));
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid var(--border-light);
+            border-bottom: 4px solid var(--border-light); /* 3D Box effect */
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1), 0 5px 15px rgba(0, 0, 0, 0.05);
+            max-height: 90vh;
+            overflow-y: auto;
+            width: 80%;
+            max-width: 600px;
+            box-sizing: border-box;
+        }
+        
+        h1 { 
+            margin-bottom: 20px; 
+            font-size: 2.2em; 
+            border-bottom: 1px solid var(--border-light); 
+            padding-bottom: 15px;
+            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+            position: relative;
+        }
+
+        /* Beta Blinking Tag */
+        .beta-tag {
+            font-family: 'Lato', sans-serif;
+            font-size: 0.35em;
+            color: #d32f2f;
+            vertical-align: top;
+            margin-left: 8px;
+            letter-spacing: 1px;
+            font-weight: bold;
+            text-shadow: none;
+            animation: blink 1.2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        
+        .mode-selector { margin-bottom: 20px; padding: 10px; }
+        
+        .setup-section { margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .dynamic-row { 
+            display: flex; justify-content: space-between; align-items: center; 
+            background: linear-gradient(to right, rgba(0,0,0,0.03), transparent); 
+            padding: 10px 15px; 
+            border-radius: 4px;
+            border-left: 4px solid var(--gold);
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.02);
+        }
+        
+        select, input[type="number"], input[type="color"] {
+            padding: 6px 10px;
+            font-size: 14px;
+            font-family: 'Lato', sans-serif;
+            background: #fff;
+            color: var(--text-main);
+            border: 1px solid var(--border-light);
+            border-radius: 4px;
+            outline: none;
+            cursor: pointer;
+            transition: border-color 0.2s;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.04);
+        }
+        select:focus, input:focus { border-color: var(--gold); box-shadow: inset 0 2px 4px rgba(184, 153, 71, 0.1); }
+        
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+
+        button.primary-btn {
+            padding: 12px 35px;
+            font-size: 16px;
+            font-family: 'Cinzel', serif;
+            font-weight: bold;
+            background: linear-gradient(180deg, #fdfbf7 0%, #e8e4d8 100%);
+            color: var(--text-main);
+            border: 1px solid var(--border-light);
+            border-bottom: 3px solid var(--gold-dark);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.08);
+            text-shadow: 1px 1px 0px #fff;
+        }
+        button.primary-btn:hover { 
+            background: linear-gradient(180deg, #fff 0%, #f4f1ea 100%);
+            transform: translateY(-1px); 
+            box-shadow: 0 6px 12px rgba(184, 153, 71, 0.2);
+            border-bottom-color: var(--gold);
+        }
+        button.primary-btn:active {
+            transform: translateY(2px);
+            border-bottom-width: 1px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        button.secondary-btn {
+            padding: 12px 25px;
+            font-size: 14px;
+            font-family: 'Cinzel', serif;
+            font-weight: bold;
+            background: transparent;
+            color: var(--text-accent);
+            border: 1px solid var(--border-light);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        button.secondary-btn:hover {
+            background: rgba(0,0,0,0.03);
+            color: var(--text-main);
+            border-color: var(--text-accent);
+        }
+
+        /* Arena UI Layout */
+        #game-ui {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none;
+            display: none;
+            z-index: 10;
+        }
+        
+        /* Left HUD (Players / Team 1) */
+        #footer {
+            position: fixed;
+            top: 0; left: 0;
+            width: 270px; height: 100vh;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 20px 15px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            pointer-events: auto;
+            background: linear-gradient(90deg, rgba(232, 228, 216, 0.95) 0%, rgba(232, 228, 216, 0) 100%);
+        }
+
+        /* Right HUD (Bosses / P2 / Team 2) */
+        #header {
+            position: fixed;
+            top: 0; right: 0;
+            width: 270px; height: 100vh;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 20px 15px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            pointer-events: auto;
+            background: linear-gradient(-90deg, rgba(232, 228, 216, 0.95) 0%, rgba(232, 228, 216, 0) 100%);
+        }
+
+        .hud-panel {
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(240, 235, 225, 0.85));
+            border: 1px solid var(--border-light);
+            border-bottom: 3px solid var(--border-light); /* 3D effect */
+            border-left: 5px solid var(--gold); /* Team color handled in JS */
+            border-radius: 6px;
+            padding: 12px 15px;
+            width: 100%;
+            box-sizing: border-box;
+            backdrop-filter: blur(8px);
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,1);
+            position: relative;
+        }
+
+        .hud-title { margin-bottom: 8px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 11px; font-weight: bold; color: var(--text-accent);}
+        .passive-text { font-style: italic; color: #888; margin-top: 6px; font-size: 10px; height: 14px; overflow:hidden;}
+        
+        /* Bars */
+        .bar-container { width: 100%; height: 8px; background: #dcd7ca; border-radius: 4px; overflow: hidden; margin-bottom: 6px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.15);}
+        .hp-bar { height: 100%; transition: width 0.2s; box-shadow: inset 0 2px 4px rgba(255,255,255,0.4); }
+        .ult-bar { height: 100%; background: linear-gradient(90deg, #d4c4a8, var(--gold)); transition: width 0.2s; width: 0%; box-shadow: inset 0 2px 4px rgba(255,255,255,0.5);}
+        
+        /* Settings Button & Modal */
+        #settings-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 280px; /* Offset from right sidebar */
+            padding: 8px 16px;
+            font-size: 12px;
+            font-family: 'Cinzel', serif;
+            z-index: 50;
+            pointer-events: auto;
+            display: none;
+            background: linear-gradient(180deg, #fdfbf7 0%, #e8e4d8 100%);
+            border: 1px solid var(--border-light);
+            border-bottom: 2px solid var(--gold-dark);
+            color: var(--text-main);
+            border-radius: 4px;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        #settings-btn:hover { background: #fff; border-color: var(--gold); transform: translateY(-1px); }
+
+        #settings-modal {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(232, 228, 216, 0.85);
+            backdrop-filter: blur(5px);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            pointer-events: auto;
+        }
+        .settings-box {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 1), rgba(240, 236, 227, 1));
+            padding: 30px;
+            border-radius: 8px;
+            border: 1px solid var(--border-light);
+            border-bottom: 4px solid var(--border-light);
+            text-align: center;
+            min-width: 450px;
+            max-width: 95vw;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+        }
+        .settings-box h2 { margin-bottom: 20px; border-bottom: 1px solid var(--border-light); padding-bottom: 15px; box-shadow: 0 1px 0 #fff;}
+        
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            text-align: left;
+            margin-bottom: 20px;
+        }
+        .setting-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            background: rgba(0,0,0,0.02);
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid var(--border-light);
+        }
+        .setting-item label { 
+            display: flex; justify-content: space-between;
+            margin: 0; font-weight: bold; color: var(--text-accent); font-family: 'Cinzel', serif; font-size: 12px;
+        }
+        .setting-item label span { color: var(--gold-dark); }
+        .setting-item input[type="range"] { width: 100%; cursor: pointer; accent-color: var(--gold); }
+        
+        .settings-actions { margin-top: 20px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;}
+        
+        /* Canvas */
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* --- MOBILE RESPONSIVE MEDIA QUERIES --- */
+        @media (max-width: 768px) {
+            .menu-box { padding: 20px; width: 95%; }
+            h1 { font-size: 1.8em; }
+            .action-buttons { flex-direction: column; gap: 10px; }
+            .action-buttons button { width: 100%; }
+
+            .dynamic-row { flex-direction: column; align-items: stretch; gap: 8px; }
+            .dynamic-row select, .dynamic-row input { width: 100%; box-sizing: border-box; }
+
+            .settings-box { min-width: 0; width: 95%; padding: 20px; }
+            .settings-grid { grid-template-columns: 1fr; gap: 10px; }
+            .setting-item.span-2 { grid-column: span 1 !important; }
+
+            /* Reposition HUD to Top/Bottom rows for mobile */
+            #header, #footer {
+                width: 100vw;
+                height: 120px; /* Fixed height for mobile HUD bars */
+                flex-direction: row;
+                overflow-x: auto;
+                overflow-y: hidden;
+                padding: 10px;
+                gap: 10px;
+                -webkit-overflow-scrolling: touch; /* Smooth scroll */
+            }
+            #header {
+                top: 0; left: 0; right: auto;
+                background: linear-gradient(180deg, rgba(232, 228, 216, 0.95) 0%, rgba(232, 228, 216, 0) 100%);
+            }
+            #footer {
+                top: auto; bottom: 0; left: 0; right: auto;
+                background: linear-gradient(0deg, rgba(232, 228, 216, 0.95) 0%, rgba(232, 228, 216, 0) 100%);
+            }
+            .hud-panel {
+                width: 140px; /* Shrink panels to fit horizontally */
+                padding: 8px 10px;
+            }
+            .hud-title { font-size: 13px; margin-bottom: 4px; }
+            .stat-row { font-size: 10px; margin-bottom: 2px; }
+            .bar-container { height: 6px; margin-bottom: 4px; }
+            .passive-text { font-size: 9px; margin-top: 4px; height: 12px; }
+
+            /* Fix Settings button on mobile */
+            #settings-btn {
+                right: 10px !important;
+                bottom: 130px !important; /* Just above the bottom HUD */
+                padding: 10px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Scene 1: Main Menu -->
+    <div id="menu">
+        <div class="menu-box">
+            <h1>Ball Fight <span class="beta-tag">betaV6</span></h1>
+            
+            <div class="mode-selector">
+                <label style="font-weight:bold; font-size: 1.1em; color: var(--text-main); font-family: 'Cinzel', serif;">Game Mode: </label>
+                <select id="game-mode">
+                    <option value="1v1">1v1 Duel</option>
+                    <option value="boss">Boss Raid</option>
+                </select>
+            </div>
+
+            <div id="setup-container" class="setup-section"></div>
+
+            <div class="action-buttons">
+                <button id="start-btn" class="primary-btn">Enter Arena</button>
+                <button id="menu-settings-btn" class="secondary-btn">⚙️ Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scene 2: Game UI -->
+    <div id="game-ui">
+        <div id="footer"></div> <!-- Team 1 (Players) pinned Left/Bottom -->
+        <div id="header"></div> <!-- Team 2 (Bosses/Enemy) pinned Right/Top -->
+    </div>
+
+    <button id="settings-btn">⚙️ Options</button>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal">
+        <div class="settings-box">
+            <h2>Engine Setup & Hacks</h2>
+            
+            <div class="settings-grid">
+                <div class="setting-item">
+                    <label>ขนาดสนาม <span id="val-arenaScale">1.0</span></label>
+                    <input type="range" id="cfg-arenaScale" min="0.1" max="1.5" step="0.05">
+                </div>
+                <div class="setting-item">
+                    <label>ความเร็วปกติ <span id="val-baseSpeedCap">20</span></label>
+                    <input type="range" id="cfg-baseSpeedCap" min="0" max="60" step="1">
+                </div>
+                <div class="setting-item">
+                    <label>ความเร็วขั้นต่ำ (กันหยุดนิ่ง) <span id="val-minSpeed">5</span></label>
+                    <input type="range" id="cfg-minSpeed" min="0" max="30" step="1">
+                </div>
+                <div class="setting-item">
+                    <label>ความแรงเวลาชน <span id="val-collisionBounce">1.05</span></label>
+                    <input type="range" id="cfg-collisionBounce" min="0" max="3.0" step="0.05">
+                </div>
+                <div class="setting-item">
+                    <label>ความเร็วสูงสุด(หลังชน) <span id="val-maxCollisionSpeed">40</span></label>
+                    <input type="range" id="cfg-maxCollisionSpeed" min="0" max="100" step="1">
+                </div>
+                <div class="setting-item">
+                    <label>เวลาอมตะ i-Frame (ms) <span id="val-iFrameDuration">200</span></label>
+                    <input type="range" id="cfg-iFrameDuration" min="0" max="1000" step="10">
+                </div>
+                <div class="setting-item">
+                    <label>กระตุก Hit-Stop (ms) <span id="val-hitStopDuration">50</span></label>
+                    <input type="range" id="cfg-hitStopDuration" min="0" max="300" step="5">
+                </div>
+                <div class="setting-item">
+                    <label>เด้งกำแพง <span id="val-wallBounce">0.95</span></label>
+                    <input type="range" id="cfg-wallBounce" min="0" max="1.5" step="0.05">
+                </div>
+                <div class="setting-item">
+                    <label>แรงเสียดทานลาน <span id="val-friction">0.995</span></label>
+                    <input type="range" id="cfg-friction" min="0" max="1.0" step="0.001">
+                </div>
+                <div class="setting-item span-2" style="grid-column: span 2; display: flex; flex-direction: row; align-items: center; gap:10px;">
+                    <label style="flex-shrink: 0;">แสดงฮิตบล็อก (Debug)</label>
+                    <input type="checkbox" id="cfg-showHitboxes" style="width:20px; height:20px; accent-color: var(--gold);">
+                </div>
+                <div class="setting-item span-2" style="grid-column: span 2; display: flex; flex-direction: row; align-items: center; gap:10px;">
+                    <label style="flex-shrink: 0;">สีพื้นหลังนอกสนาม</label>
+                    <input type="color" id="cfg-bgColor" style="width: 100%; height: 35px; padding: 0; border:none; border-radius:4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">
+                </div>
+            </div>
+
+            <div class="settings-actions">
+                <button id="resume-btn" class="secondary-btn" style="border-color: var(--team1-color); color:var(--team1-color);">Resume</button>
+                <button id="reset-settings-btn" class="secondary-btn" style="border-color: var(--gold-dark); color:var(--text-main);">Reset</button>
+                <button id="quit-btn" class="secondary-btn" style="border-color: var(--team2-color); color:var(--team2-color);">Quit Game</button>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+/**
+ * ------------------------------------------------------------------
+ * UTILITIES & MATH & SETTINGS HACK OVERRIDE
+ * ------------------------------------------------------------------
+ */
+const MathUtils = {
+    distance: (x1, y1, x2, y2) => Math.hypot(x2 - x1, y2 - y1),
+    randRange: (min, max) => Math.random() * (max - min) + min,
+    clamp: (val, min, max) => Math.max(min, Math.min(max, val)),
+    normalize: (vx, vy) => {
+        let len = Math.hypot(vx, vy);
+        if (len === 0) return {x: 0, y: 0};
+        return {x: vx / len, y: vy / len};
+    },
+    // 🔥 Hack Override System: Allows any weapon/boss to break the global rules dynamically
+    getStat: (actor, statName) => {
+        if (!actor) return Engine.config[statName];
+        if (actor.custom && actor.custom[statName] !== undefined) return actor.custom[statName];
+        if (actor.weaponDef && actor.weaponDef[statName] !== undefined) return actor.weaponDef[statName];
+        if (actor.bossDef && actor.bossDef[statName] !== undefined) return actor.bossDef[statName];
+        return Engine.config[statName];
+    }
+};
+
+/**
+ * ------------------------------------------------------------------
+ * WEAPON REGISTRY
+ * ------------------------------------------------------------------
+ */
+const WEAPON_REGISTRY = {
+    "Sword": {
+        name: "Sword", color: "#e0e0e0", width: 25, length: 75, baseDamage: 8,
+        init(player) {
+            player.custom.dmgBonus = 0;
+            player.custom.spinSpeed = 0.08;
+            player.passiveText = `DMG Bonus: +0`;
+        },
+        onUpdate(player, enemy, game) {
+            player.weaponRotation += player.custom.spinSpeed * player.weaponDir * (game.delta / 16);
+            if (player.ultimateActive) {
+                player.weaponReach = 110; player.custom.spinSpeed = 0.2; player.custom.dmgBonus += 0.01;
+            } else {
+                player.weaponReach = 75; player.custom.spinSpeed = 0.08;
+            }
+            player.passiveText = `DMG Bonus: +${Math.floor(player.custom.dmgBonus)}`;
+        },
+        render(ctx, player, game) {
+            ctx.fillStyle = "#5c4e3a"; ctx.fillRect(-35, -6, 25, 12);
+            ctx.fillStyle = "#b89947"; ctx.beginPath(); ctx.arc(-35, 0, 8, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#b89947"; ctx.fillRect(-15, -25, 12, 50);
+            ctx.fillStyle = this.color;
+            ctx.shadowColor = player.ultimateActive ? "#f6d365" : "transparent"; ctx.shadowBlur = player.ultimateActive ? 15 : 0;
+            ctx.beginPath(); ctx.moveTo(-3, -15); ctx.lineTo(50, -10); ctx.lineTo(65, 0); ctx.lineTo(50, 10); ctx.lineTo(-3, 15); ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = "#8b7952"; ctx.lineWidth = 1; ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(-3, 0); ctx.lineTo(55, 0); ctx.strokeStyle = "#aaa"; ctx.lineWidth = 1; ctx.stroke();
+            ctx.shadowBlur = 0;
+        },
+        onHitPlayer(player, enemy, game) {
+            player.custom.dmgBonus += 2;
+            let dmg = this.baseDamage + player.custom.dmgBonus;
+            enemy.takeDamage(dmg, "physical", player, game);
+            let n = MathUtils.normalize(enemy.x - player.x, enemy.y - player.y);
+            enemy.applyForce(n.x * 20, n.y * 20);
+            player.reverseWeapon();
+        },
+        onHitWeapon(player, enemy, game) {
+            game.spawnParticles(player.weaponX, player.weaponY, 8, "#fff"); player.reverseWeapon();
+        },
+        onUltimateActivate(player, game) { player.hp = Math.min(player.maxHp, player.hp + 20); }
+    },
+
+    "Bow": {
+        name: "Bow", color: "#8b7952", width: 20, length: 55, baseDamage: 5,
+        init(player) {
+            player.custom.arrowCount = 1; player.custom.shootTimer = 0; player.custom.shotsFired = 0;
+            player.passiveText = `Arrows per shot: 1`;
+        },
+        onUpdate(player, enemy, game) {
+            if (enemy) {
+                let targetAngle = Math.atan2(enemy.y - player.y, enemy.x - player.x);
+                let diff = targetAngle - player.weaponRotation;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                player.weaponRotation += diff * 0.08 * (game.delta/16);
+            } else {
+                player.weaponRotation += 0.05 * player.weaponDir * (game.delta/16);
+            }
+            player.weaponReach = 55;
+            player.custom.shootTimer -= game.delta;
+            let fireRate = player.ultimateActive ? 100 : 800;
+            if (player.custom.shootTimer <= 0) {
+                player.custom.shootTimer = fireRate;
+                let count = player.ultimateActive ? player.custom.arrowCount + 2 : player.custom.arrowCount;
+                let spread = 0.2; let startAngle = player.weaponRotation - (spread * (count - 1)) / 2;
+                for(let i=0; i<count; i++) game.spawn(this.createArrow(player, startAngle + (i * spread)));
+                player.custom.shotsFired++;
+                if (player.custom.shotsFired % 5 === 0 && player.custom.arrowCount < 5) {
+                    player.custom.arrowCount++; player.passiveText = `Arrows per shot: ${player.custom.arrowCount}`;
+                }
+            }
+        },
+        render(ctx, player, game) {
+            ctx.shadowColor = player.ultimateActive ? "#f6d365" : "transparent"; ctx.shadowBlur = player.ultimateActive ? 15 : 0;
+            ctx.strokeStyle = this.color; ctx.lineWidth = 6; ctx.lineCap = "round";
+            ctx.beginPath(); ctx.arc(-10, 0, 45, -Math.PI/2.2, Math.PI/2.2); ctx.stroke();
+            ctx.strokeStyle = "#555"; ctx.lineWidth = 1; ctx.beginPath();
+            let drawBack = player.custom.shootTimer < 150 ? -25 : -5;
+            ctx.moveTo(10, -42); ctx.lineTo(drawBack, 0); ctx.lineTo(10, 42); ctx.stroke();
+            if (player.custom.shootTimer < 200) {
+                 ctx.fillStyle = "#fff"; ctx.fillRect(drawBack, -2, 40, 3); 
+                 ctx.fillStyle = "#8b7952"; ctx.beginPath(); ctx.moveTo(drawBack + 40, -5); ctx.lineTo(drawBack + 50, 0); ctx.lineTo(drawBack + 40, 5); ctx.fill();
+            }
+            ctx.shadowBlur = 0;
+        },
+        createArrow(owner, angle) {
+            return {
+                x: owner.weaponX, y: owner.weaponY, vx: Math.cos(angle) * 20, vy: Math.sin(angle) * 20, radius: 8, lifetime: 2000, owner: owner, type: "projectile",
+                update(game) {
+                    this.x += this.vx * (game.delta/16); this.y += this.vy * (game.delta/16); this.lifetime -= game.delta;
+                    let enemies = game.getEnemies(this.owner);
+                    for (let enemy of enemies) {
+                        if (MathUtils.distance(this.x, this.y, enemy.x, enemy.y) < this.radius + enemy.radius) {
+                            enemy.takeDamage(5, "pierce", this.owner, game);
+                            game.spawnParticles(this.x, this.y, 5, "#ccc");
+                            let n = MathUtils.normalize(Math.cos(angle), Math.sin(angle));
+                            enemy.applyForce(n.x * 5, n.y * 5);
+                            this.lifetime = 0; break;
+                        }
+                    }
+                    if (this.x < game.arena.x || this.x > game.arena.x + game.arena.size || this.y < game.arena.y || this.y > game.arena.y + game.arena.size) {
+                        this.lifetime = 0;
+                        game.spawnParticles(this.x, this.y, 3, "#8b7952");
+                    }
+                },
+                render(ctx) {
+                    ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(Math.atan2(this.vy, this.vx));
+                    ctx.fillStyle = "#8b7952"; ctx.fillRect(-20, -2, 35, 4);
+                    ctx.fillStyle = "#ddd"; ctx.beginPath(); ctx.moveTo(15, -5); ctx.lineTo(28, 0); ctx.lineTo(15, 5); ctx.closePath(); ctx.fill();
+                    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.moveTo(-20, -2); ctx.lineTo(-10, -8); ctx.lineTo(-5, -2); ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(-20, 2); ctx.lineTo(-10, 8); ctx.lineTo(-5, 2); ctx.fill();
+                    ctx.restore();
+                }
+            };
+        },
+        onHitPlayer(player, enemy, game) { enemy.takeDamage(2, "blunt", player, game); player.reverseWeapon(); },
+        onHitWeapon(player, enemy, game) { player.reverseWeapon(); }
+    },
+
+    "Magic Orb": {
+        name: "Magic Orb", color: "#9c27b0", width: 30, length: 85, baseDamage: 3,
+        init(player) {
+            player.custom.zoneTimer = 0; player.custom.burnStacksApplied = 0; player.passiveText = `Burn Stacks Applied: 0`;
+        },
+        onUpdate(player, enemy, game) {
+            player.weaponRotation += 0.04 * player.weaponDir * (game.delta/16);
+            player.weaponReach = 85;
+            player.custom.zoneTimer -= game.delta;
+            let zoneInterval = player.ultimateActive ? 300 : 1500;
+            if (player.custom.zoneTimer <= 0) { player.custom.zoneTimer = zoneInterval; game.spawn(this.createZone(player)); }
+            if (player.ultimateActive && enemy) {
+                let n = MathUtils.normalize(player.x - enemy.x, player.y - enemy.y);
+                enemy.applyForce(n.x * 1.5, n.y * 1.5); 
+            }
+        },
+        render(ctx, player, game) {
+            let time = Date.now();
+            ctx.shadowColor = this.color; ctx.shadowBlur = 20 + Math.sin(time * 0.005) * 10;
+            ctx.beginPath(); ctx.arc(0, 0, this.width - 5, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
+            ctx.beginPath(); ctx.arc(0, 0, this.width + Math.sin(time * 0.008) * 4, 0, Math.PI * 2); ctx.fillStyle = this.color; ctx.globalAlpha = 0.5; ctx.fill();
+            ctx.globalAlpha = 1.0; ctx.shadowBlur = 0;
+            ctx.save(); ctx.rotate(time * 0.002); ctx.strokeStyle = "#b89947"; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(0, 0, this.width + 10, this.width - 10, 0, 0, Math.PI*2); ctx.stroke();
+            ctx.rotate(Math.PI / 2); ctx.strokeStyle = this.color; ctx.beginPath(); ctx.ellipse(0, 0, this.width + 10, this.width - 10, 0, 0, Math.PI*2); ctx.stroke(); ctx.restore();
+        },
+        createZone(owner) {
+            return {
+                x: owner.weaponX, y: owner.weaponY, radius: 1, maxRadius: 60, lifetime: 4000, owner: owner, type: "zone", tickTimer: 0,
+                update(game) {
+                    if (this.radius < this.maxRadius) this.radius += 2 * (game.delta/16);
+                    this.lifetime -= game.delta; this.tickTimer -= game.delta;
+                    if (this.tickTimer <= 0) {
+                        this.tickTimer = 500; 
+                        let enemies = game.getEnemies(this.owner);
+                        for (let enemy of enemies) {
+                            if (MathUtils.distance(this.x, this.y, enemy.x, enemy.y) < this.radius + enemy.radius) {
+                                enemy.addStatus({
+                                    type: "burn", duration: 2000, tickTimer: 0,
+                                    update(p, g) {
+                                        this.tickTimer -= g.delta;
+                                        if(this.tickTimer <= 0) {
+                                            this.tickTimer = 400; p.takeDamage(2, "magic", null, g);
+                                            g.spawnParticles(p.x, p.y + Math.random()*20-10, 1, "#e64a19");
+                                        }
+                                    }
+                                });
+                                this.owner.custom.burnStacksApplied++; this.owner.passiveText = `Burn Stacks Applied: ${this.owner.custom.burnStacksApplied}`;
+                            }
+                        }
+                    }
+                },
+                render(ctx) {
+                    ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(156, 39, 176, ${this.lifetime / 4000 * 0.2})`; ctx.fill();
+                    ctx.strokeStyle = `rgba(156, 39, 176, ${this.lifetime / 4000 * 0.5})`; ctx.lineWidth = 1; ctx.stroke();
+                }
+            };
+        },
+        onHitPlayer(player, enemy, game) { enemy.takeDamage(this.baseDamage, "magic", player, game); player.reverseWeapon(); },
+        onHitWeapon(player, enemy, game) { player.reverseWeapon(); }
+    }
+};
+
+/**
+ * ------------------------------------------------------------------
+ * BOSS REGISTRY
+ * ------------------------------------------------------------------
+ */
+const BOSS_REGISTRY = {
+    "Slime King": {
+        name: "Slime King", color: "#4caf50", radius: 65, maxHp: 1500,
+        iFrameDuration: 100, // Boss custom hack
+        init(boss) {
+            boss.custom.jumpTimer = 2000; boss.custom.spawnTimer = 5000;
+            boss.passiveText = "Bounces heavily & spawns minions";
+        },
+        onUpdate(boss, game) {
+            boss.custom.jumpTimer -= game.delta; boss.custom.spawnTimer -= game.delta;
+            let enemies = game.getEnemies(boss);
+            let target = null; let minDist = Infinity;
+            for (let e of enemies) { let d = MathUtils.distance(boss.x, boss.y, e.x, e.y); if (d < minDist) { minDist = d; target = e; } }
+            if (boss.custom.jumpTimer <= 0 && target) {
+                boss.custom.jumpTimer = 3000;
+                let n = MathUtils.normalize(target.x - boss.x, target.y - boss.y);
+                boss.vx += n.x * 20; boss.vy += n.y * 20;
+                game.spawnParticles(boss.x, boss.y, 20, "#4caf50");
+            }
+            if (boss.custom.spawnTimer <= 0) {
+                boss.custom.spawnTimer = 6000; game.spawnParticles(boss.x, boss.y, 30, "#4caf50");
+                this.spawnMiniSlime(boss, game);
+            }
+        },
+        render(ctx, boss, game) {
+            ctx.fillStyle = "#b89947"; ctx.fillRect(-20, -boss.radius - 15, 40, 20); // Gold crown
+            ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(-10, -boss.radius - 15, 5, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(10, -boss.radius - 15, 5, 0, Math.PI*2); ctx.fill();
+        },
+        onHitPlayer(boss, player, game) {
+            player.takeDamage(15, "blunt", boss, game);
+            let n = MathUtils.normalize(player.x - boss.x, player.y - boss.y);
+            player.applyForce(n.x * 30, n.y * 30);
+        },
+        onTakeDamage(boss, source, game) { /* Short hitstop for boss */ },
+        spawnMiniSlime(owner, game) {
+            game.spawn({
+                x: owner.x + (Math.random()*100 - 50), y: owner.y + (Math.random()*100 - 50),
+                vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10,
+                radius: 15, lifetime: 10000, maxLife: 10000, type: "minion", team: owner.team, owner: owner,
+                update(g) {
+                    this.x += this.vx * (g.delta/16); this.y += this.vy * (g.delta/16); this.lifetime -= g.delta; this.vx *= 0.98; this.vy *= 0.98;
+                    if (Math.random() < 0.02) {
+                        let enemies = g.getEnemies(this); if(enemies.length > 0) {
+                            let t = enemies[Math.floor(Math.random()*enemies.length)];
+                            let n = MathUtils.normalize(t.x - this.x, t.y - this.y); this.vx += n.x * 5; this.vy += n.y * 5;
+                        }
+                    }
+                    let enemies = g.getEnemies(this);
+                    for (let e of enemies) {
+                        if (MathUtils.distance(this.x, this.y, e.x, e.y) < this.radius + e.radius) {
+                            e.takeDamage(2, "magic", this.owner, g); e.applyForce(this.vx, this.vy);
+                            this.lifetime = 0; g.spawnParticles(this.x, this.y, 10, "#4caf50"); break;
+                        }
+                    }
+                },
+                render(ctx) {
+                    ctx.globalAlpha = Math.max(0, this.lifetime / this.maxLife); ctx.fillStyle = "#4caf50";
+                    ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2); ctx.fill();
+                    ctx.strokeStyle = "#fff"; ctx.lineWidth=1; ctx.stroke(); ctx.globalAlpha = 1.0;
+                }
+            });
+        }
+    },
+    
+    "Dark Knight": {
+        name: "Dark Knight", color: "#424242", radius: 40, maxHp: 1200,
+        iFrameDuration: 100, // Boss custom hack
+        init(boss) { boss.custom.dashTimer = 3000; boss.custom.isDashing = false; boss.passiveText = "Relentless rusher"; },
+        onUpdate(boss, game) {
+            boss.custom.dashTimer -= game.delta;
+            if (boss.custom.dashTimer <= 0) {
+                let enemies = game.getEnemies(boss);
+                if(enemies.length > 0) {
+                    let target = enemies[Math.floor(Math.random()*enemies.length)];
+                    let n = MathUtils.normalize(target.x - boss.x, target.y - boss.y);
+                    boss.vx = n.x * 35; boss.vy = n.y * 35;
+                    boss.custom.dashTimer = 2500 + Math.random()*1000; boss.custom.isDashing = true;
+                    setTimeout(() => boss.custom.isDashing = false, 500);
+                    game.spawnParticles(boss.x, boss.y, 15, "#757575");
+                }
+            }
+        },
+        render(ctx, boss, game) {
+            ctx.fillStyle = "#212121"; ctx.fillRect(-15, -15, 30, 10);
+            ctx.fillStyle = "#d32f2f"; ctx.shadowColor = "#d32f2f"; ctx.shadowBlur = 10;
+            ctx.beginPath(); ctx.arc(-6, -10, 3, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(6, -10, 3, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            if(boss.custom.isDashing) { ctx.strokeStyle = "#d32f2f"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, boss.radius + 10, 0, Math.PI*2); ctx.stroke(); }
+        },
+        onHitPlayer(boss, player, game) {
+            let dmg = boss.custom.isDashing ? 20 : 8;
+            player.takeDamage(dmg, "pierce", boss, game); player.applyForce(boss.vx * 0.5, boss.vy * 0.5);
+        },
+        onTakeDamage(boss, source, game) {
+            boss.ultimateGauge += 5;
+            if (boss.ultimateGauge >= 100) {
+                boss.ultimateGauge = 0; game.spawnParticles(boss.x, boss.y, 50, "#424242");
+                let enemies = game.getEnemies(boss);
+                for(let e of enemies) {
+                    let n = MathUtils.normalize(e.x - boss.x, e.y - boss.y);
+                    e.applyForce(n.x * 40, n.y * 40); e.takeDamage(10, "magic", boss, game);
+                }
+            }
+        }
+    }
+};
+
+/**
+ * ------------------------------------------------------------------
+ * ENGINE CLASSES
+ * ------------------------------------------------------------------
+ */
+class Actor {
+    constructor(id, x, y, color, team, maxHp, radius) {
+        this.id = id; this.x = x; this.y = y;
+        this.vx = (Math.random() - 0.5) * 18; this.vy = (Math.random() - 0.5) * 18;
+        this.radius = radius; this.color = color; this.team = team;
+        this.maxHp = maxHp; this.hp = this.maxHp;
+        this.custom = {}; this.passiveText = "";
+        this.statusEffects = []; this.ultimateGauge = 0; this.ultimateActive = false; this.ultimateTimer = 0; this.iFrames = 0;
+    }
+    applyForce(fx, fy) { this.vx += fx; this.vy += fy; }
+    addStatus(effect) {
+        let ex = this.statusEffects.find(e => e.type === effect.type);
+        if (ex) ex.duration = Math.max(ex.duration, effect.duration);
+        else this.statusEffects.push(effect);
+    }
+    updateEffects(game) {
+        for (let i = this.statusEffects.length - 1; i >= 0; i--) {
+            let effect = this.statusEffects[i]; effect.duration -= game.delta;
+            if (effect.update) effect.update(this, game);
+            if (effect.duration <= 0) this.statusEffects.splice(i, 1);
+        }
+    }
+    handleWallCollision(arena) {
+        let bounce = MathUtils.getStat(this, 'wallBounce');
+        let r = MathUtils.getStat(this, 'actorRadius') ?? this.radius;
+        const perturb = () => (Math.random() - 0.5) * 5; 
+        if (this.x - r < arena.x) { this.x = arena.x + r; this.vx = Math.abs(this.vx) * bounce + perturb(); this.vy += perturb(); }
+        else if (this.x + r > arena.x + arena.size) { this.x = arena.x + arena.size - r; this.vx = -Math.abs(this.vx) * bounce + perturb(); this.vy += perturb(); }
+        if (this.y - r < arena.y) { this.y = arena.y + r; this.vy = Math.abs(this.vy) * bounce + perturb(); this.vx += perturb(); }
+        else if (this.y + r > arena.y + arena.size) { this.y = arena.y + arena.size - r; this.vy = -Math.abs(this.vy) * bounce + perturb(); this.vx += perturb(); }
+    }
+}
+
+class Player extends Actor {
+    constructor(id, x, y, color, team, weaponName) {
+        super(id, x, y, color, team, 100, 35); this.isPlayer = true;
+        this.weaponDef = WEAPON_REGISTRY[weaponName]; this.weaponRotation = Math.random() * Math.PI * 2; this.weaponDir = 1; 
+        this.weaponReach = this.weaponDef ? this.weaponDef.length : 0;
+        this.weaponHitboxRadius = this.weaponDef ? this.weaponDef.width : 0;
+        this.weaponCooldown = 0; if(this.weaponDef && this.weaponDef.init) this.weaponDef.init(this);
+    }
+    get weaponX() { return this.x + Math.cos(this.weaponRotation) * this.weaponReach; }
+    get weaponY() { return this.y + Math.sin(this.weaponRotation) * this.weaponReach; }
+    
+    update(game) {
+        let dtMod = game.delta / 16; 
+        this.x += this.vx * dtMod; this.y += this.vy * dtMod; 
+        
+        let friction = MathUtils.getStat(this, 'friction');
+        let speedCap = MathUtils.getStat(this, 'baseSpeedCap');
+        let minSpeed = MathUtils.getStat(this, 'minSpeed');
+        let maxColSpeed = MathUtils.getStat(this, 'maxCollisionSpeed');
+
+        // ทำการลดความเร็วด้วยแรงเสียดทานก่อน
+        this.vx *= friction; 
+        this.vy *= friction;
+        
+        let speed = Math.hypot(this.vx, this.vy);
+        
+        // Physics Override System: จัดการความเร็วสูงสุด
+        if (speed > maxColSpeed) { 
+            this.vx = (this.vx / speed) * maxColSpeed; this.vy = (this.vy / speed) * maxColSpeed; 
+        } else if (speed > speedCap) { 
+            this.vx *= 0.95; this.vy *= 0.95; // ค่อยๆ ลดความเร็วลงมาหาจุดปกติ
+        }
+
+        // เช็คความเร็วอีกครั้งหลังหักลบ
+        speed = Math.hypot(this.vx, this.vy);
+
+        // Minimum Speed System: ป้องกันลูกบอลหยุดนิ่งสนิท
+        if (speed < minSpeed) {
+            if (speed === 0) { // กรณีความเร็วเป็น 0 สนิท ให้สุ่มพุ่งไปทางใดทางหนึ่ง
+                let angle = Math.random() * Math.PI * 2;
+                this.vx = Math.cos(angle) * minSpeed;
+                this.vy = Math.sin(angle) * minSpeed;
+            } else { // ดันความเร็วขึ้นให้แตะเส้นขั้นต่ำเสมอ
+                this.vx = (this.vx / speed) * minSpeed;
+                this.vy = (this.vy / speed) * minSpeed;
+            }
+        }
+
+        if (this.iFrames > 0) this.iFrames -= game.delta; 
+        if (this.weaponCooldown > 0) this.weaponCooldown -= game.delta;
+        
+        this.updateEffects(game);
+        
+        if (this.ultimateActive) { this.ultimateTimer -= game.delta; this.ultimateGauge = (this.ultimateTimer / 2000) * 100; if (this.ultimateTimer <= 0) { this.ultimateActive = false; this.ultimateGauge = 0; } }
+        if (this.weaponDef && this.weaponDef.onUpdate) {
+            let enemies = game.getEnemies(this); let closest = null; let minDist = Infinity;
+            for(let e of enemies) { let d = MathUtils.distance(this.x, this.y, e.x, e.y); if(d < minDist) { minDist = d; closest = e; } }
+            this.weaponDef.onUpdate(this, closest, game);
+        }
+        this.handleWallCollision(game.arena);
+    }
+    
+    render(ctx, game) {
+        let r = MathUtils.getStat(this, 'actorRadius') ?? this.radius;
+        let wr = MathUtils.getStat(this, 'weaponHitboxRadius') ?? this.weaponHitboxRadius;
+
+        if (this.statusEffects.some(e => e.type === "burn")) { ctx.shadowColor = "#e64a19"; ctx.shadowBlur = 15; }
+        ctx.beginPath(); ctx.arc(this.x, this.y, r, 0, Math.PI * 2); ctx.fillStyle = this.iFrames > 0 ? "#fff" : this.color; ctx.fill();
+        ctx.lineWidth = 2; ctx.strokeStyle = this.ultimateActive ? "#d4af37" : "rgba(44, 36, 27, 0.5)"; ctx.stroke(); ctx.shadowBlur = 0; 
+        if (this.weaponDef) {
+            let wx = this.weaponX; let wy = this.weaponY; ctx.save(); ctx.translate(wx, wy); ctx.rotate(this.weaponRotation);
+            if (this.weaponDef.render) this.weaponDef.render(ctx, this, game);
+            else { ctx.fillStyle = this.weaponDef.color; ctx.fillRect(-wr, -wr, wr*2, wr*2); }
+            ctx.restore();
+        }
+        ctx.fillStyle = "rgba(44, 36, 27, 0.8)"; ctx.font = "bold 13px 'Cinzel', serif"; ctx.textAlign="center"; ctx.fillText(this.id, this.x, this.y - r - 12);
+    }
+    
+    takeDamage(amount, type, source, game) {
+        if (this.iFrames > 0) return; 
+        this.hp = Math.max(0, this.hp - amount); 
+        this.iFrames = MathUtils.getStat(this, 'iFrameDuration'); 
+        
+        let hsTime = MathUtils.getStat(source || this, 'hitStopDuration');
+        game.triggerHitStop(hsTime); 
+        
+        game.spawnParticles(this.x, this.y, 15, source ? source.color : "#fff");
+        let dc = "#333"; if (type === "physical") dc = "#555"; else if (type === "pierce") dc = "#b89947"; else if (type === "blunt") dc = "#795548"; else if (type === "magic") dc = "#9c27b0"; else if (type === "burn") dc = "#d84315";
+        game.spawnFloatingText(this.x, this.y, amount, dc);
+        if (source && source.isPlayer && !source.ultimateActive && source.id) {
+            source.ultimateGauge += 20; if (source.ultimateGauge >= 100) { source.ultimateGauge = 100; source.ultimateActive = true; source.ultimateTimer = 2000; if(source.weaponDef && source.weaponDef.onUltimateActivate) source.weaponDef.onUltimateActivate(source, game); game.spawnParticles(source.x, source.y, 40, "#d4af37"); }
+        }
+        if (this.weaponDef && this.weaponDef.onTakeDamage) this.weaponDef.onTakeDamage(this, source, game);
+    }
+    
+    reverseWeapon() { if (this.weaponCooldown <= 0) { this.weaponDir *= -1; this.weaponCooldown = 200; } }
+}
+
+class Boss extends Actor {
+    constructor(id, x, y, bossName, team) {
+        let def = BOSS_REGISTRY[bossName]; super(id, x, y, def.color, team, def.maxHp, def.radius); this.isBoss = true; this.bossDef = def;
+        if(this.bossDef.init) this.bossDef.init(this);
+    }
+    update(game) {
+        let dtMod = game.delta / 16; this.x += this.vx * dtMod; this.y += this.vy * dtMod; 
+        
+        let friction = MathUtils.getStat(this, 'friction');
+        let speedCap = MathUtils.getStat(this, 'baseSpeedCap');
+        let minSpeed = MathUtils.getStat(this, 'minSpeed');
+        let maxColSpeed = MathUtils.getStat(this, 'maxCollisionSpeed');
+
+        // ทำการลดความเร็วด้วยแรงเสียดทานก่อน
+        this.vx *= friction; 
+        this.vy *= friction;
+
+        let speed = Math.hypot(this.vx, this.vy);
+        
+        // Physics Override System: จัดการความเร็วสูงสุด
+        if (speed > maxColSpeed) { 
+            this.vx = (this.vx / speed) * maxColSpeed; this.vy = (this.vy / speed) * maxColSpeed; 
+        } else if (speed > speedCap) { 
+            this.vx *= 0.95; this.vy *= 0.95; 
+        }
+
+        // เช็คความเร็วอีกครั้งหลังหักลบ
+        speed = Math.hypot(this.vx, this.vy);
+
+        // Minimum Speed System: ป้องกันบอสหยุดนิ่งสนิท
+        if (speed < minSpeed) {
+            if (speed === 0) {
+                let angle = Math.random() * Math.PI * 2;
+                this.vx = Math.cos(angle) * minSpeed;
+                this.vy = Math.sin(angle) * minSpeed;
+            } else {
+                this.vx = (this.vx / speed) * minSpeed;
+                this.vy = (this.vy / speed) * minSpeed;
+            }
+        }
+
+        if (this.iFrames > 0) this.iFrames -= game.delta; this.updateEffects(game);
+        if (this.bossDef.onUpdate) this.bossDef.onUpdate(this, game);
+        this.handleWallCollision(game.arena);
+    }
+    render(ctx, game) {
+        let r = MathUtils.getStat(this, 'actorRadius') ?? this.radius;
+        if (this.statusEffects.some(e => e.type === "burn")) { ctx.shadowColor = "#e64a19"; ctx.shadowBlur = 20; }
+        ctx.save(); ctx.translate(this.x, this.y);
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = this.iFrames > 0 ? "#fff" : this.color; ctx.fill();
+        ctx.lineWidth = 3; ctx.strokeStyle = "rgba(44, 36, 27, 0.5)"; ctx.stroke(); ctx.shadowBlur = 0; 
+        if (this.bossDef.render) this.bossDef.render(ctx, this, game);
+        ctx.restore(); ctx.fillStyle = "rgba(44, 36, 27, 0.9)"; ctx.font = "bold 16px 'Cinzel', serif"; ctx.textAlign="center"; ctx.fillText(this.bossDef.name, this.x, this.y - r - 15);
+    }
+    takeDamage(amount, type, source, game) {
+        if (this.iFrames > 0) return; 
+        this.hp = Math.max(0, this.hp - amount); 
+        this.iFrames = MathUtils.getStat(this, 'iFrameDuration'); 
+        
+        let hsTime = MathUtils.getStat(source || this, 'hitStopDuration');
+        game.triggerHitStop(hsTime);
+
+        game.spawnParticles(this.x, this.y, 20, source ? source.color : "#fff");
+        let dc = "#333"; if (type === "physical") dc = "#555"; else if (type === "pierce") dc = "#b89947"; else if (type === "blunt") dc = "#795548"; else if (type === "magic") dc = "#9c27b0"; else if (type === "burn") dc = "#d84315";
+        game.spawnFloatingText(this.x, this.y, amount, dc);
+        if (source && source.isPlayer && !source.ultimateActive && source.id) {
+            source.ultimateGauge += 10; if (source.ultimateGauge >= 100) { source.ultimateGauge = 100; source.ultimateActive = true; source.ultimateTimer = 2000; if(source.weaponDef && source.weaponDef.onUltimateActivate) source.weaponDef.onUltimateActivate(source, game); game.spawnParticles(source.x, source.y, 40, "#d4af37"); }
+        }
+        if (this.bossDef.onTakeDamage) this.bossDef.onTakeDamage(this, source, game);
+    }
+}
+
+/**
+ * ------------------------------------------------------------------
+ * MAIN ENGINE OBJECT
+ * ------------------------------------------------------------------
+ */
+const Engine = {
+    canvas: document.getElementById('gameCanvas'),
+    ctx: document.getElementById('gameCanvas').getContext('2d'),
+    width: window.innerWidth, height: window.innerHeight,
+    
+    // Global Configs
+    config: {
+        arenaScale: 1.0,
+        bgColor: "#e8e4d8",
+        baseSpeedCap: 20,
+        minSpeed: 5,
+        collisionBounce: 1.05,
+        maxCollisionSpeed: 40,
+        iFrameDuration: 200,
+        hitStopDuration: 50,
+        wallBounce: 0.95,
+        friction: 0.995,
+        showHitboxes: false
+    },
+    
+    arena: { x: 0, y: 0, size: 0, scale: 1.0 }, 
+    actors: [], entities: [], particles: [],
+    lastTime: 0, delta: 0, hitStop: 0, state: 'MENU', mode: '1v1',
+    
+    init() {
+        window.addEventListener('resize', () => this.resizeCanvas());
+        this.resizeCanvas(); this.buildMenuUI();
+        document.getElementById('game-mode').addEventListener('change', (e) => { this.mode = e.target.value; this.buildMenuUI(); });
+        document.getElementById('start-btn').addEventListener('click', () => { this.startGame(); });
+        
+        // Settings Sync
+        const configKeys = ['arenaScale', 'baseSpeedCap', 'minSpeed', 'collisionBounce', 'maxCollisionSpeed', 'iFrameDuration', 'hitStopDuration', 'wallBounce', 'friction'];
+        configKeys.forEach(k => {
+            let el = document.getElementById(`cfg-${k}`);
+            let valEl = document.getElementById(`val-${k}`);
+            if(el) {
+                el.value = this.config[k];
+                if(valEl) valEl.innerText = this.config[k];
+                el.addEventListener('input', e => {
+                    let v = parseFloat(e.target.value);
+                    this.config[k] = v;
+                    if(valEl) valEl.innerText = v;
+                    if(k === 'arenaScale') { this.arena.scale = v; this.resizeCanvas(); }
+                });
+            }
+        });
+        let chkHitbox = document.getElementById('cfg-showHitboxes');
+        if(chkHitbox) {
+            chkHitbox.checked = this.config.showHitboxes;
+            chkHitbox.addEventListener('change', e => this.config.showHitboxes = e.target.checked);
+        }
+        let bgEl = document.getElementById('cfg-bgColor');
+        if(bgEl) {
+            bgEl.value = this.config.bgColor;
+            bgEl.addEventListener('input', e => this.config.bgColor = e.target.value);
+        }
+
+        // Open Settings from Main Menu
+        document.getElementById('menu-settings-btn').addEventListener('click', () => { 
+            document.getElementById('settings-modal').style.display = 'flex'; 
+            document.getElementById('quit-btn').style.display = 'none'; 
+            document.getElementById('resume-btn').innerText = 'Close';
+        });
+
+        // Open Settings while Playing
+        document.getElementById('settings-btn').addEventListener('click', () => { 
+            this.state = 'PAUSED'; 
+            document.getElementById('settings-modal').style.display = 'flex'; 
+            document.getElementById('quit-btn').style.display = 'block';
+            document.getElementById('resume-btn').innerText = 'Resume';
+        });
+
+        // Close Settings
+        document.getElementById('resume-btn').addEventListener('click', () => { 
+            document.getElementById('settings-modal').style.display = 'none'; 
+            if(this.actors.length > 0) { 
+                this.state = 'PLAYING'; 
+                this.lastTime = performance.now(); 
+            }
+        });
+
+        // Reset Settings
+        document.getElementById('reset-settings-btn').addEventListener('click', () => {
+            this.config = {
+                arenaScale: 1.0,
+                bgColor: "#e8e4d8",
+                baseSpeedCap: 20,
+                minSpeed: 5,
+                collisionBounce: 1.05,
+                maxCollisionSpeed: 40,
+                iFrameDuration: 200,
+                hitStopDuration: 50,
+                wallBounce: 0.95,
+                friction: 0.995,
+                showHitboxes: false
+            };
+            this.arena.scale = 1.0;
+            
+            // Sync UI elements back to default values
+            configKeys.forEach(k => {
+                let el = document.getElementById(`cfg-${k}`);
+                let valEl = document.getElementById(`val-${k}`);
+                if(el) el.value = this.config[k];
+                if(valEl) valEl.innerText = this.config[k];
+            });
+            
+            let chkHitboxEl = document.getElementById('cfg-showHitboxes');
+            if(chkHitboxEl) chkHitboxEl.checked = this.config.showHitboxes;
+
+            // Sync Arena scale specifically
+            let oldArenaScaleEl = document.getElementById('arena-scale');
+            let oldArenaScaleVal = document.getElementById('arena-scale-val');
+            if(oldArenaScaleEl) oldArenaScaleEl.value = 1.0;
+            if(oldArenaScaleVal) oldArenaScaleVal.innerText = "100";
+
+            let bgColEl = document.getElementById('cfg-bgColor');
+            let oldBgColEl = document.getElementById('bg-color');
+            if(bgColEl) bgColEl.value = this.config.bgColor;
+            if(oldBgColEl) oldBgColEl.value = this.config.bgColor;
+
+            this.resizeCanvas();
+        });
+
+        document.getElementById('quit-btn').addEventListener('click', () => {
+            document.getElementById('settings-modal').style.display = 'none'; document.getElementById('game-ui').style.display = 'none';
+            document.getElementById('settings-btn').style.display = 'none'; document.getElementById('menu').style.display = 'flex'; this.state = 'MENU';
+            this.actors = []; 
+        });
+
+        requestAnimationFrame((t) => this.loop(t));
+    },
+
+    resizeCanvas() {
+        this.width = window.innerWidth;
+        this.height = window.innerHeight;
+        this.canvas.width = this.width;
+        this.canvas.height = this.height;
+        
+        let isMobile = this.width <= 768;
+        
+        if (isMobile) {
+            // Mobile Layout: Top & Bottom HUDs
+            let hudH = this.state !== 'MENU' ? 120 : 0; 
+            let availableW = this.width - 20; 
+            let availableH = this.height - (hudH * 2) - 20;
+            
+            let baseSize = Math.max(1, Math.min(availableW, availableH));
+            this.arena.size = baseSize * this.arena.scale;
+            
+            this.arena.x = (this.width - this.arena.size) / 2;
+            this.arena.y = hudH + 10 + (availableH - this.arena.size) / 2;
+
+            let sBtn = document.getElementById('settings-btn');
+            if (sBtn) {
+                sBtn.style.right = '10px';
+                sBtn.style.bottom = (hudH + 10) + 'px';
+            }
+        } else {
+            // Desktop Layout: Left & Right HUDs
+            const hudWidth = 270;
+            let availableW = this.width - (hudWidth * 2) - 60; 
+            let availableH = this.height - 60;
+            
+            let baseSize = Math.max(1, Math.min(availableW, availableH));
+            this.arena.size = baseSize * this.arena.scale;
+            
+            this.arena.x = hudWidth + 30 + (availableW - this.arena.size) / 2;
+            this.arena.y = (this.height - this.arena.size) / 2;
+
+            let sBtn = document.getElementById('settings-btn');
+            if (sBtn) {
+                sBtn.style.right = '280px';
+                sBtn.style.bottom = '20px';
+            }
+        }
+    },
+
+    buildMenuUI() {
+        const container = document.getElementById('setup-container'); container.innerHTML = "";
+        const gw = () => { let h = ""; for(let w in WEAPON_REGISTRY) h += `<option value="${w}">${w}</option>`; return h; };
+        const gb = () => { let h = ""; for(let b in BOSS_REGISTRY) h += `<option value="${b}">${b}</option>`; return h; };
+        
+        let team1Label = this.width <= 768 ? "P1 Weapon (Bottom):" : "P1 Weapon (Left):";
+        let team2Label = this.width <= 768 ? "P2 Weapon (Top):" : "P2 Weapon (Right):";
+        let pLabel = this.width <= 768 ? "Players (1-5, Bottom):" : "Players (1-5, Left):";
+        let bLabel = this.width <= 768 ? "Bosses (1-2, Top):" : "Bosses (1-2, Right):";
+
+        if (this.mode === '1v1') {
+            container.innerHTML = `
+                <div class="dynamic-row" style="border-left-color: var(--team1-color);"><label style="color:var(--text-main); font-weight:bold;">${team1Label}</label><select id="p1-w">${gw()}</select></div>
+                <div class="dynamic-row" style="border-left-color: var(--team2-color);"><label style="color:var(--text-main); font-weight:bold;">${team2Label}</label><select id="p2-w">${gw()}</select></div>`;
+            document.getElementById('p2-w').selectedIndex = 1; 
+        } else {
+            let div = document.createElement('div');
+            div.innerHTML = `
+                <div class="dynamic-row" style="border-left-color: var(--team1-color);"><label style="color:var(--text-main); font-weight:bold;">${pLabel}</label><input type="number" id="num-players" value="1" min="1" max="5"></div>
+                <div id="player-list-container"></div>
+                <div class="dynamic-row" style="margin-top:10px; border-left-color: var(--team2-color);"><label style="color:var(--text-main); font-weight:bold;">${bLabel}</label><input type="number" id="num-bosses" value="1" min="1" max="2"></div>
+                <div id="boss-list-container"></div>`;
+            container.appendChild(div);
+            const update = () => {
+                let pCount = MathUtils.clamp(parseInt(document.getElementById('num-players').value) || 1, 1, 5);
+                let pHTML = ""; for(let i=1; i<=pCount; i++) pHTML += `<div class="dynamic-row" style="border-left: 2px solid var(--border-light); padding-left:25px;"><label>P${i} Weapon:</label><select class="bossmode-p-weapon">${gw()}</select></div>`;
+                document.getElementById('player-list-container').innerHTML = pHTML;
+                let bCount = MathUtils.clamp(parseInt(document.getElementById('num-bosses').value) || 1, 1, 2);
+                let bHTML = ""; for(let i=1; i<=bCount; i++) bHTML += `<div class="dynamic-row" style="border-left: 2px solid var(--border-light); padding-left:25px;"><label>Boss ${i}:</label><select class="bossmode-boss-select">${gb()}</select></div>`;
+                document.getElementById('boss-list-container').innerHTML = bHTML;
+            };
+            document.getElementById('num-players').addEventListener('input', update); document.getElementById('num-bosses').addEventListener('input', update);
+            update();
+        }
+    },
+
+    startGame() {
+        document.getElementById('menu').style.display = 'none'; document.getElementById('game-ui').style.display = 'block'; document.getElementById('settings-btn').style.display = 'block';
+        this.actors = []; this.entities = []; this.particles = []; this.hitStop = 0;
+        let colorsP = ["#4169e1", "#4682b4", "#5f9ea0", "#20b2aa", "#6a5acd"]; // Muted Blues
+        let colorsB = ["#e57373", "#ff8a65"]; // Bright reds for visibility on bright bg
+        if (this.mode === '1v1') {
+            this.actors.push(new Player("P1", 0, 0, colorsP[0], 1, document.getElementById('p1-w').value));
+            this.actors.push(new Player("P2", 0, 0, colorsB[0], 2, document.getElementById('p2-w').value));
+        } else {
+            document.querySelectorAll('.bossmode-p-weapon').forEach((s, i) => this.actors.push(new Player(`P${i+1}`, 0, 0, colorsP[i], 1, s.value)));
+            document.querySelectorAll('.bossmode-boss-select').forEach((s, i) => this.actors.push(new Boss(`B${i+1}`, 0, 0, s.value, 2)));
+        }
+        this.resizeCanvas();
+        this.actors.forEach((a, i) => {
+            if(a.team === 1) { a.x = this.arena.x + this.arena.size * 0.2; a.y = this.arena.y + this.arena.size * (0.2 + i*0.1); a.vx = MathUtils.getStat(a, 'baseSpeedCap')/2; }
+            else { a.x = this.arena.x + this.arena.size * 0.8; a.y = this.arena.y + this.arena.size * (0.2 + (i-this.actors.filter(x=>x.team===1).length)*0.3); a.vx = -MathUtils.getStat(a, 'baseSpeedCap')/2; }
+        });
+        this.buildHUD(); this.lastTime = performance.now(); this.state = 'PLAYING';
+    },
+
+    buildHUD() {
+        const header = document.getElementById('header'); const footer = document.getElementById('footer');
+        header.innerHTML = ""; footer.innerHTML = "";
+        const cPanel = (a, b) => `
+            <div class="hud-panel" style="border-left-color:${b?'var(--team2-color)':'var(--team1-color)'}">
+                <div class="hud-title" style="color:var(--text-main)">${b?a.bossDef.name:`${a.id} (${a.weaponDef.name})`}</div>
+                <div class="stat-row"><span>HP</span><span id="${a.id}-hp-text">${a.maxHp}/${a.maxHp}</span></div>
+                <div class="bar-container"><div class="hp-bar" id="${a.id}-hp" style="background:${a.color};width:100%"></div></div>
+                ${a.isPlayer?`<div class="stat-row"><span style="color:var(--gold-dark)">Ult</span><span id="${a.id}-ult-text">0%</span></div><div class="bar-container"><div class="ult-bar" id="${a.id}-ult"></div></div>`:""}
+                <div class="passive-text" id="${a.id}-passive">Passive: --</div>
+            </div>`;
+        this.actors.filter(a => a.team === 1).forEach(a => footer.innerHTML += cPanel(a, a.isBoss));
+        this.actors.filter(a => a.team === 2).forEach(a => header.innerHTML += cPanel(a, a.isBoss));
+    },
+
+    updateHUD() {
+        this.actors.forEach(a => {
+            let hpB = document.getElementById(`${a.id}-hp`), hpT = document.getElementById(`${a.id}-hp-text`), pT = document.getElementById(`${a.id}-passive`);
+            if(hpB) hpB.style.width = `${(a.hp / a.maxHp) * 100}%`;
+            if(hpT) hpT.innerText = `${Math.ceil(a.hp)}/${a.maxHp}`;
+            if(pT) pT.innerText = `Passive: ${a.passiveText || "--"}`;
+            if(a.isPlayer) {
+                let uB = document.getElementById(`${a.id}-ult`), uT = document.getElementById(`${a.id}-ult-text`);
+                if(uB) { uB.style.width = `${a.ultimateGauge}%`; uB.style.background = a.ultimateActive?"#fff":"linear-gradient(90deg, #d4c4a8, var(--gold))"; }
+                if(uT) uT.innerText = a.ultimateActive?"ACTIVE":`${Math.floor(a.ultimateGauge)}%`;
+            }
+        });
+    },
+
+    getEnemies(a) { return this.actors.filter(x => x.team !== a.team && x.hp > 0); },
+    spawn(e) { this.entities.push(e); },
+    spawnActor(actor) { 
+        this.actors.push(actor); 
+        this.buildHUD(); // Rebuild HUD to properly show HP bars for the newly spawned actor
+    },
+    spawnParticles(x, y, c, col) { for(let i=0; i<c; i++) { let a = Math.random()*Math.PI*2, s = Math.random()*5+2; this.particles.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,color:col,type:"particle"}); } },
+    spawnFloatingText(x, y, amt, col) { this.spawn({x:x+(Math.random()*30-15),y:y-40,vx:(Math.random()-0.5)*2,vy:-2,lifetime:800,maxLife:800,text:Math.ceil(amt).toString(),color:col,type:"text",update(g){this.x+=this.vx*(g.delta/16);this.y+=this.vy*(g.delta/16);this.lifetime-=g.delta;},render(ctx){ctx.save();ctx.globalAlpha=Math.max(0,this.lifetime/this.maxLife);ctx.fillStyle=this.color;ctx.font="bold 24px 'Cinzel', serif";ctx.textAlign="center";ctx.strokeStyle="rgba(255,255,255,0.8)";ctx.lineWidth=3;ctx.strokeText(this.text,this.x,this.y);ctx.fillText(this.text,this.x,this.y);ctx.restore();}}); },
+    triggerHitStop(ms) { this.hitStop = ms; },
+
+    checkCollisions() {
+        let active = this.actors.filter(a => a.hp > 0);
+        for(let i=0; i<active.length; i++) {
+            for(let j=i+1; j<active.length; j++) {
+                let a1 = active[i], a2 = active[j];
+                let r1 = MathUtils.getStat(a1, 'actorRadius') ?? a1.radius;
+                let r2 = MathUtils.getStat(a2, 'actorRadius') ?? a2.radius;
+                let dist = Math.hypot(a2.x-a1.x, a2.y-a1.y), minDist = r1 + r2;
+                if (dist < minDist) {
+                    let overlap = minDist-dist, nx = (a2.x-a1.x)/dist, ny = (a2.y-a1.y)/dist;
+                    a1.x-=nx*overlap/2; a1.y-=ny*overlap/2; a2.x+=nx*overlap/2; a2.y+=ny*overlap/2;
+                    
+                    let b1 = MathUtils.getStat(a1, 'collisionBounce');
+                    let b2 = MathUtils.getStat(a2, 'collisionBounce');
+                    
+                    let tx = a1.vx, ty = a1.vy; 
+                    a1.vx = a2.vx * b1; a1.vy = a2.vy * b1; 
+                    a2.vx = tx * b2; a2.vy = ty * b2;
+                    
+                    if(a1.isBoss && a2.isPlayer && a1.team!==a2.team && a1.bossDef.onHitPlayer) a1.bossDef.onHitPlayer(a1,a2,this);
+                    else if(a2.isBoss && a1.isPlayer && a2.team!==a1.team && a2.bossDef.onHitPlayer) a2.bossDef.onHitPlayer(a2,a1,this);
+                }
+            }
+        }
+        active.filter(a=>a.isPlayer && a.weaponDef).forEach(att => {
+            let enemies = this.getEnemies(att);
+            let wRadius = MathUtils.getStat(att, 'weaponHitboxRadius') ?? att.weaponHitboxRadius;
+            enemies.forEach(t => { 
+                let tr = MathUtils.getStat(t, 'actorRadius') ?? t.radius;
+                if(MathUtils.distance(att.weaponX, att.weaponY, t.x, t.y) < wRadius + tr) { 
+                    if(att.weaponCooldown<=0 && att.weaponDef.onHitPlayer) att.weaponDef.onHitPlayer(att,t,this); 
+                } 
+            });
+            enemies.filter(e=>e.isPlayer && e.weaponDef).forEach(t => { 
+                let ewRadius = MathUtils.getStat(t, 'weaponHitboxRadius') ?? t.weaponHitboxRadius;
+                if(MathUtils.distance(att.weaponX, att.weaponY, t.weaponX, t.weaponY) < wRadius + ewRadius) { 
+                    if(att.weaponCooldown<=0 && att.weaponDef.onHitWeapon) att.weaponDef.onHitWeapon(att,t,this); 
+                    if(t.weaponCooldown<=0 && t.weaponDef.onHitWeapon) t.weaponDef.onHitWeapon(t,att,this); 
+                } 
+            });
+        });
+    },
+
+    checkWinCondition() {
+        let t1 = this.actors.filter(a => a.team === 1 && a.hp > 0).length > 0, t2 = this.actors.filter(a => a.team === 2 && a.hp > 0).length > 0;
+        if (!t1 || !t2) {
+            this.state = 'GAMEOVER';
+            setTimeout(() => { alert(`${t1 ? "Honor to the Players!" : "The Enemy Claims Victory!"}`); document.getElementById('menu').style.display='flex'; document.getElementById('game-ui').style.display='none'; document.getElementById('settings-btn').style.display='none'; this.state='MENU'; }, 1000);
+        }
+    },
+
+    loop(timestamp) {
+        this.delta = timestamp - this.lastTime; this.lastTime = timestamp;
+        if (this.delta > 100) this.delta = 16; 
+        
+        // Background Color 
+        this.ctx.fillStyle = this.config.bgColor; 
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        let radius = Math.max(1, this.arena.size);
+        // Dynamic Radial Gradient for Arena depth
+        let gradient = this.ctx.createRadialGradient(
+            this.arena.x + this.arena.size/2, this.arena.y + this.arena.size/2, 0,
+            this.arena.x + this.arena.size/2, this.arena.y + this.arena.size/2, radius
+        );
+        gradient.addColorStop(0, "rgba(255, 255, 255, 0.95)");
+        gradient.addColorStop(1, "rgba(235, 230, 220, 0.85)");
+        
+        this.ctx.fillStyle = gradient; 
+        this.ctx.fillRect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
+        
+        // Minimal Grid (Faint dark lines)
+        this.ctx.strokeStyle = "rgba(139, 121, 82, 0.15)"; 
+        this.ctx.lineWidth = 1; 
+        this.ctx.beginPath();
+        for(let i=0; i<=this.arena.size; i+=50) { 
+            this.ctx.moveTo(this.arena.x+i, this.arena.y); this.ctx.lineTo(this.arena.x+i, this.arena.y+this.arena.size); 
+            this.ctx.moveTo(this.arena.x, this.arena.y+i); this.ctx.lineTo(this.arena.x+this.arena.size, this.arena.y+i); 
+        }
+        this.ctx.stroke();
+        
+        // Dimensional Medieval Borders
+        this.ctx.strokeStyle = "#8b7952"; // Gold-dark border
+        this.ctx.lineWidth = 3; 
+        this.ctx.strokeRect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
+        
+        // Inner depth line
+        this.ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(this.arena.x + 2, this.arena.y + 2, this.arena.size - 4, this.arena.size - 4);
+
+        // Outer shadow/trim
+        this.ctx.strokeStyle = "rgba(0, 0, 0, 0.1)";
+        this.ctx.lineWidth = 4;
+        this.ctx.strokeRect(this.arena.x - 2, this.arena.y - 2, this.arena.size + 4, this.arena.size + 4);
+        
+        // Clipping region for entities
+        this.ctx.save(); 
+        this.ctx.beginPath(); this.ctx.rect(this.arena.x, this.arena.y, this.arena.size, this.arena.size); this.ctx.clip();
+        
+        if (this.state === 'PLAYING') {
+            if (this.hitStop > 0) this.hitStop -= this.delta;
+            else {
+                this.actors = this.actors.filter(a => a.hp > 0 || a.iFrames > 0);
+                this.actors.forEach(a => a.update(this));
+                this.checkCollisions();
+                for (let i = this.entities.length-1; i>=0; i--) { this.entities[i].update(this); if (this.entities[i].lifetime <= 0) this.entities.splice(i, 1); }
+                for (let i = this.particles.length-1; i>=0; i--) { if(this.particles[i].type === "particle") { this.particles[i].x += this.particles[i].vx*(this.delta/16); this.particles[i].y += this.particles[i].vy*(this.delta/16); this.particles[i].life -= 0.05*(this.delta/16); } if (this.particles[i].life <= 0) this.particles.splice(i, 1); }
+                this.updateHUD(); this.checkWinCondition();
+            }
+        }
+        if(this.state !== 'MENU') {
+            this.entities.filter(e => e.type === "zone").forEach(e => e.render(this.ctx));
+            this.actors.filter(a => a.hp > 0).forEach(a => a.render(this.ctx, this));
+            this.entities.filter(e => e.type === "projectile").forEach(e => e.render(this.ctx));
+            this.particles.forEach(p => { if(p.type === "particle") { this.ctx.fillStyle = p.color; this.ctx.globalAlpha = p.life; this.ctx.beginPath(); this.ctx.arc(p.x, p.y, 4, 0, Math.PI*2); this.ctx.fill(); } });
+        }
+        this.ctx.restore(); 
+        if(this.state !== 'MENU') {
+            this.entities.filter(e => e.type === "text").forEach(e => e.render(this.ctx));
+            
+            // --- DEBUG HITBOXES ---
+            if (this.config.showHitboxes) {
+                this.ctx.lineWidth = 1;
+                this.actors.filter(a => a.hp > 0).forEach(a => {
+                    let r = MathUtils.getStat(a, 'actorRadius') ?? a.radius;
+                    this.ctx.strokeStyle = "rgba(0, 255, 255, 0.8)"; // Cyan: Body Hitbox
+                    this.ctx.beginPath(); this.ctx.arc(a.x, a.y, r, 0, Math.PI*2); this.ctx.stroke();
+                    
+                    if (a.isPlayer && a.weaponDef) {
+                        let wr = MathUtils.getStat(a, 'weaponHitboxRadius') ?? a.weaponHitboxRadius;
+                        this.ctx.strokeStyle = "rgba(255, 0, 0, 0.8)"; // Red: Weapon Hitbox
+                        this.ctx.beginPath(); this.ctx.arc(a.weaponX, a.weaponY, wr, 0, Math.PI*2); this.ctx.stroke();
+                    }
+                });
+                this.entities.forEach(e => {
+                    if (e.radius) {
+                        this.ctx.strokeStyle = e.type === "zone" ? "rgba(255, 255, 0, 0.8)" : "rgba(0, 255, 0, 0.8)";
+                        this.ctx.beginPath(); this.ctx.arc(e.x, e.y, e.radius, 0, Math.PI*2); this.ctx.stroke();
+                    }
+                });
+            }
+        }
+        requestAnimationFrame((t) => this.loop(t));
+    }
+};
+
+/**
+ * ------------------------------------------------------------------
+ * SAFETY SYSTEM
+ * ------------------------------------------------------------------
+ */
+const SafetySystem = {
+    logError(m, c, e) { console.error(`[Safety] 🚨 ${m} [${c}]:`, e); },
+    createSafeFunction(m, c, f) {
+        if (typeof f !== 'function') return f;
+        return function(...a) { try { if (!f) return; return f.apply(this, a); } catch (err) { SafetySystem.logError(m, c, err); } };
+    },
+    safeguardWeapon(n, d) {
+        if (!d || typeof d !== 'object') return null;
+        ['init', 'onUpdate', 'render', 'onHitPlayer', 'onHitWeapon', 'onTakeDamage', 'onUltimateActivate'].forEach(h => { if (typeof d[h] === 'function') d[h] = this.createSafeFunction(`Weapon:${n}`, h, d[h]); });
+        return d;
+    },
+    safeguardBoss(n, d) {
+        if (!d || typeof d !== 'object') return null;
+        ['init', 'onUpdate', 'render', 'onHitPlayer', 'onTakeDamage'].forEach(h => { if (typeof d[h] === 'function') d[h] = this.createSafeFunction(`Boss:${n}`, h, d[h]); });
+        return d;
+    },
+    applyWrappers() {
+        for (let n in WEAPON_REGISTRY) WEAPON_REGISTRY[n] = this.safeguardWeapon(n, WEAPON_REGISTRY[n]);
+        for (let n in BOSS_REGISTRY) BOSS_REGISTRY[n] = this.safeguardBoss(n, BOSS_REGISTRY[n]);
+        const oS = Engine.spawn; Engine.spawn = function(e) { if (!e) return; ['update', 'render'].forEach(h => { if (typeof e[h] === 'function') e[h] = SafetySystem.createSafeFunction(`Entity`, h, e[h]); }); oS.call(this, e); };
+        const oA = Actor.prototype.addStatus; Actor.prototype.addStatus = function(e) { if (!e) return; if (typeof e.update === 'function') e.update = SafetySystem.createSafeFunction(`Status`, 'update', e.update); oA.call(this, e); };
+    }
+};
+
+SafetySystem.applyWrappers();
+Engine.init();
+
+</script>
+</body>
+</html>
