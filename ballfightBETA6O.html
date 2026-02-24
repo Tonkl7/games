@@ -418,7 +418,7 @@
                     <input type="range" id="cfg-baseSpeedCap" min="0" max="60" step="1">
                 </div>
                 <div class="setting-item">
-                    <label>ความเร็วขั้นต่ำ (กันหยุดนิ่ง) <span id="val-minSpeed">5</span></label>
+                    <label>ความเร็วขั้นต่ำ <span id="val-minSpeed">5</span></label>
                     <input type="range" id="cfg-minSpeed" min="0" max="30" step="1">
                 </div>
                 <div class="setting-item">
@@ -430,7 +430,7 @@
                     <input type="range" id="cfg-maxCollisionSpeed" min="0" max="100" step="1">
                 </div>
                 <div class="setting-item">
-                    <label>เวลาอมตะ i-Frame (ms) <span id="val-iFrameDuration">200</span></label>
+                    <label>อมตะ i-Frame (ms) <span id="val-iFrameDuration">200</span></label>
                     <input type="range" id="cfg-iFrameDuration" min="0" max="1000" step="10">
                 </div>
                 <div class="setting-item">
@@ -480,7 +480,6 @@ const MathUtils = {
         if (len === 0) return {x: 0, y: 0};
         return {x: vx / len, y: vy / len};
     },
-    // 🔥 Hack Override System: Allows any weapon/boss to break the global rules dynamically
     getStat: (actor, statName) => {
         if (!actor) return Engine.config[statName];
         if (actor.custom && actor.custom[statName] !== undefined) return actor.custom[statName];
@@ -503,6 +502,19 @@ const WEAPON_REGISTRY = {
             player.custom.spinSpeed = 0.08;
             player.passiveText = `DMG Bonus: +0`;
         },
+        // 🔥 Multi-Hitbox System Example: Sword has 2 overlapping circles for a blade shape
+        getHitboxes(player, game) {
+            let hbs = [];
+            let wRadius = MathUtils.getStat(player, 'weaponHitboxRadius') ?? this.width;
+            let reach = player.weaponReach;
+            hbs.push({ x: player.weaponX, y: player.weaponY, r: wRadius }); // Tip
+            hbs.push({ 
+                x: player.x + Math.cos(player.weaponRotation) * (reach * 0.5), 
+                y: player.y + Math.sin(player.weaponRotation) * (reach * 0.5), 
+                r: wRadius * 0.6 
+            }); // Mid blade
+            return hbs;
+        },
         onUpdate(player, enemy, game) {
             player.weaponRotation += player.custom.spinSpeed * player.weaponDir * (game.delta / 16);
             if (player.ultimateActive) {
@@ -523,7 +535,7 @@ const WEAPON_REGISTRY = {
             ctx.beginPath(); ctx.moveTo(-3, 0); ctx.lineTo(55, 0); ctx.strokeStyle = "#aaa"; ctx.lineWidth = 1; ctx.stroke();
             ctx.shadowBlur = 0;
         },
-        onHitPlayer(player, enemy, game) {
+        onHitPlayer(player, enemy, game, hitboxObj) {
             player.custom.dmgBonus += 2;
             let dmg = this.baseDamage + player.custom.dmgBonus;
             enemy.takeDamage(dmg, "physical", player, game);
@@ -587,7 +599,8 @@ const WEAPON_REGISTRY = {
                     this.x += this.vx * (game.delta/16); this.y += this.vy * (game.delta/16); this.lifetime -= game.delta;
                     let enemies = game.getEnemies(this.owner);
                     for (let enemy of enemies) {
-                        if (MathUtils.distance(this.x, this.y, enemy.x, enemy.y) < this.radius + enemy.radius) {
+                        let er = MathUtils.getStat(enemy, 'actorRadius') ?? enemy.radius;
+                        if (MathUtils.distance(this.x, this.y, enemy.x, enemy.y) < this.radius + er) {
                             enemy.takeDamage(5, "pierce", this.owner, game);
                             game.spawnParticles(this.x, this.y, 5, "#ccc");
                             let n = MathUtils.normalize(Math.cos(angle), Math.sin(angle));
@@ -649,7 +662,8 @@ const WEAPON_REGISTRY = {
                         this.tickTimer = 500; 
                         let enemies = game.getEnemies(this.owner);
                         for (let enemy of enemies) {
-                            if (MathUtils.distance(this.x, this.y, enemy.x, enemy.y) < this.radius + enemy.radius) {
+                            let er = MathUtils.getStat(enemy, 'actorRadius') ?? enemy.radius;
+                            if (MathUtils.distance(this.x, this.y, enemy.x, enemy.y) < this.radius + er) {
                                 enemy.addStatus({
                                     type: "burn", duration: 2000, tickTimer: 0,
                                     update(p, g) {
@@ -674,143 +688,6 @@ const WEAPON_REGISTRY = {
         },
         onHitPlayer(player, enemy, game) { enemy.takeDamage(this.baseDamage, "magic", player, game); player.reverseWeapon(); },
         onHitWeapon(player, enemy, game) { player.reverseWeapon(); }
-    },
-    "Duplicate": {
-        name: "Duplicate",
-        color: "#9b59b6", // สีม่วง
-        width: 35, // ตั้งค่าให้กว้างเท่ากับขนาดตัวละคร (รัศมี 35)
-        length: 0, // ตั้งความยาวเป็น 0 เพื่อให้อาวุธซ้อนทับกับจุดศูนย์กลางตัวละครพอดี
-        baseDamage: 5,
-        
-        // Physics Hacks
-        weaponHitboxRadius: 35, // แฮ็กระยะการชนของอาวุธให้ครอบคลุมขนาดลำตัวพอดี
-        
-        init(player) { 
-            // เช็คว่าเป็น "ตัวจริง" หรือไม่ โดยดูจาก ID ว่ามีคำว่า _Clone_ หรือเปล่า
-            if (!player.id.includes("_Clone_")) {
-                player.custom.isReal = true;
-            } else {
-                player.custom.isReal = false;
-            }
-            
-            // Cooldown ป้องกันการปั๊มลูกน้องจนเกมค้าง และกันดาเมจรัวเกินไป
-            player.custom.cloneCooldown = 0; 
-            player.custom.bodyHitCooldown = 0; 
-            player.passiveText = "ชนศัตรูสร้างดาเมจ & แยกร่างลูกน้อง (HP 25%)"; 
-        },
-        
-        onUpdate(player, closestEnemy, game) {
-            // หมุนอาวุธตามปกติ
-            player.weaponRotation += 0.08 * player.weaponDir * (game.delta / 16);
-            
-            // ลด Cooldown
-            if (player.custom.cloneCooldown > 0) player.custom.cloneCooldown -= game.delta;
-            if (player.custom.bodyHitCooldown > 0) player.custom.bodyHitCooldown -= game.delta;
-    
-            // เช็คการชนกันด้วยลำตัว (Body Collision) แบบทันทีไม่ต้องรอ Hitbox อาวุธ
-            if (player.custom.bodyHitCooldown <= 0) {
-                let enemies = game.getEnemies(player);
-                for (let enemy of enemies) {
-                    // คำนวณระยะห่างระหว่างเรากับศัตรู
-                    let dx = enemy.x - player.x;
-                    let dy = enemy.y - player.y;
-                    let dist = Math.sqrt(dx * dx + dy * dy);
-                    
-                    // ถ้าระยะห่างน้อยกว่ารัศมีของทั้งสองตัวรวมกัน แปลว่าชนกันแล้ว
-                    let colDist = (player.radius || 35) + (enemy.radius || 35);
-                    
-                    if (dist < colDist) {
-                        // สร้างดาเมจและแยกร่างทันทีเมื่อเดินชน
-                        enemy.takeDamage(this.baseDamage, "physical", player, game);
-                        game.spawnParticles(player.x, player.y, 5, this.color);
-                        this.spawnClone(player, game, 0.25);
-                        
-                        player.custom.bodyHitCooldown = 500; // ติดคูลดาวน์ 0.5 วินาทีต่อการชน 1 ครั้ง
-                        player.reverseWeapon();
-                        break;
-                    }
-                }
-            }
-        },
-        
-        render(ctx, player, game) { 
-            // ไม่มีอาวุธ จึงไม่มีการวาดรูปทรงอาวุธ
-            // วาดแค่ "ดาว" บนหัวสำหรับตัวจริงเท่านั้น
-            if (player.custom.isReal) {
-                ctx.save();
-                // ยกเลิกการหมุนของตัวแปรอาวุธ เพื่อให้ดาวหันหัวขึ้นตรงๆ เสมอ
-                ctx.rotate(-player.weaponRotation);
-                
-                // วาดรูปดาว 5 แฉกสีทอง
-                ctx.fillStyle = "#FFD700";
-                ctx.beginPath();
-                for (let i = 0; i < 5; i++) {
-                    ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * 15, -Math.sin((18 + i * 72) * Math.PI / 180) * 15);
-                    ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * 7, -Math.sin((54 + i * 72) * Math.PI / 180) * 7);
-                }
-                ctx.closePath();
-                ctx.fill();
-                
-                // ใส่ขอบดำให้ดาวเห็นชัดขึ้น
-                ctx.strokeStyle = "#000";
-                ctx.lineWidth = 1;
-                ctx.stroke();
-                ctx.restore();
-            }
-        },
-        
-        onHitPlayer(player, target, game) {
-            // เช็ค Cooldown เผื่อในกรณีที่ Hitbox ซ้อนทับกัน
-            if (player.custom.bodyHitCooldown > 0) return;
-            
-            target.takeDamage(this.baseDamage, "physical", player, game);
-            this.spawnClone(player, game, 0.25);
-            player.custom.bodyHitCooldown = 500;
-            player.reverseWeapon();
-        },
-        
-        onHitWeapon(player, enemyPlayer, game) {
-            // เช็ค Cooldown เผื่อในกรณีที่ Hitbox ซ้อนทับกัน
-            if (player.custom.bodyHitCooldown > 0) return;
-    
-            enemyPlayer.takeDamage(this.baseDamage, "physical", player, game);
-            game.spawnParticles(player.x, player.y, 5, this.color);
-            this.spawnClone(player, game, 0.25);
-            player.custom.bodyHitCooldown = 500;
-            player.reverseWeapon();
-        },
-        
-        onTakeDamage(player, source, game) {},
-        
-        onUltimateActivate(player, game) {
-            // อัลติเมต: สร้างร่างแยกที่มีเลือด 100% ของตัวปัจจุบัน
-            this.spawnClone(player, game, 1.0);
-        },
-    
-        // --- ฟังก์ชัน Custom สำหรับจัดการการสร้างร่างแยก ---
-        spawnClone(player, game, hpMultiplier) {
-            if (hpMultiplier < 1.0 && player.custom.cloneCooldown > 0) return;
-    
-            // สุ่ม ID ใหม่โดยมี tag _Clone_ แปะไว้
-            let cloneId = player.id + "_Clone_" + Math.floor(Math.random() * 100000);
-            
-            let offsetX = (Math.random() - 0.5) * 45;
-            let offsetY = (Math.random() - 0.5) * 45;
-            
-            let clone = new Player(cloneId, player.x + offsetX, player.y + offsetY, player.color, player.team, this.name);
-            
-            game.spawnActor(clone);
-            
-            let targetHp = Math.max(1, player.hp * hpMultiplier);
-            clone.hp = targetHp;
-            clone.maxHp = targetHp;
-            
-            if (hpMultiplier < 1.0) {
-                player.custom.cloneCooldown = 500; 
-                if(!clone.custom) clone.custom = {};
-                clone.custom.cloneCooldown = 500;
-            }
-        }
     }
 };
 
@@ -822,7 +699,7 @@ const WEAPON_REGISTRY = {
 const BOSS_REGISTRY = {
     "Slime King": {
         name: "Slime King", color: "#4caf50", radius: 65, maxHp: 1500,
-        iFrameDuration: 100, // Boss custom hack
+        iFrameDuration: 100, 
         init(boss) {
             boss.custom.jumpTimer = 2000; boss.custom.spawnTimer = 5000;
             boss.passiveText = "Bounces heavily & spawns minions";
@@ -853,7 +730,7 @@ const BOSS_REGISTRY = {
             let n = MathUtils.normalize(player.x - boss.x, player.y - boss.y);
             player.applyForce(n.x * 30, n.y * 30);
         },
-        onTakeDamage(boss, source, game) { /* Short hitstop for boss */ },
+        onTakeDamage(boss, source, game) { },
         spawnMiniSlime(owner, game) {
             game.spawn({
                 x: owner.x + (Math.random()*100 - 50), y: owner.y + (Math.random()*100 - 50),
@@ -869,7 +746,8 @@ const BOSS_REGISTRY = {
                     }
                     let enemies = g.getEnemies(this);
                     for (let e of enemies) {
-                        if (MathUtils.distance(this.x, this.y, e.x, e.y) < this.radius + e.radius) {
+                        let er = MathUtils.getStat(e, 'actorRadius') ?? e.radius;
+                        if (MathUtils.distance(this.x, this.y, e.x, e.y) < this.radius + er) {
                             e.takeDamage(2, "magic", this.owner, g); e.applyForce(this.vx, this.vy);
                             this.lifetime = 0; g.spawnParticles(this.x, this.y, 10, "#4caf50"); break;
                         }
@@ -886,7 +764,7 @@ const BOSS_REGISTRY = {
     
     "Dark Knight": {
         name: "Dark Knight", color: "#424242", radius: 40, maxHp: 1200,
-        iFrameDuration: 100, // Boss custom hack
+        iFrameDuration: 100, 
         init(boss) { boss.custom.dashTimer = 3000; boss.custom.isDashing = false; boss.passiveText = "Relentless rusher"; },
         onUpdate(boss, game) {
             boss.custom.dashTimer -= game.delta;
@@ -987,29 +865,25 @@ class Player extends Actor {
         let minSpeed = MathUtils.getStat(this, 'minSpeed');
         let maxColSpeed = MathUtils.getStat(this, 'maxCollisionSpeed');
 
-        // ทำการลดความเร็วด้วยแรงเสียดทานก่อน
         this.vx *= friction; 
         this.vy *= friction;
         
         let speed = Math.hypot(this.vx, this.vy);
         
-        // Physics Override System: จัดการความเร็วสูงสุด
         if (speed > maxColSpeed) { 
             this.vx = (this.vx / speed) * maxColSpeed; this.vy = (this.vy / speed) * maxColSpeed; 
         } else if (speed > speedCap) { 
-            this.vx *= 0.95; this.vy *= 0.95; // ค่อยๆ ลดความเร็วลงมาหาจุดปกติ
+            this.vx *= 0.95; this.vy *= 0.95; 
         }
 
-        // เช็คความเร็วอีกครั้งหลังหักลบ
         speed = Math.hypot(this.vx, this.vy);
 
-        // Minimum Speed System: ป้องกันลูกบอลหยุดนิ่งสนิท
         if (speed < minSpeed) {
-            if (speed === 0) { // กรณีความเร็วเป็น 0 สนิท ให้สุ่มพุ่งไปทางใดทางหนึ่ง
+            if (speed === 0) { 
                 let angle = Math.random() * Math.PI * 2;
                 this.vx = Math.cos(angle) * minSpeed;
                 this.vy = Math.sin(angle) * minSpeed;
-            } else { // ดันความเร็วขึ้นให้แตะเส้นขั้นต่ำเสมอ
+            } else { 
                 this.vx = (this.vx / speed) * minSpeed;
                 this.vy = (this.vy / speed) * minSpeed;
             }
@@ -1078,23 +952,19 @@ class Boss extends Actor {
         let minSpeed = MathUtils.getStat(this, 'minSpeed');
         let maxColSpeed = MathUtils.getStat(this, 'maxCollisionSpeed');
 
-        // ทำการลดความเร็วด้วยแรงเสียดทานก่อน
         this.vx *= friction; 
         this.vy *= friction;
 
         let speed = Math.hypot(this.vx, this.vy);
         
-        // Physics Override System: จัดการความเร็วสูงสุด
         if (speed > maxColSpeed) { 
             this.vx = (this.vx / speed) * maxColSpeed; this.vy = (this.vy / speed) * maxColSpeed; 
         } else if (speed > speedCap) { 
             this.vx *= 0.95; this.vy *= 0.95; 
         }
 
-        // เช็คความเร็วอีกครั้งหลังหักลบ
         speed = Math.hypot(this.vx, this.vy);
 
-        // Minimum Speed System: ป้องกันบอสหยุดนิ่งสนิท
         if (speed < minSpeed) {
             if (speed === 0) {
                 let angle = Math.random() * Math.PI * 2;
@@ -1408,7 +1278,7 @@ const Engine = {
     spawn(e) { this.entities.push(e); },
     spawnActor(actor) { 
         this.actors.push(actor); 
-        this.buildHUD(); // Rebuild HUD to properly show HP bars for the newly spawned actor
+        this.buildHUD(); 
     },
     spawnParticles(x, y, c, col) { for(let i=0; i<c; i++) { let a = Math.random()*Math.PI*2, s = Math.random()*5+2; this.particles.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,color:col,type:"particle"}); } },
     spawnFloatingText(x, y, amt, col) { this.spawn({x:x+(Math.random()*30-15),y:y-40,vx:(Math.random()-0.5)*2,vy:-2,lifetime:800,maxLife:800,text:Math.ceil(amt).toString(),color:col,type:"text",update(g){this.x+=this.vx*(g.delta/16);this.y+=this.vy*(g.delta/16);this.lifetime-=g.delta;},render(ctx){ctx.save();ctx.globalAlpha=Math.max(0,this.lifetime/this.maxLife);ctx.fillStyle=this.color;ctx.font="bold 24px 'Cinzel', serif";ctx.textAlign="center";ctx.strokeStyle="rgba(255,255,255,0.8)";ctx.lineWidth=3;ctx.strokeText(this.text,this.x,this.y);ctx.fillText(this.text,this.x,this.y);ctx.restore();}}); },
@@ -1416,12 +1286,15 @@ const Engine = {
 
     checkCollisions() {
         let active = this.actors.filter(a => a.hp > 0);
+
+        // 1. Body vs Body (Physics & Simple Boss Damage)
         for(let i=0; i<active.length; i++) {
             for(let j=i+1; j<active.length; j++) {
                 let a1 = active[i], a2 = active[j];
                 let r1 = MathUtils.getStat(a1, 'actorRadius') ?? a1.radius;
                 let r2 = MathUtils.getStat(a2, 'actorRadius') ?? a2.radius;
                 let dist = Math.hypot(a2.x-a1.x, a2.y-a1.y), minDist = r1 + r2;
+                
                 if (dist < minDist) {
                     let overlap = minDist-dist, nx = (a2.x-a1.x)/dist, ny = (a2.y-a1.y)/dist;
                     a1.x-=nx*overlap/2; a1.y-=ny*overlap/2; a2.x+=nx*overlap/2; a2.y+=ny*overlap/2;
@@ -1433,26 +1306,64 @@ const Engine = {
                     a1.vx = a2.vx * b1; a1.vy = a2.vy * b1; 
                     a2.vx = tx * b2; a2.vy = ty * b2;
                     
+                    // Fallback body damage
                     if(a1.isBoss && a2.isPlayer && a1.team!==a2.team && a1.bossDef.onHitPlayer) a1.bossDef.onHitPlayer(a1,a2,this);
                     else if(a2.isBoss && a1.isPlayer && a2.team!==a1.team && a2.bossDef.onHitPlayer) a2.bossDef.onHitPlayer(a2,a1,this);
                 }
             }
         }
+
+        // 2. Boss Custom Hitboxes vs Players
+        let bossesWithHitboxes = active.filter(a => a.isBoss && a.bossDef.getHitboxes);
+        bossesWithHitboxes.forEach(boss => {
+            let hitboxes = boss.bossDef.getHitboxes(boss, this) || [];
+            let players = this.getEnemies(boss).filter(p => p.isPlayer);
+            players.forEach(p => {
+                let pr = MathUtils.getStat(p, 'actorRadius') ?? p.radius;
+                for (let hb of hitboxes) {
+                    if (MathUtils.distance(hb.x, hb.y, p.x, p.y) < hb.r + pr) {
+                        if (boss.bossDef.onHitPlayer) boss.bossDef.onHitPlayer(boss, p, this, hb);
+                        break; // Only trigger one hit per frame per player
+                    }
+                }
+            });
+        });
+
+        // 3. Weapons vs Bodies & Weapons vs Weapons
         active.filter(a=>a.isPlayer && a.weaponDef).forEach(att => {
             let enemies = this.getEnemies(att);
-            let wRadius = MathUtils.getStat(att, 'weaponHitboxRadius') ?? att.weaponHitboxRadius;
+            let wHitboxes = att.weaponDef.getHitboxes ? 
+                            att.weaponDef.getHitboxes(att, this) : 
+                            [{ x: att.weaponX, y: att.weaponY, r: MathUtils.getStat(att, 'weaponHitboxRadius') ?? att.weaponHitboxRadius }];
+            
+            // Weapon vs Body
             enemies.forEach(t => { 
                 let tr = MathUtils.getStat(t, 'actorRadius') ?? t.radius;
-                if(MathUtils.distance(att.weaponX, att.weaponY, t.x, t.y) < wRadius + tr) { 
-                    if(att.weaponCooldown<=0 && att.weaponDef.onHitPlayer) att.weaponDef.onHitPlayer(att,t,this); 
-                } 
+                for(let wh of wHitboxes) {
+                    if(MathUtils.distance(wh.x, wh.y, t.x, t.y) < wh.r + tr) { 
+                        if(att.weaponCooldown<=0 && att.weaponDef.onHitPlayer) att.weaponDef.onHitPlayer(att,t,this, wh); 
+                        break; 
+                    }
+                }
             });
+
+            // Weapon vs Weapon
             enemies.filter(e=>e.isPlayer && e.weaponDef).forEach(t => { 
-                let ewRadius = MathUtils.getStat(t, 'weaponHitboxRadius') ?? t.weaponHitboxRadius;
-                if(MathUtils.distance(att.weaponX, att.weaponY, t.weaponX, t.weaponY) < wRadius + ewRadius) { 
-                    if(att.weaponCooldown<=0 && att.weaponDef.onHitWeapon) att.weaponDef.onHitWeapon(att,t,this); 
-                    if(t.weaponCooldown<=0 && t.weaponDef.onHitWeapon) t.weaponDef.onHitWeapon(t,att,this); 
-                } 
+                let tHitboxes = t.weaponDef.getHitboxes ? 
+                                t.weaponDef.getHitboxes(t, this) : 
+                                [{ x: t.weaponX, y: t.weaponY, r: MathUtils.getStat(t, 'weaponHitboxRadius') ?? t.weaponHitboxRadius }];
+                
+                let clashed = false;
+                for(let wh of wHitboxes) {
+                    for(let th of tHitboxes) {
+                        if(MathUtils.distance(wh.x, wh.y, th.x, th.y) < wh.r + th.r) { 
+                            if(att.weaponCooldown<=0 && att.weaponDef.onHitWeapon) att.weaponDef.onHitWeapon(att,t,this); 
+                            if(t.weaponCooldown<=0 && t.weaponDef.onHitWeapon) t.weaponDef.onHitWeapon(t,att,this); 
+                            clashed = true; break; 
+                        }
+                    }
+                    if(clashed) break;
+                }
             });
         });
     },
@@ -1525,6 +1436,7 @@ const Engine = {
                 this.updateHUD(); this.checkWinCondition();
             }
         }
+        
         if(this.state !== 'MENU') {
             this.entities.filter(e => e.type === "zone").forEach(e => e.render(this.ctx));
             this.actors.filter(a => a.hp > 0).forEach(a => a.render(this.ctx, this));
@@ -1532,31 +1444,50 @@ const Engine = {
             this.particles.forEach(p => { if(p.type === "particle") { this.ctx.fillStyle = p.color; this.ctx.globalAlpha = p.life; this.ctx.beginPath(); this.ctx.arc(p.x, p.y, 4, 0, Math.PI*2); this.ctx.fill(); } });
         }
         this.ctx.restore(); 
+        
         if(this.state !== 'MENU') {
             this.entities.filter(e => e.type === "text").forEach(e => e.render(this.ctx));
             
             // --- DEBUG HITBOXES ---
             if (this.config.showHitboxes) {
-                this.ctx.lineWidth = 1;
+                this.ctx.lineWidth = 2;
                 this.actors.filter(a => a.hp > 0).forEach(a => {
                     let r = MathUtils.getStat(a, 'actorRadius') ?? a.radius;
-                    this.ctx.strokeStyle = "rgba(0, 255, 255, 0.8)"; // Cyan: Body Hitbox
+                    this.ctx.strokeStyle = "rgba(0, 255, 255, 0.8)"; // Cyan: Body
                     this.ctx.beginPath(); this.ctx.arc(a.x, a.y, r, 0, Math.PI*2); this.ctx.stroke();
                     
+                    if (a.isBoss && a.bossDef.getHitboxes) {
+                        let bHitboxes = a.bossDef.getHitboxes(a, this) || [];
+                        this.ctx.strokeStyle = "rgba(255, 165, 0, 0.8)"; // Orange: Boss Custom Hitboxes
+                        bHitboxes.forEach(hb => {
+                            this.ctx.beginPath(); this.ctx.arc(hb.x, hb.y, hb.r, 0, Math.PI*2); this.ctx.stroke();
+                        });
+                    }
+
                     if (a.isPlayer && a.weaponDef) {
-                        let wr = MathUtils.getStat(a, 'weaponHitboxRadius') ?? a.weaponHitboxRadius;
-                        this.ctx.strokeStyle = "rgba(255, 0, 0, 0.8)"; // Red: Weapon Hitbox
-                        this.ctx.beginPath(); this.ctx.arc(a.weaponX, a.weaponY, wr, 0, Math.PI*2); this.ctx.stroke();
+                        let wHitboxes = a.weaponDef.getHitboxes ? 
+                                        a.weaponDef.getHitboxes(a, this) : 
+                                        [{ x: a.weaponX, y: a.weaponY, r: MathUtils.getStat(a, 'weaponHitboxRadius') ?? a.weaponHitboxRadius }];
+                        this.ctx.strokeStyle = "rgba(255, 0, 0, 0.8)"; // Red: Weapons
+                        wHitboxes.forEach(hb => {
+                            this.ctx.beginPath(); this.ctx.arc(hb.x, hb.y, hb.r, 0, Math.PI*2); this.ctx.stroke();
+                        });
                     }
                 });
                 this.entities.forEach(e => {
-                    if (e.radius) {
-                        this.ctx.strokeStyle = e.type === "zone" ? "rgba(255, 255, 0, 0.8)" : "rgba(0, 255, 0, 0.8)";
+                    this.ctx.strokeStyle = e.type === "zone" ? "rgba(255, 255, 0, 0.8)" : "rgba(0, 255, 0, 0.8)";
+                    if (e.getHitboxes) {
+                        let hbs = e.getHitboxes() || [];
+                        hbs.forEach(hb => {
+                            this.ctx.beginPath(); this.ctx.arc(hb.x, hb.y, hb.r, 0, Math.PI*2); this.ctx.stroke();
+                        });
+                    } else if (e.radius) {
                         this.ctx.beginPath(); this.ctx.arc(e.x, e.y, e.radius, 0, Math.PI*2); this.ctx.stroke();
                     }
                 });
             }
         }
+        
         requestAnimationFrame((t) => this.loop(t));
     }
 };
@@ -1574,18 +1505,18 @@ const SafetySystem = {
     },
     safeguardWeapon(n, d) {
         if (!d || typeof d !== 'object') return null;
-        ['init', 'onUpdate', 'render', 'onHitPlayer', 'onHitWeapon', 'onTakeDamage', 'onUltimateActivate'].forEach(h => { if (typeof d[h] === 'function') d[h] = this.createSafeFunction(`Weapon:${n}`, h, d[h]); });
+        ['init', 'onUpdate', 'render', 'onHitPlayer', 'onHitWeapon', 'onTakeDamage', 'onUltimateActivate', 'getHitboxes'].forEach(h => { if (typeof d[h] === 'function') d[h] = this.createSafeFunction(`Weapon:${n}`, h, d[h]); });
         return d;
     },
     safeguardBoss(n, d) {
         if (!d || typeof d !== 'object') return null;
-        ['init', 'onUpdate', 'render', 'onHitPlayer', 'onTakeDamage'].forEach(h => { if (typeof d[h] === 'function') d[h] = this.createSafeFunction(`Boss:${n}`, h, d[h]); });
+        ['init', 'onUpdate', 'render', 'onHitPlayer', 'onTakeDamage', 'getHitboxes'].forEach(h => { if (typeof d[h] === 'function') d[h] = this.createSafeFunction(`Boss:${n}`, h, d[h]); });
         return d;
     },
     applyWrappers() {
         for (let n in WEAPON_REGISTRY) WEAPON_REGISTRY[n] = this.safeguardWeapon(n, WEAPON_REGISTRY[n]);
         for (let n in BOSS_REGISTRY) BOSS_REGISTRY[n] = this.safeguardBoss(n, BOSS_REGISTRY[n]);
-        const oS = Engine.spawn; Engine.spawn = function(e) { if (!e) return; ['update', 'render'].forEach(h => { if (typeof e[h] === 'function') e[h] = SafetySystem.createSafeFunction(`Entity`, h, e[h]); }); oS.call(this, e); };
+        const oS = Engine.spawn; Engine.spawn = function(e) { if (!e) return; ['update', 'render', 'getHitboxes'].forEach(h => { if (typeof e[h] === 'function') e[h] = SafetySystem.createSafeFunction(`Entity`, h, e[h]); }); oS.call(this, e); };
         const oA = Actor.prototype.addStatus; Actor.prototype.addStatus = function(e) { if (!e) return; if (typeof e.update === 'function') e.update = SafetySystem.createSafeFunction(`Status`, 'update', e.update); oA.call(this, e); };
     }
 };
