@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ball Fight betaV6</title>
+    <title>Ball Fight betaV8</title>
     <style>
         /* --- THEME: DIMENSIONAL MINIMAL MEDIEVAL --- */
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Lato:wght@400;700&display=swap');
@@ -376,7 +376,7 @@
     <!-- Scene 1: Main Menu -->
     <div id="menu">
         <div class="menu-box">
-            <h1>Ball Fight <span class="beta-tag">betaV6</span></h1>
+            <h1>Ball Fight <span class="beta-tag">betaV8</span></h1>
             
             <div class="mode-selector">
                 <label style="font-weight:bold; font-size: 1.1em; color: var(--text-main); font-family: 'Cinzel', serif;">Game Mode: </label>
@@ -688,1383 +688,6 @@ const WEAPON_REGISTRY = {
         },
         onHitPlayer(player, enemy, game) { enemy.takeDamage(this.baseDamage, "magic", player, game); player.reverseWeapon(); },
         onHitWeapon(player, enemy, game) { player.reverseWeapon(); }
-    },
-    "Duplicate": {
-        name: "Duplicate",
-        color: "#9b59b6", // สีม่วง
-        width: 35, 
-        length: 0, 
-        baseDamage: 5,
-        
-        init(player) { 
-            // เช็คว่าเป็น "ตัวจริง" หรือไม่ โดยดูจาก ID ว่ามีคำว่า _Clone_ หรือเปล่า
-            if (!player.id.includes("_Clone_")) {
-                player.custom.isReal = true;
-            } else {
-                player.custom.isReal = false;
-            }
-            
-            // Cooldown ป้องกันการปั๊มลูกน้องจนเกมค้าง และกันดาเมจรัวเกินไป
-            player.custom.cloneCooldown = 0; 
-            player.custom.bodyHitCooldown = 0; 
-            player.passiveText = "ชนศัตรูสร้างดาเมจ & แยกร่างลูกน้อง (HP 25%)"; 
-        },
-        
-        // --- ระบบใหม่: Multi-Hitbox System ---
-        // ผูก Hitbox ของอาวุธไว้ที่ "จุดศูนย์กลางของตัวละคร" และมีรัศมีเท่าลำตัว
-        // เมื่อตัวละครเดินไปชนศัตรู Engine จะถือว่าอาวุธฟาดโดนทันที
-        getHitboxes(player, game) {
-            return [
-                { x: player.x, y: player.y, r: player.radius || 35 }
-            ];
-        },
-        
-        onUpdate(player, closestEnemy, game) {
-            // หมุนอาวุธตามปกติ (จำเป็นต้องมีตามโครงสร้าง Engine แม้จะไม่มีผลทางภาพ)
-            player.weaponRotation += 0.08 * player.weaponDir * (game.delta / 16);
-            
-            // ลด Cooldown (ไม่ต้องเขียนคำนวณการชนเองแล้ว Engine จะจัดการผ่าน getHitboxes ให้)
-            if (player.custom.cloneCooldown > 0) player.custom.cloneCooldown -= game.delta;
-            if (player.custom.bodyHitCooldown > 0) player.custom.bodyHitCooldown -= game.delta;
-        },
-        
-        render(ctx, player, game) { 
-            // ไม่มีอาวุธ จึงไม่มีการวาดรูปทรงอาวุธ
-            // วาดแค่ "ดาว" บนหัวสำหรับตัวจริงเท่านั้น
-            if (player.custom.isReal) {
-                ctx.save();
-                // ยกเลิกการหมุนของตัวแปรอาวุธ เพื่อให้ดาวหันหัวขึ้นตรงๆ เสมอ
-                ctx.rotate(-player.weaponRotation);
-                
-                // วาดรูปดาว 5 แฉกสีทอง
-                ctx.fillStyle = "#FFD700";
-                ctx.beginPath();
-                for (let i = 0; i < 5; i++) {
-                    ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * 15, -Math.sin((18 + i * 72) * Math.PI / 180) * 15);
-                    ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * 7, -Math.sin((54 + i * 72) * Math.PI / 180) * 7);
-                }
-                ctx.closePath();
-                ctx.fill();
-                
-                // ใส่ขอบดำให้ดาวเห็นชัดขึ้น
-                ctx.strokeStyle = "#000";
-                ctx.lineWidth = 1;
-                ctx.stroke();
-                ctx.restore();
-            }
-        },
-        
-        // อัปเดตเพิ่มอาร์กิวเมนต์ hitBoxUsed
-        onHitPlayer(player, target, game, hitBoxUsed) {
-            // เช็ค Cooldown ป้องกันดาเมจรัวเกินไปจากการชน
-            if (player.custom.bodyHitCooldown > 0) return;
-            
-            target.takeDamage(this.baseDamage, "physical", player, game);
-            game.spawnParticles(player.x, player.y, 5, this.color);
-            this.spawnClone(player, game, 0.25);
-            
-            player.custom.bodyHitCooldown = 500;
-            player.reverseWeapon();
-        },
-        
-        onHitWeapon(player, enemyPlayer, game) {
-            if (player.custom.bodyHitCooldown > 0) return;
-    
-            enemyPlayer.takeDamage(this.baseDamage, "physical", player, game);
-            game.spawnParticles(player.x, player.y, 5, this.color);
-            this.spawnClone(player, game, 0.25);
-            
-            player.custom.bodyHitCooldown = 500;
-            player.reverseWeapon();
-        },
-        
-        onTakeDamage(player, source, game) {},
-        
-        onUltimateActivate(player, game) {
-            // อัลติเมต: สร้างร่างแยกที่มีเลือด 100% ของตัวปัจจุบัน
-            this.spawnClone(player, game, 1.0);
-        },
-    
-        // --- ฟังก์ชัน Custom สำหรับจัดการการสร้างร่างแยก ---
-        spawnClone(player, game, hpMultiplier) {
-            if (hpMultiplier < 1.0 && player.custom.cloneCooldown > 0) return;
-    
-            // สุ่ม ID ใหม่โดยมี tag _Clone_ แปะไว้
-            let cloneId = player.id + "_Clone_" + Math.floor(Math.random() * 100000);
-            
-            let offsetX = (Math.random() - 0.5) * 45;
-            let offsetY = (Math.random() - 0.5) * 45;
-            
-            let clone = new Player(cloneId, player.x + offsetX, player.y + offsetY, player.color, player.team, this.name);
-            
-            game.spawnActor(clone);
-            
-            let targetHp = Math.max(1, player.hp * hpMultiplier);
-            clone.hp = targetHp;
-            clone.maxHp = targetHp;
-            
-            if (hpMultiplier < 1.0) {
-                player.custom.cloneCooldown = 500; 
-                if(!clone.custom) clone.custom = {};
-                clone.custom.cloneCooldown = 500;
-            }
-        }
-    },
-   "Cross Bow": {
-        name: "Cross Bow", 
-        color: "#8B5A2B", // สีไม้สว่างขึ้น (สไตล์การ์ตูน)
-        width: 25,  // ขยายขนาดความกว้าง
-        length: 55, // ขยายขนาดความยาว
-        baseDamage: 20,
-        
-        // --- Physics Hacks ---
-        baseSpeedCap: 26, // ลดความเร็วลงนิดนึง (จากเดิม 30)
-        minSpeed: 12,     // ลดความเร็วขั้นต่ำ (จากเดิม 15)
-    
-        init(player) { 
-            player.maxHp = 75;
-            player.hp = 75;
-            
-            player.custom.state = 'charging';
-            player.custom.charge = 0;
-            player.custom.maxCharge = 20; 
-            player.custom.loadedTimer = 0;
-            
-            player.custom.arrows = []; 
-            player.custom.invisible = false;
-            player.custom.stealthTimer = 0; // ตัวจับเวลาอันติเมต 4 วินาที
-            
-            player.passiveText = "ง้างอัตโนมัติ | ยิงโดน Max DMG +1 | อัลติ: ล่องหน 4 วิ (ศัตรูล็อกเป้าไม่ได้)";
-    
-            player.custom.fireArrow = (damage) => {
-                let speed = 35; 
-                let dirX = Math.cos(player.weaponRotation);
-                let dirY = Math.sin(player.weaponRotation);
-                player.custom.arrows.push({
-                    x: player.weaponX + (dirX * 25), // ขยับจุดยิงออกมาให้เหมาะกับปืนที่ใหญ่ขึ้น
-                    y: player.weaponY + (dirY * 25),
-                    vx: dirX * speed,
-                    vy: dirY * speed,
-                    damage: Math.max(1, Math.floor(damage)),
-                    active: true,
-                    rot: player.weaponRotation
-                });
-            };
-        },
-    
-        getHitboxes(player, game) {
-            let hitboxes = [];
-            let perpX = Math.cos(player.weaponRotation + Math.PI/2);
-            let perpY = Math.sin(player.weaponRotation + Math.PI/2);
-    
-            // ขยายรัศมีฮิตบ็อกซ์หน้าไม้ให้สอดคล้องกับภาพ
-            hitboxes.push({ x: player.weaponX + perpX * 22, y: player.weaponY + perpY * 22, r: 14, isBow: true });
-            hitboxes.push({ x: player.weaponX - perpX * 22, y: player.weaponY - perpY * 22, r: 14, isBow: true });
-    
-            for (let arrow of player.custom.arrows) {
-                if (arrow.active) {
-                    // ขยายรัศมีลูกธนู
-                    hitboxes.push({ x: arrow.x, y: arrow.y, r: 12, isArrow: true, arrowRef: arrow, damage: arrow.damage });
-                }
-            }
-            return hitboxes;
-        },
-    
-        onUpdate(player, closestEnemy, game) {
-            player.weaponRotation += 0.08 * player.weaponDir * (game.delta / 16);
-    
-            // --- ระบบอัลติเมตล่องหน 4 วินาที ---
-            if (player.custom.stealthTimer > 0) {
-                player.custom.stealthTimer -= game.delta;
-                player.custom.invisible = true;
-                
-                // Hack: แจ้งให้ Engine ทราบว่าผู้เล่นไม่สามารถถูกล็อกเป้าได้ (Stealth/Untargetable)
-                player.targetable = false; 
-                player.untargetable = true;
-                player.stealth = true;
-            } else {
-                player.custom.invisible = false;
-                // ยกเลิกสถานะล่องหน
-                player.targetable = true;
-                player.untargetable = false;
-                player.stealth = false;
-            }
-    
-            for (let i = player.custom.arrows.length - 1; i >= 0; i--) {
-                let arrow = player.custom.arrows[i];
-                if (arrow.active) {
-                    arrow.x += arrow.vx * (game.delta / 16);
-                    arrow.y += arrow.vy * (game.delta / 16);
-                    if (arrow.x < -100 || arrow.x > game.arena.size + 100 || arrow.y < -100 || arrow.y > game.arena.size + 100) {
-                        arrow.active = false;
-                    }
-                } else {
-                    player.custom.arrows.splice(i, 1);
-                }
-            }
-    
-            if (player.custom.state === 'charging') {
-                player.vx *= 0.05;
-                player.vy *= 0.05;
-    
-                player.custom.charge += 0.4 * (game.delta / 16); 
-                if (player.custom.charge >= player.custom.maxCharge) {
-                    player.custom.charge = player.custom.maxCharge;
-                    player.custom.state = 'loaded';
-                    player.custom.loadedTimer = 500; 
-                }
-            } else if (player.custom.state === 'loaded') {
-                player.custom.loadedTimer -= game.delta;
-                if (player.custom.loadedTimer <= 0 && closestEnemy && !player.custom.invisible) {
-                    let dx = closestEnemy.x - player.weaponX;
-                    let dy = closestEnemy.y - player.weaponY;
-                    let angleToEnemy = Math.atan2(dy, dx);
-                    let angleDiff = Math.atan2(Math.sin(angleToEnemy - player.weaponRotation), Math.cos(angleToEnemy - player.weaponRotation));
-                    
-                    if (Math.abs(angleDiff) < 0.3) {
-                        player.custom.fireArrow(player.custom.charge);
-                        player.custom.state = 'charging';
-                        player.custom.charge = 0;
-                    }
-                }
-            }
-        },
-    
-        render(ctx, player, game) {
-            ctx.save();
-    
-            if (player.custom.invisible) {
-                ctx.globalAlpha = 0.4; // โปร่งแสงขึ้นนิดนึงให้ดูเป็นสไตล์การ์ตูน
-            }
-    
-            // --- 1. วาดผ้าคลุม (ใหญ่ขึ้น & มีขอบดำแบบการ์ตูน) ---
-            ctx.save();
-            ctx.rotate(-player.weaponRotation);
-            ctx.translate(-player.weaponX, -player.weaponY);
-            ctx.translate(player.x, player.y);
-            
-            let moveAngle = Math.atan2(player.vy, player.vx);
-            if (Math.abs(player.vx) < 0.1 && Math.abs(player.vy) < 0.1) {
-                moveAngle = player.weaponRotation + Math.PI; 
-            }
-            ctx.rotate(moveAngle + Math.PI); 
-            
-            let time = Date.now() * 0.005;
-            let wave = Math.sin(time) * 5; // พริ้วแรงขึ้น
-    
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = "#000"; // ขอบดำสไตล์การ์ตูน
-    
-            // ผ้าคลุมชั้นล่าง
-            ctx.fillStyle = "#1A4A28"; 
-            ctx.beginPath();
-            ctx.moveTo(-20, 15);
-            ctx.lineTo(20, 15);
-            ctx.quadraticCurveTo(30 + wave, 45, 22 + wave, 60); // ขยายยาวขึ้น
-            ctx.lineTo(-22 + wave, 60);
-            ctx.quadraticCurveTo(-30 + wave, 45, -20, 15);
-            ctx.fill();
-            ctx.stroke();
-    
-            // ผ้าคลุมชั้นบน (Highlight)
-            ctx.fillStyle = "#32CD32"; // สีเขียวสว่างขึ้น
-            ctx.beginPath();
-            ctx.moveTo(-15, 18);
-            ctx.lineTo(15, 18);
-            ctx.quadraticCurveTo(22 + wave, 45, 15 + wave, 58);
-            ctx.lineTo(-15 + wave, 58);
-            ctx.quadraticCurveTo(-22 + wave, 45, -15, 18);
-            ctx.fill();
-            ctx.stroke();
-            ctx.restore();
-            
-            // --- 2. วาดหน้าไม้ (ใหญ่ & การ์ตูน) ---
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = "#111";
-    
-            // ด้ามปืน/รางไม้
-            ctx.fillStyle = this.color; 
-            ctx.beginPath();
-            ctx.rect(-28, -6, 56, 12); // ใหญ่ขึ้น
-            ctx.fill();
-            ctx.stroke();
-            
-            // ลายไม้แบบง่ายๆ (การ์ตูน)
-            ctx.fillStyle = "#6B4226"; 
-            ctx.fillRect(-24, 2, 48, 4);
-            
-            // ชิ้นส่วนเหล็ก/ไกปืน
-            ctx.fillStyle = "#999";
-            ctx.fillRect(-18, -8, 16, 16); 
-            ctx.strokeRect(-18, -8, 16, 16);
-    
-            let pullBack = 0;
-            if (player.custom.state === 'charging') {
-                pullBack = (player.custom.charge / player.custom.maxCharge) * 22; // ดึงสายยาวขึ้น
-            } else if (player.custom.state === 'loaded') {
-                pullBack = 22;
-            }
-    
-            // คันหน้าไม้ (หนาและโค้งชัดเจน)
-            ctx.beginPath();
-            ctx.moveTo(15, -38);
-            ctx.quadraticCurveTo(25 - (pullBack*0.25), 0, 15, 38);
-            ctx.lineWidth = 8;
-            ctx.strokeStyle = "#333";
-            ctx.stroke();
-            
-            // ไฮไลท์คันหน้าไม้
-            ctx.beginPath();
-            ctx.moveTo(15, -36);
-            ctx.quadraticCurveTo(23 - (pullBack*0.25), 0, 15, 36);
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = "#777";
-            ctx.stroke();
-    
-            // รอกลูกกลิ้ง ใหญ่ขึ้น
-            ctx.fillStyle = "#CCC";
-            ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(15, -38, 5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            ctx.beginPath(); ctx.arc(15, 38, 5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-    
-            // สายหน้าไม้
-            ctx.beginPath();
-            ctx.moveTo(15, -38);
-            ctx.lineTo(10 - pullBack, 0);
-            ctx.lineTo(15, 38);
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = "#E0E0E0";
-            ctx.stroke();
-    
-            // วาดลูกธนูบนราง (ใหญ่และสีสด)
-            if (player.custom.state === 'charging' || player.custom.state === 'loaded') {
-                ctx.fillStyle = "#FFEA00"; // เหลืองสว่าง
-                ctx.lineWidth = 2;
-                
-                // ก้านธนู
-                ctx.fillRect(8 - pullBack, -2.5, 32, 5);
-                ctx.strokeRect(8 - pullBack, -2.5, 32, 5);
-                
-                // ขนนกหางธนู ใหญ่ขึ้น
-                ctx.fillStyle = "#FF3333";
-                ctx.beginPath(); ctx.moveTo(8 - pullBack, -2.5); ctx.lineTo(2 - pullBack, -8); ctx.lineTo(14 - pullBack, -2.5); ctx.fill(); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(8 - pullBack, 2.5); ctx.lineTo(2 - pullBack, 8); ctx.lineTo(14 - pullBack, 2.5); ctx.fill(); ctx.stroke();
-    
-                // หัวธนูใหญ่เว่อร์ๆ
-                ctx.fillStyle = "#FFF";
-                ctx.beginPath(); ctx.moveTo(40 - pullBack, -5); ctx.lineTo(52 - pullBack, 0); ctx.lineTo(40 - pullBack, 5); ctx.fill(); ctx.stroke();
-            }
-    
-            // --- 3. วาดลูกธนูที่พุ่งออกไป (ใหญ่ & สไตล์การ์ตูน) ---
-            ctx.rotate(-player.weaponRotation);
-            ctx.translate(-player.weaponX, -player.weaponY);
-            
-            for (let arrow of player.custom.arrows) {
-                if (arrow.active) {
-                    ctx.translate(arrow.x, arrow.y);
-                    ctx.rotate(arrow.rot);
-                    
-                    ctx.lineWidth = 2;
-                    ctx.strokeStyle = "#000";
-                    
-                    // ก้าน
-                    ctx.fillStyle = "#FFEA00";
-                    ctx.fillRect(-16, -2.5, 32, 5);
-                    ctx.strokeRect(-16, -2.5, 32, 5);
-                    
-                    // หางขนนกแดง
-                    ctx.fillStyle = "#FF3333";
-                    ctx.beginPath(); ctx.moveTo(-16, -2.5); ctx.lineTo(-22, -8); ctx.lineTo(-10, -2.5); ctx.fill(); ctx.stroke();
-                    ctx.beginPath(); ctx.moveTo(-16, 2.5); ctx.lineTo(-22, 8); ctx.lineTo(-10, 2.5); ctx.fill(); ctx.stroke();
-    
-                    // หัวโลหะ
-                    ctx.fillStyle = "#FFF";
-                    ctx.beginPath(); ctx.moveTo(16, -5); ctx.lineTo(28, 0); ctx.lineTo(16, 5); ctx.fill(); ctx.stroke();
-                    
-                    ctx.rotate(-arrow.rot);
-                    ctx.translate(-arrow.x, -arrow.y);
-                }
-            }
-            ctx.restore();
-        },
-    
-        onHitPlayer(player, target, game, hitBoxUsed) {
-            if (hitBoxUsed && hitBoxUsed.isArrow) {
-                target.takeDamage(hitBoxUsed.damage, "physical", player, game);
-                hitBoxUsed.arrowRef.active = false; 
-                
-                player.custom.maxCharge += 1;
-                game.spawnParticles(target.x, target.y, 15, "#FFEA00"); // Particle อลังการขึ้น
-    
-            } else if (hitBoxUsed && hitBoxUsed.isBow) {
-                target.takeDamage(1, "physical", player, game);
-                player.reverseWeapon();
-            }
-        },
-    
-        onHitWeapon(player, enemyPlayer, game) {
-            game.spawnParticles(player.weaponX, player.weaponY, 8, "#EEE");
-            player.reverseWeapon();
-        },
-    
-        onTakeDamage(player, source, game) {
-            // อมตะต่อดาเมจระยะไกลช่วงอัลติ
-            if (player.custom.invisible) {
-                // ไม่รับดาเมจ หรือฮีลคืนเพื่อต้านทานการยิงแบบสุ่มโดน
-                return;
-            }
-    
-            if (player.custom.state === 'charging') {
-                player.custom.fireArrow(Math.max(1, player.custom.charge));
-                player.custom.charge = 0;
-                player.custom.state = 'charging';
-            } else if (player.custom.state === 'loaded') {
-                player.custom.charge = 1; 
-            }
-        },
-    
-        onUltimateActivate(player, game) {
-            // ตั้งเวลาสกิลล่องหนเป็น 4 วินาที (4000 ms)
-            player.custom.stealthTimer = 4000;
-            player.custom.invisible = true;
-        }
-    },
-    "Time Traveller": {
-        name: "Time Traveller", 
-        color: "#00FFFF", // สีฟ้า Neon Cyan
-        width: 18, // ขนาดมีดสั้น
-        length: 45, // ความยาวอาวุธ
-        baseDamage: 3, 
-        
-        // Physics Hack: ร่างกายเบาหวิว พริ้วไหวเหมือนลอยอยู่ในมิติเวลา
-        baseSpeedCap: 28,
-        actorRadius: 25, 
-        friction: 0.98, // ลื่นกว่าปกติเล็กน้อย
-    
-        init(player) { 
-            player.custom = {
-                state: "WAIT",
-                timer: 0,
-                realGauge: 0, // ล็อกเกจอันติ
-                hitSet: new Set(),
-                trail: [], // เก็บตำแหน่งสำหรับทำเงาติดตา
-                slashStart: {x: 0, y: 0}, // จุดเริ่มพุ่ง
-                slashEnd: {x: 0, y: 0},   // จุดปลายทางพุ่ง
-                shards: [], // เศษกระจกมิติเวลาแตก
-                ultSlashes: [], // เก็บเอฟเฟคเส้นฟันรัวๆ ตอนอันติ
-                ultSlashCount: 0, // นับจำนวนการฟันตอนอันติ (เป้าหมาย 6 ครั้ง)
-                ultTargetHp: new Map() // เก็บ HP ศัตรูตอนเริ่มอันติ เพื่อคำนวณดาเมจ 50%
-            };
-            player.color = "#00FFFF"; 
-        },
-    
-        getHitboxes(player, game) {
-            // ฮิตบล็อกผ่ามิติ (กวาดพื้นที่กว้างมากระหว่างการพุ่ง)
-            if (player.custom.state === "SLASH_DASH") {
-                return [{ x: player.x, y: player.y, r: 2500 }];
-            }
-            // ฮิตบล็อกมีดสั้นกาลเวลา
-            return [{ x: player.weaponX, y: player.weaponY, r: this.width }];
-        },
-    
-        onUpdate(player, closestEnemy, game) {
-            let st = player.custom;
-            st.timer += game.delta;
-            
-            // บังคับล็อกเกจอันติ
-            player.ultimateGauge = st.realGauge; 
-    
-            // สร้างเงาติดตา (Afterimage) ตลอดเวลา
-            if (game.tick % 2 === 0) {
-                st.trail.push({x: player.x, y: player.y, rot: player.weaponRotation, time: Date.now()});
-                if (st.trail.length > 15) st.trail.shift();
-            }
-    
-            if (st.state !== "SLASH_DASH") st.hitSet.clear();
-    
-            // ---------------- STATE MACHINE ----------------
-            switch(st.state) {
-                case "WAIT": // รอ 3 วิ
-                    player.passiveText = `เชื่อมต่อมิติเวลา (${Math.max(0, 3 - st.timer/1000).toFixed(1)}s)`;
-                    if (st.timer >= 3000) {
-                        st.state = "DIMENSION";
-                        st.timer = 0;
-                        game.spawnParticles(player.x, player.y, 50, "#00FFFF");
-                        game.triggerHitStop(50); // กระตุกเบาๆ ตอนเข้ามิติ
-                    }
-                    break;
-    
-                case "DIMENSION": // อยู่ในมิติ 5 วิ
-                    player.passiveText = `[Time Dimension] ขีดจำกัดสายเลือด! (${Math.max(0, 5 - st.timer/1000).toFixed(1)}s)`;
-                    
-                    // หยุดศัตรูทั้งหมด (แช่แข็ง)
-                    game.getEnemies(player).forEach(e => { e.vx = 0; e.vy = 0; });
-                    
-                    if (st.timer >= 4800) { // เตรียมพุ่งในช่วงเสี้ยววิสุดท้าย
-                        st.state = "SLASH_DASH";
-                        st.timer = 0;
-                        st.slashStart = {x: player.x, y: player.y};
-                        
-                        let target = closestEnemy ? closestEnemy : {x: game.arena.size/2, y: game.arena.size/2};
-                        let angle = Math.atan2(target.y - player.y, target.x - player.x);
-                        
-                        st.slashEnd = {
-                            x: player.x + Math.cos(angle) * 1500, 
-                            y: player.y + Math.sin(angle) * 1500
-                        };
-                        st.shards = [];
-                    }
-                    break;
-    
-                case "SLASH_DASH": // จังหวะพุ่งตัวผ่ามิติ 
-                    player.passiveText = `[ผ่ามิติเวลา!!]`;
-                    let progress = Math.min(1, st.timer / 200);
-                    
-                    player.x = st.slashStart.x + (st.slashEnd.x - st.slashStart.x) * progress;
-                    player.y = st.slashStart.y + (st.slashEnd.y - st.slashStart.y) * progress;
-    
-                    if (st.timer >= 200) { 
-                        st.state = "SLASH_PAUSE"; // เปลี่ยนเป็นหยุดค้างก่อนมิติแตก
-                        st.timer = 0;
-                    }
-                    break;
-    
-                case "SLASH_PAUSE": // จังหวะหน่วงเวลา รอมิติแตกสลาย
-                    player.passiveText = `[รอยแยกกาลเวลา...]`;
-                    // หยุดศัตรูต่ออีกนิดระหว่างรอแตก
-                    game.getEnemies(player).forEach(e => { e.vx = 0; e.vy = 0; });
-                    
-                    if (st.timer >= 800) { // ค้างไว้ 0.8 วินาที
-                        st.state = "COOLDOWN";
-                        st.timer = 0;
-                        game.triggerHitStop(400); // กระตุกหน้าจออย่างแรง มิติแตก
-                        
-                        // สร้างเศษกระจกมิติปลิวกระจาย
-                        st.shards = [];
-                        for(let i=0; i<30; i++) {
-                            st.shards.push({
-                                x: player.x + (Math.random()-0.5)*400,
-                                y: player.y + (Math.random()-0.5)*400,
-                                vx: (Math.random()-0.5)*18,
-                                vy: (Math.random()-0.5)*18,
-                                rot: Math.random()*Math.PI*2,
-                                size: 15 + Math.random()*40
-                            });
-                        }
-                    }
-                    break;
-    
-                case "COOLDOWN": // มิติพังทลาย
-                    player.passiveText = `มิติพังทลาย คูลดาวน์ (${Math.max(0, 5 - st.timer/1000).toFixed(1)}s)`;
-                    
-                    st.shards.forEach(s => { s.x += s.vx; s.y += s.vy; s.rot += 0.1; });
-    
-                    if (st.timer >= 5000) {
-                        st.state = "WAIT";
-                        st.timer = 0;
-                        st.shards = [];
-                    }
-                    break;
-    
-                case "ULT_ACTIVE": // อัลติ: จุดจบของเวลา (ฟัน 6 ครั้ง)
-                    player.passiveText = `[THE WORLD] จุดจบของมิติเวลา! (${Math.max(0, 4 - st.timer/1000).toFixed(1)}s)`;
-                    
-                    // แช่แข็งศัตรูทั้งหมด
-                    game.getEnemies(player).forEach(e => { e.vx = 0; e.vy = 0; });
-                    
-                    // ทำการฟัน 6 ครั้ง กระจายในช่วงเวลา 3 วินาทีแรก (ทุกๆ 500ms)
-                    let currentSlashInterval = Math.floor(st.timer / 500);
-                    if (currentSlashInterval > st.ultSlashCount && st.ultSlashCount < 6) {
-                        st.ultSlashCount++;
-                        
-                        // สร้างเส้นฟันรอบทิศทาง
-                        let ang = (Math.PI * 2 / 6) * st.ultSlashCount + Math.random();
-                        st.ultSlashes.push({
-                            x: player.x + (Math.random()-0.5)*1000,
-                            y: player.y + (Math.random()-0.5)*1000,
-                            ang: ang,
-                            life: 1.0 // อายุของเส้น
-                        });
-    
-                        // สร้างดาเมจแบ่งเป็น 6 ส่วน (รวมกันจะได้ 50% ของ HP ตอนกดอันติพอดี)
-                        game.getEnemies(player).forEach(e => {
-                            let baseHp = st.ultTargetHp.get(e.id) || e.hp; // ดึงค่า HP ตอนเริ่มอันติ
-                            let dmgPerSlash = baseHp * (0.50 / 6); 
-                            e.takeDamage(dmgPerSlash, "magic", player, game);
-                            game.spawnParticles(e.x, e.y, 20, "#FFFFFF");
-                        });
-                        
-                        game.triggerHitStop(150); // กระตุกจอตอนฟันแต่ละดาบ
-                    }
-    
-                    // ลดอายุเส้นฟัน
-                    st.ultSlashes.forEach(s => s.life -= 0.05);
-                    st.ultSlashes = st.ultSlashes.filter(s => s.life > 0);
-    
-                    // เมื่อครบ 4 วินาที (จอขาวโพลนพอดี) มิติจะแตกรุนแรง
-                    if (st.timer >= 4000) {
-                        game.triggerHitStop(600); // กระตุกจอรุนแรงสุด
-                        
-                        // เศษกระจกมิติชุดใหญ่
-                        st.shards = [];
-                        for(let i=0; i<60; i++) {
-                            st.shards.push({
-                                x: player.x + (Math.random()-0.5)*1200,
-                                y: player.y + (Math.random()-0.5)*1200,
-                                vx: (Math.random()-0.5)*35,
-                                vy: (Math.random()-0.5)*35,
-                                rot: Math.random()*Math.PI*2,
-                                size: 20 + Math.random()*50
-                            });
-                        }
-    
-                        st.ultSlashes = [];
-                        st.state = "EXHAUST";
-                        st.timer = 0;
-                    }
-                    break;
-    
-                case "EXHAUST": // หมดแรง 10 วิ
-                    player.passiveText = `ร่างกายรับภาระหนัก...ฟื้นฟูมิติ (${Math.max(0, 10 - st.timer/1000).toFixed(1)}s)`;
-                    player.vx = 0; player.vy = 0; // ล็อกการเคลื่อนที่ (Stun)
-                    
-                    st.shards.forEach(s => { s.x += s.vx; s.y += s.vy; s.rot += 0.1; });
-    
-                    if (st.timer >= 10000) {
-                        st.state = "WAIT";
-                        st.timer = 0;
-                        st.shards = [];
-                    }
-                    break;
-            }
-    
-            if (st.state !== "EXHAUST" && st.state !== "SLASH_PAUSE") {
-                player.weaponRotation += 0.15 * player.weaponDir * (game.delta / 16);
-            }
-        },
-    
-        render(ctx, player, game) { 
-            let st = player.custom;
-            let aSize = (game.arena && game.arena.size) ? game.arena.size : 2000;
-    
-            // =========================================================================
-            // การแก้ปัญหาหมุนตามอาวุธ: ทำการล้างค่าพิกัด (Inverse Transform) ออกก่อน!
-            // =========================================================================
-            ctx.save();
-            ctx.rotate(-player.weaponRotation); 
-            ctx.translate(-player.weaponX, -player.weaponY); // ย้ายจุดอ้างอิงกลับไปที่ World Space
-    
-            // 1. วาดความมืดมิติเวลา 
-            if (st.state === "DIMENSION" || st.state === "SLASH_DASH" || st.state === "SLASH_PAUSE" || st.state === "ULT_ACTIVE") {
-                let bgAlpha = st.state === "ULT_ACTIVE" ? 0.8 : 0.4;
-                ctx.fillStyle = `rgba(0, 10, 30, ${bgAlpha})`;
-                ctx.fillRect(-5000, -5000, 10000, 10000); 
-            }
-    
-            // 2. วาดนาฬิกาเวทมนตร์ (อัปเกรดความสวยงาม ล็อกพิกัดตรงกลางสนาม)
-            if (st.state === "DIMENSION" || st.state === "SLASH_DASH" || st.state === "SLASH_PAUSE" || st.state === "ULT_ACTIVE") {
-                ctx.save();
-                let arenaCenterX = game.arena ? (game.arena.x || 0) + aSize / 2 : 1000;
-                let arenaCenterY = game.arena ? (game.arena.y || 0) + aSize / 2 : 1000;
-                ctx.translate(arenaCenterX, arenaCenterY);
-                
-                let timeRot = Date.now() / 800;
-                ctx.globalCompositeOperation = "screen";
-                ctx.shadowBlur = 20;
-                ctx.shadowColor = "#00FFFF";
-                
-                // วงแหวนนาฬิกา
-                ctx.strokeStyle = "rgba(0, 255, 255, 0.5)";
-                ctx.beginPath(); ctx.arc(0, 0, 600, 0, Math.PI*2); ctx.lineWidth = 6; ctx.stroke();
-                ctx.beginPath(); ctx.arc(0, 0, 580, 0, Math.PI*2); ctx.lineWidth = 2; ctx.stroke();
-                
-                // วงแหวนเฟืองด้านใน (เส้นประ)
-                ctx.save();
-                ctx.rotate(-timeRot * 0.5); // หมุนทวนเข็ม
-                ctx.setLineDash([15, 20]);
-                ctx.beginPath(); ctx.arc(0, 0, 450, 0, Math.PI*2); ctx.lineWidth = 4; ctx.stroke();
-                ctx.restore();
-    
-                // ตัวเลขโรมันบอกเวลา
-                ctx.font = "bold 45px Arial";
-                ctx.fillStyle = "rgba(0, 255, 255, 0.8)";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                const numerals = ["XII", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI"];
-                for(let i=0; i<12; i++) {
-                    ctx.save();
-                    ctx.rotate((Math.PI*2/12) * i);
-                    ctx.translate(0, -520); // ระยะห่างตัวเลข
-                    // หมุนตัวเลขกลับให้ตั้งตรงเสมอ
-                    ctx.rotate(-(Math.PI*2/12) * i);
-                    ctx.fillText(numerals[i], 0, 0);
-                    ctx.restore();
-                }
-    
-                // เข็มนาฬิกาหยุดเดินตอนอันติ หรือตอนรอมิติแตก
-                let handRot = (st.state === "ULT_ACTIVE" || st.state === "SLASH_PAUSE") ? 0 : timeRot;
-                ctx.rotate(handRot);
-                ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -380); 
-                ctx.lineWidth = 18; ctx.strokeStyle = "rgba(0, 255, 255, 0.9)"; ctx.lineCap = "round"; ctx.stroke();
-                ctx.rotate(Math.PI/3);
-                ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -220); 
-                ctx.lineWidth = 28; ctx.stroke();
-                
-                ctx.shadowBlur = 0;
-                ctx.restore();
-            }
-    
-            // 3. วาดเงาติดตา (Afterimages) 
-            if (st.state !== "EXHAUST") {
-                st.trail.forEach((t, i) => {
-                    let alpha = (i / st.trail.length) * 0.4;
-                    if (st.state === "DIMENSION" || st.state === "SLASH_DASH" || st.state === "SLASH_PAUSE") alpha *= 2; 
-                    
-                    ctx.save();
-                    ctx.translate(t.x, t.y); 
-                    
-                    ctx.beginPath(); ctx.arc(0, 0, player.radius, 0, Math.PI*2);
-                    ctx.fillStyle = `rgba(0, 255, 255, ${alpha})`; ctx.fill();
-                    
-                    ctx.rotate(t.rot);
-                    let reach = player.weaponReach || 35; 
-                    ctx.translate(reach, 0);
-                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-                    ctx.beginPath();
-                    ctx.moveTo(0, -this.width/2); ctx.lineTo(this.length, 0); ctx.lineTo(0, this.width/2);
-                    ctx.fill();
-                    ctx.restore();
-                });
-            }
-    
-            // 4. เอฟเฟคผ่ามิติปกติ (รอยฟันพุ่ง) และรอยกระจกแตก
-            if (st.state === "SLASH_DASH" || st.state === "SLASH_PAUSE" || (st.state === "COOLDOWN" && st.timer < 1000)) {
-                
-                // แสงสว่างวาบตอนเริ่มมิติแตก (COOLDOWN)
-                if (st.state === "COOLDOWN") {
-                    ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0, 1 - st.timer/500)})`;
-                    ctx.fillRect(-5000, -5000, 10000, 10000);
-                }
-    
-                // รอยเส้นพุ่งฟันฉาก (ค้างไว้ในตอน DASH และ PAUSE)
-                let drawEndX = st.state === "SLASH_DASH" ? player.x : st.slashEnd.x;
-                let drawEndY = st.state === "SLASH_DASH" ? player.y : st.slashEnd.y;
-    
-                ctx.save();
-                ctx.lineCap = "round";
-                ctx.shadowBlur = 30; ctx.shadowColor = "#FFFFFF";
-                
-                // ออร่ารอยฟันสีฟ้า
-                ctx.strokeStyle = "#00FFFF";
-                let lineAlpha = (st.state === "COOLDOWN") ? Math.max(0, 1 - st.timer/1000) : 1;
-                ctx.lineWidth = 60 * lineAlpha;
-                ctx.beginPath(); ctx.moveTo(st.slashStart.x, st.slashStart.y); ctx.lineTo(drawEndX, drawEndY); ctx.stroke();
-    
-                // แกนเส้นแสงสีขาว
-                ctx.strokeStyle = "#FFFFFF";
-                ctx.lineWidth = 20 * lineAlpha;
-                ctx.stroke();
-                ctx.shadowBlur = 0;
-                ctx.restore();
-            }
-    
-            // 5. เอฟเฟคตอน Ultimate (Omnislash 6 ครั้ง & Whiteout)
-            if (st.state === "ULT_ACTIVE" || (st.state === "EXHAUST" && st.timer < 500)) {
-                
-                if (st.state === "ULT_ACTIVE") {
-                    ctx.save();
-                    ctx.lineCap = "round";
-                    ctx.shadowBlur = 15; ctx.shadowColor = "#FFFFFF";
-                    
-                    // วาดเส้นที่ฟันรัวๆ ทั้ง 6 ครั้ง
-                    st.ultSlashes.forEach(sl => {
-                        ctx.strokeStyle = `rgba(0, 255, 255, ${sl.life})`;
-                        ctx.lineWidth = 20 * sl.life;
-                        ctx.beginPath();
-                        ctx.moveTo(sl.x - Math.cos(sl.ang)*3000, sl.y - Math.sin(sl.ang)*3000);
-                        ctx.lineTo(sl.x + Math.cos(sl.ang)*3000, sl.y + Math.sin(sl.ang)*3000);
-                        ctx.stroke();
-                        
-                        ctx.strokeStyle = `rgba(255, 255, 255, ${sl.life})`;
-                        ctx.lineWidth = 8 * sl.life;
-                        ctx.stroke();
-                    });
-                    ctx.restore();
-    
-                    // หน้าจอค่อยๆ สว่างขึ้นจนขาวโพลน (ใช้เวลา 4 วิ)
-                    let whiteAlpha = Math.min(1, Math.pow(st.timer / 4000, 2)); // เร่งความสว่างช่วงท้าย
-                    ctx.fillStyle = `rgba(255, 255, 255, ${whiteAlpha})`;
-                    ctx.fillRect(-5000, -5000, 10000, 10000);
-                }
-    
-                // ตอนเพิ่งเริ่ม EXHAUST ให้หน้าจอขาววาบขึ้นมา
-                if (st.state === "EXHAUST" && st.timer < 500) {
-                    ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0, 1 - st.timer/500)})`;
-                    ctx.fillRect(-5000, -5000, 10000, 10000);
-                }
-            }
-    
-            // 6. วาดเศษกระจกมิติ (ใช้กับทั้ง Cooldown ปกติ และตอนร่วงหลัง Ult)
-            st.shards.forEach(s => {
-                ctx.save();
-                ctx.translate(s.x, s.y);
-                ctx.rotate(s.rot);
-                // ถ้าเป็นหลังอัลติ เศษกระจกจะอยู่ได้นานกว่าหน่อย
-                let shardLife = (st.state === "EXHAUST") ? Math.max(0, 1 - st.timer/3000) : Math.max(0, 1 - st.timer/1000);
-                ctx.fillStyle = `rgba(0, 200, 255, ${shardLife})`;
-                ctx.beginPath();
-                ctx.moveTo(0, -s.size); ctx.lineTo(s.size, s.size); ctx.lineTo(-s.size, s.size);
-                ctx.fill();
-                ctx.restore();
-            });
-    
-            // =========================================================================
-            // 7. RENDER LOCAL SPACE (ตัวละครและเอฟเฟคติดตัว)
-            // =========================================================================
-            ctx.save();
-            ctx.translate(player.x, player.y);
-            
-            // --- เอฟเฟคชาร์จพลังงานเข้าหาตัว (เฉพาะตอนเหนื่อย EXHAUST) ---
-            if (st.state === "EXHAUST") {
-                ctx.save();
-                ctx.globalCompositeOperation = "screen";
-                // สร้างเส้นพลังงาน 8 เส้น วิ่งเข้าหาตัว
-                for(let i=0; i<8; i++) {
-                    let phase = ((Date.now() / 800) + (i / 8)) % 1; // 0 -> 1
-                    let invPhase = 1 - phase; // 1 -> 0 (วิ่งเข้าหาตัว)
-                    let radius = invPhase * 180; // ระยะดูดเริ่มจาก 180px
-                    let angle = (i * Math.PI / 4) + (Date.now() / 1000); // หมุนรอบตัวช้าๆ
-                    
-                    let px = Math.cos(angle) * radius;
-                    let py = Math.sin(angle) * radius;
-                    
-                    // หัวพลังงาน
-                    ctx.beginPath();
-                    ctx.arc(px, py, 4 * phase, 0, Math.PI*2);
-                    ctx.fillStyle = `rgba(0, 255, 255, ${phase})`;
-                    ctx.fill();
-                    
-                    // หางเส้นพลังงาน
-                    ctx.beginPath();
-                    ctx.moveTo(px, py);
-                    ctx.lineTo(px * 0.7, py * 0.7);
-                    ctx.strokeStyle = `rgba(0, 255, 255, ${phase * 0.5})`;
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
-                }
-                ctx.restore();
-            }
-    
-            // วาดตัวละครและผ้าคลุม 
-            ctx.beginPath();
-            ctx.arc(0, 0, player.radius + 5, 0, Math.PI * 2);
-            ctx.strokeStyle = (st.state === "ULT_ACTIVE" || st.state === "SLASH_PAUSE") ? "#FFD700" : "#00FFFF";
-            ctx.lineWidth = 4;
-            ctx.stroke();
-            
-            ctx.fillStyle = "rgba(0, 0, 50, 0.8)";
-            ctx.beginPath(); ctx.arc(0, 0, player.radius, Math.PI/2, Math.PI*1.5); ctx.fill();
-            ctx.restore(); // จบ Local Space ตัวละคร
-    
-            // คืนค่ากลับไปให้ (0,0) อยู่ที่อาวุธ
-            ctx.restore(); 
-    
-            // =========================================================================
-            // 8. RENDER WEAPON SPACE (มีดสั้น Chronos Dagger)
-            // =========================================================================
-            ctx.save();
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = "#00FFFF";
-            let timePulse = Math.abs(Math.sin(Date.now() / 200));
-    
-            // ด้ามจับ
-            ctx.fillStyle = "#0a192f"; 
-            ctx.beginPath(); ctx.moveTo(-10, -4); ctx.lineTo(15, -4); ctx.lineTo(15, 4); ctx.lineTo(-10, 4); ctx.fill();
-    
-            // ฟันเฟือง
-            ctx.save();
-            ctx.translate(5, 0);
-            ctx.rotate(Date.now() / 300);
-            ctx.fillStyle = "#FFD700"; 
-            for(let i=0; i<6; i++) { ctx.rotate(Math.PI / 3); ctx.fillRect(0, -2, 12, 4); }
-            ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "#000"; 
-            ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI*2); ctx.fill();
-            ctx.restore();
-    
-            // แกนพลังงาน
-            ctx.fillStyle = "#FFFFFF";
-            ctx.beginPath(); ctx.moveTo(10, -2); ctx.lineTo(this.length, 0); ctx.lineTo(10, 2); ctx.fill();
-    
-            // ใบมีดโฮโลแกรม
-            ctx.fillStyle = `rgba(0, 255, 255, ${0.7 + timePulse * 0.3})`;
-            ctx.beginPath();
-            ctx.moveTo(8, -this.width * 0.6); ctx.lineTo(this.length * 1.1, 0);
-            ctx.lineTo(15, this.width * 0.2); ctx.lineTo(25, 0); ctx.fill();
-    
-            // ออร่าเส้นพลังงาน
-            ctx.strokeStyle = "#E0FFFF";
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(8, -this.width * 0.6 - timePulse*2);
-            ctx.lineTo(this.length * 1.15, 0);
-            ctx.lineTo(15, this.width * 0.2 + timePulse*2);
-            ctx.stroke();
-    
-            ctx.restore();
-        },
-    
-        onHitPlayer(player, target, game, hitBoxUsed) {
-            // ตรวจสอบว่าเป็นฮิตบล็อกรัศมี 2500 (ท่าผ่ามิติ)
-            if (hitBoxUsed.r > 2000) {
-                if (!player.custom.hitSet.has(target.id)) {
-                    // ดาเมจ 25% ของ Current HP ศัตรูที่มีอยู่ตอนนั้น
-                    let damage = target.hp * 0.25;
-                    target.takeDamage(damage, "magic", player, game); 
-                    
-                    player.custom.hitSet.add(target.id);
-                    
-                    // เกจอันติเก็บทีละ 10% (เมื่ออยู่ในมิติฟันโดนศัตรู)
-                    player.custom.realGauge = Math.min(100, player.custom.realGauge + 10);
-                    game.spawnParticles(target.x, target.y, 40, "#FFFFFF");
-                }
-            } else {
-                // การฟันปกติด้วยมีดสั้น (ดาเมจ 3) ไม่เพิ่มเกจ
-                target.takeDamage(this.baseDamage, "physical", player, game);
-                player.reverseWeapon();
-            }
-        },
-    
-        onHitWeapon(player, enemyPlayer, game) {
-            game.spawnParticles(player.weaponX, player.weaponY, 8, "#00FFFF");
-            player.reverseWeapon();
-        },
-    
-        onTakeDamage(player, source, game) {},
-    
-        onUltimateActivate(player, game) {
-            // เข้าสู่สถานะฟันรัวๆ 6 ครั้ง จนหน้าจอขาว
-            player.custom.state = "ULT_ACTIVE";
-            player.custom.timer = 0;
-            player.custom.realGauge = 0; // ล้างเกจ
-            player.ultimateGauge = 0;
-            
-            // รีเซ็ตการเก็บข้อมูลสำหรับฟัน 6 ครั้ง
-            player.custom.ultSlashes = []; 
-            player.custom.ultSlashCount = 0;
-            player.custom.ultTargetHp = new Map();
-            
-            // เก็บค่า HP ของศัตรูทั้งหมด ณ วินาทีที่กดอัลติ เพื่อเอาไปหารดาเมจ 6 ส่วนแบบเป๊ะๆ
-            game.getEnemies(player).forEach(e => {
-                player.custom.ultTargetHp.set(e.id, e.hp);
-            });
-            
-            // เอฟเฟคเปิดอันติ
-            game.spawnParticles(player.x, player.y, 200, "#FFD700");
-            game.triggerHitStop(200); 
-        }
-    },
-   "Cursed Staff": {
-        name: "Cursed Staff",
-        color: "#1a1a1a", // สีดำ
-        width: 12, // ความกว้างคทา
-        length: 70, // ความยาวคทา
-        baseDamage: 2, // ลดดาเมจพื้นฐานเหลือ 2
-        
-        // Physics Hacks
-        actorRadius: 30, // ปรับขนาดตัวละคร
-        baseSpeedCap: 18, // เดินช้าลงเล็กน้อยเพราะถือคทาหนัก
-        iFrameDuration: 200, 
-    
-        init(player) { 
-            // ทำให้ตัวละครกลายเป็นสีดำเท่ๆ
-            player.color = "#111111"; 
-            
-            // สถานะเลือดและโล่คำสาป
-            player.maxHp = 1;
-            player.hp = 1;
-            player.custom.shield = 100;
-            player.custom.maxShield = 100;
-            player.custom.shieldRegenTimer = 0;
-            player.custom.isRegenerating = false; // ตัวแปรเช็คสถานะการฮีลโล่
-    
-            // ตัวแปรสำหรับจัดการสกิล
-            player.custom.balls = [];
-            player.custom.trails = [];
-            player.custom.shadows = [];
-            player.custom.fireTimer = 0;
-            player.custom.ultTimer = 0;
-            player.custom.invincibleTimer = 0;
-    
-            player.passiveText = "HP 1, Shield 100 (รับดาเมจ 2เท่า, รีเจน 5/10วิ เมื่อโล่ต่ำกว่า 25%). ลูกบอลระเบิดเป็นวงกว้าง คำสาปปกติ +2%, อัลติ +5%"; 
-        },
-    
-        getHitboxes(player, game) {
-            let hitboxes = [];
-            
-            // 1. ฮิตบล็อกบริเวณคทา (ด้ามและปลาย)
-            let reach = player.weaponReach || this.length;
-            hitboxes.push({ x: player.weaponX, y: player.weaponY, r: 15, type: 'staff' }); // ปลายคทา
-            hitboxes.push({ 
-                x: player.x + Math.cos(player.weaponRotation) * (reach * 0.5), 
-                y: player.y + Math.sin(player.weaponRotation) * (reach * 0.5), 
-                r: 10, type: 'staff' 
-            }); // กลางคทา
-    
-            // 2. ฮิตบล็อกของลูกบอลคำสาป (Homing Balls)
-            for (let b of player.custom.balls) {
-                hitboxes.push({ x: b.x, y: b.y, r: 12, type: 'ball', ref: b });
-            }
-    
-            // 3. ฮิตบล็อกของร่องรอยคำสาป (Cursed Trails)
-            for (let t of player.custom.trails) {
-                hitboxes.push({ x: t.x, y: t.y, r: t.r || 25, type: 'trail', ref: t });
-            }
-    
-            // 4. ฮิตบล็อกอัลติเมต (AOE Curse Wave)
-            if (player.custom.ultTimer > 0) {
-                hitboxes.push({ x: player.x, y: player.y, r: 150, type: 'ult_wave' });
-            }
-    
-            return hitboxes;
-        },
-    
-        onUpdate(player, closestEnemy, game) {
-            // --- 1. ระบบตกแต่งเฟดเงาติดตามตัว ---
-            if (game.frame % 4 === 0) {
-                player.custom.shadows.push({ x: player.x, y: player.y, alpha: 0.6 });
-            }
-            for (let i = player.custom.shadows.length - 1; i >= 0; i--) {
-                player.custom.shadows[i].alpha -= 0.03 * (game.delta / 16);
-                if (player.custom.shadows[i].alpha <= 0) player.custom.shadows.splice(i, 1);
-            }
-    
-            // --- 2. ฟื้นฟูโล่คำสาป (ฮีล 5 หน่วย ต่อ 10 วินาที เมื่อต่ำกว่า 25%) ---
-            if (player.custom.shield <= player.custom.maxShield * 0.25) {
-                player.custom.isRegenerating = true; // เริ่มกระบวนการฮีลเมื่อต่ำกว่า 25%
-            }
-            if (player.custom.shield >= player.custom.maxShield) {
-                player.custom.isRegenerating = false; // หยุดฮีลเมื่อเต็ม
-                player.custom.shield = player.custom.maxShield; // ป้องกันการฮีลเกินขีดจำกัด
-            }
-    
-            if (player.custom.isRegenerating) {
-                player.custom.shieldRegenTimer += game.delta;
-                if (player.custom.shieldRegenTimer >= 10000) { // ปรับเป็น 10 วินาที = 10000 ms
-                    player.custom.shieldRegenTimer = 0;
-                    player.custom.shield += 5; // เพิ่มโล่ 5 หน่วย
-                }
-            } else {
-                player.custom.shieldRegenTimer = 0; // รีเซ็ตตัวนับเวลาหากไม่ได้อยู่ในสถานะฟื้นฟู
-            }
-    
-            // --- 3. อัลติเมตและการนับเวลาอมตะ ---
-            if (player.custom.invincibleTimer > 0) {
-                player.custom.invincibleTimer -= game.delta;
-            }
-    
-            if (player.custom.ultTimer > 0) {
-                player.custom.ultTimer -= game.delta;
-                // หยุดอยู่กับที่เวลาใช้อัลติ
-                player.vx *= 0.5; 
-                player.vy *= 0.5;
-                // ควงคทาอย่างรวดเร็ว
-                player.weaponRotation += 0.25 * player.weaponDir * (game.delta / 16);
-            } else {
-                // ควงคทาปกติ (ลดความเร็วโจมตีลงเล็กน้อย)
-                player.weaponRotation += 0.07 * player.weaponDir * (game.delta / 16);
-            }
-    
-            // --- 4. การยิงลูกบอลคำสาป ---
-            player.custom.fireTimer += game.delta;
-            // ยิงทุกๆ 1.5 วินาทีเมื่อมีศัตรู และไม่ได้ใช้อัลติอยู่ (ลดความเร็วการปล่อยบอลลง)
-            if (player.custom.fireTimer > 1500 && closestEnemy && player.custom.ultTimer <= 0) {
-                player.custom.fireTimer = 0;
-                player.custom.balls.push({
-                    x: player.weaponX,
-                    y: player.weaponY,
-                    vx: Math.cos(player.weaponRotation) * 6,
-                    vy: Math.sin(player.weaponRotation) * 6,
-                    life: 4000, // คงอยู่ 4 วิ
-                    trailTimer: 0
-                });
-            }
-    
-            // --- 5. อัปเดตลูกบอล (Homing & Trail) ---
-            let enemies = game.getEnemies(player);
-            for (let i = player.custom.balls.length - 1; i >= 0; i--) {
-                let b = player.custom.balls[i];
-                b.life -= game.delta;
-    
-                // ระบบ Homing ติดตามศัตรูที่ใกล้ที่สุด
-                let target = null;
-                let minDist = Infinity;
-                for (let e of enemies) {
-                    let d = Math.hypot(e.x - b.x, e.y - b.y);
-                    if (d < minDist) { minDist = d; target = e; }
-                }
-    
-                if (target) {
-                    let angle = Math.atan2(target.y - b.y, target.x - b.x);
-                    b.vx += Math.cos(angle) * 0.3 * (game.delta / 16);
-                    b.vy += Math.sin(angle) * 0.3 * (game.delta / 16);
-                    // จำกัดความเร็วลูกบอล
-                    let speed = Math.hypot(b.vx, b.vy);
-                    if (speed > 7) {
-                        b.vx = (b.vx / speed) * 7;
-                        b.vy = (b.vy / speed) * 7;
-                    }
-                }
-    
-                b.x += b.vx * (game.delta / 16);
-                b.y += b.vy * (game.delta / 16);
-    
-                // ทิ้งร่องรอยคำสาปไว้ระหว่างทาง (ทุกๆ 0.15 วิ / 150ms)
-                b.trailTimer += game.delta;
-                if (b.trailTimer > 150) {
-                    b.trailTimer = 0;
-                    player.custom.trails.push({ x: b.x, y: b.y, life: 2000, tickTimer: 0, r: 25 }); // คงอยู่ 2 วิ
-                }
-    
-                if (b.life <= 0) {
-                    // ระเบิดสร้างวงคำสาปอันใหญ่เมื่อหมดเวลา
-                    player.custom.trails.push({ x: b.x, y: b.y, life: 2500, tickTimer: 0, r: 80 }); 
-                    if (game.spawnParticles) game.spawnParticles(b.x, b.y, 30, "#8A2BE2");
-                    player.custom.balls.splice(i, 1);
-                }
-            }
-    
-            // --- 6. อัปเดตร่องรอยคำสาป ---
-            for (let i = player.custom.trails.length - 1; i >= 0; i--) {
-                let t = player.custom.trails[i];
-                t.life -= game.delta;
-                t.tickTimer += game.delta; // นับเวลาทำดาเมจเรื่อยๆ
-                if (t.life <= 0) player.custom.trails.splice(i, 1);
-            }
-        },
-    
-        render(ctx, player, game) { 
-            // ใช้ ctx.save() และ resetTransform() เพื่อวาดสิ่งต่างๆ นอกเหนือจากคทา (พิกัดโลก)
-            ctx.save();
-            ctx.resetTransform();
-    
-            // 1. วาดเงาติดตามตัว (Player Shadow Fade)
-            for (let s of player.custom.shadows) {
-                ctx.globalAlpha = s.alpha;
-                ctx.fillStyle = "#3a005c"; // สีม่วงเข้มคำสาป
-                ctx.beginPath();
-                ctx.arc(s.x, s.y, player.radius || 35, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            ctx.globalAlpha = 1.0;
-    
-            // 2. วาดร่องรอยคำสาป (Cursed Trails)
-            for (let t of player.custom.trails) {
-                let trailAlpha = (t.life / 2000) * 0.5;
-                ctx.fillStyle = `rgba(75, 0, 130, ${trailAlpha})`; // สีม่วงโปร่งแสง
-                ctx.beginPath();
-                ctx.arc(t.x, t.y, t.r || 25, 0, Math.PI * 2);
-                ctx.fill();
-            }
-    
-            // 3. วาดลูกบอลคำสาป (Homing Balls)
-            for (let b of player.custom.balls) {
-                ctx.fillStyle = "#000000"; // ลูกบอลสีดำ
-                ctx.shadowColor = "#8A2BE2"; // เงามืดคำสาป
-                ctx.shadowBlur = 15;
-                ctx.beginPath();
-                ctx.arc(b.x, b.y, 12, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.shadowBlur = 0;
-            }
-    
-            // 4. วาดคลื่นอัลติเมต
-            if (player.custom.ultTimer > 0) {
-                ctx.strokeStyle = `rgba(138, 43, 226, ${(player.custom.ultTimer / 3000)})`;
-                ctx.lineWidth = 15;
-                ctx.shadowColor = "#000000";
-                ctx.shadowBlur = 20;
-                ctx.beginPath();
-                ctx.arc(player.x, player.y, 150, 0, Math.PI * 2);
-                ctx.stroke();
-                ctx.shadowBlur = 0;
-            }
-    
-            // 5. วาดหลอดโล่คำสาป (Cursed Shield Bar) ไว้บนหัว
-            let barWidth = 60;
-            ctx.fillStyle = "#333";
-            ctx.fillRect(player.x - barWidth/2, player.y - player.radius - 20, barWidth, 6);
-            ctx.fillStyle = "#8A2BE2"; // สีม่วงคำสาป
-            // โล่ลดลงแถบจะหดตามค่า player.custom.shield ที่อัปเดตแบบเรียลไทม์
-            ctx.fillRect(player.x - barWidth/2, player.y - player.radius - 20, barWidth * (Math.max(0, player.custom.shield) / 100), 6);
-    
-            ctx.restore();
-    
-            // --- วาดคทาต้องสาปสุดน่ากลัว (จุด Origin (0,0) คือตรงกลางคทา) ---
-            
-            // ก้านด้ามคทาสีดำอมม่วง
-            ctx.fillStyle = "#1a0033"; 
-            ctx.fillRect(-this.width/2, -this.length/2, this.width, this.length);
-    
-            // วาดรูนเรืองแสงบนด้ามคทา
-            ctx.strokeStyle = "#4B0082";
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(0, -this.length/2 + 10);
-            ctx.lineTo(3, -this.length/4);
-            ctx.lineTo(-2, 0);
-            ctx.lineTo(2, this.length/4);
-            ctx.lineTo(0, this.length/2 - 10);
-            ctx.stroke();
-    
-            // ระดับความสูงของหัวคทา
-            let headY = this.length/2 + 15;
-    
-            // วงแหวนต้องสาปรอบหัวคทา (ลอยและหมุนไปรอบๆ)
-            ctx.save();
-            ctx.translate(0, headY);
-            ctx.rotate(game.frame * 0.05);
-            ctx.strokeStyle = "rgba(138, 43, 226, 0.6)";
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(0, 0, 26, 0, Math.PI * 1.5);
-            ctx.stroke();
-            ctx.restore();
-    
-            // เขาสองข้างสุดสยองที่โอบอุ้มลูกแก้ว
-            ctx.fillStyle = "#222222"; // ดำด้าน
-            ctx.shadowColor = "#000000";
-            ctx.shadowBlur = 8;
-            ctx.beginPath();
-            // เขาฝั่งขวา
-            ctx.moveTo(6, this.length/2 - 5);
-            ctx.quadraticCurveTo(35, headY - 5, 12, headY + 28);
-            ctx.quadraticCurveTo(25, headY, 0, headY - 8);
-            // เขาฝั่งซ้าย
-            ctx.moveTo(-6, this.length/2 - 5);
-            ctx.quadraticCurveTo(-35, headY - 5, -12, headY + 28);
-            ctx.quadraticCurveTo(-25, headY, 0, headY - 8);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-    
-            // ดวงตาปีศาจ / แกนผลึกคำสาปตรงกลาง
-            ctx.fillStyle = "#111111"; // พื้นสีดำสนิท
-            ctx.shadowColor = "#8A2BE2"; // เรืองแสงสีม่วง
-            ctx.shadowBlur = 25;
-            ctx.beginPath();
-            ctx.arc(0, headY, 13, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // รูม่านตาสีแดงม่วงน่ากลัว (สว่างขึ้นลงตามจังหวะเกมได้)
-            let eyeGlow = Math.abs(Math.sin(game.frame * 0.05));
-            ctx.fillStyle = `rgba(255, 0, 85, ${0.5 + eyeGlow * 0.5})`; 
-            ctx.shadowColor = "#ff0055";
-            ctx.shadowBlur = 10;
-            ctx.beginPath();
-            ctx.ellipse(0, headY, 3, 9, 0, 0, Math.PI * 2); // รูปวงรีเหมือนตางู
-            ctx.fill();
-            ctx.shadowBlur = 0;
-        },
-    
-        onHitPlayer(player, target, game, hitBoxUsed) {
-            // ดึงจำนวน Stack คำสาปมาคำนวณดาเมจ
-            let stacks = target.custom.curseStacks || 0;
-            let ultStacks = target.custom.ultCurseStacks || 0;
-            
-            // ปรับเป็น: เพิ่มดาเมจ 2% ต่อ 1 Stack ปกติ และ 5% ต่อ 1 Stack อัลติ
-            let dmgMultiplier = 1 + (stacks * 0.02) + (ultStacks * 0.05); 
-            let type = hitBoxUsed ? hitBoxUsed.type : 'staff';
-    
-            // ฟังก์ชั่นช่วยสาปเป้าหมาย
-            const applyCurse = () => {
-                target.custom.curseStacks = stacks + 1;
-                target.color = "#2a2a2a"; // ทำให้ศัตรูเป็นสีดำๆ
-                target.vx *= 0.85; // ทำให้เคลื่อนที่ช้าลง
-                target.vy *= 0.85;
-                game.spawnParticles(target.x, target.y, 5, "#4B0082");
-            };
-    
-            if (type === 'staff') {
-                // โจมตีด้วยการฟาดคทา
-                target.takeDamage(this.baseDamage * dmgMultiplier, "physical", player, game);
-                applyCurse();
-                player.reverseWeapon();
-            } 
-            else if (type === 'ball') {
-                // โจมตีด้วยลูกบอล
-                target.takeDamage(this.baseDamage * dmgMultiplier, "magical", player, game);
-                applyCurse();
-                if (hitBoxUsed.ref) hitBoxUsed.ref.life = 0; // ทำลายลูกบอลเมื่อชน
-            } 
-            else if (type === 'trail') {
-                // โจมตีด้วยรอยคำสาป (ทำดาเมจ 1 ทุกๆ 0.15 วิ หรือ 150ms)
-                if (hitBoxUsed.ref && hitBoxUsed.ref.tickTimer >= 150) {
-                    hitBoxUsed.ref.tickTimer = 0; // รีเซ็ตตัวนับเวลา
-                    target.takeDamage(1 * dmgMultiplier, "magical", player, game);
-                    applyCurse();
-                }
-            } 
-            else if (type === 'ult_wave') {
-                // โจมตีด้วยคลื่นอัลติเมต (ป้องกันไม่ให้ทำดาเมจถี่เกินไป)
-                if (!target.custom.lastUltHit || game.frame - target.custom.lastUltHit > 30) {
-                    target.custom.lastUltHit = game.frame;
-                    target.takeDamage(this.baseDamage * dmgMultiplier, "magical", player, game);
-                    
-                    // แสตคพิเศษ 5%
-                    target.custom.ultCurseStacks = ultStacks + 1;
-                    target.color = "#000000"; // ดำสนิท
-                    target.vx *= 0.6; // สโลว์หนักมาก
-                    target.vy *= 0.6;
-                    game.spawnParticles(target.x, target.y, 10, "#8A2BE2");
-                }
-            }
-        },
-    
-        onHitWeapon(player, enemyPlayer, game) {
-            game.spawnParticles(player.weaponX, player.weaponY, 10, "#4B0082");
-            player.reverseWeapon();
-        },
-    
-        onTakeDamage(player, source, game) {
-            // --- 1. ระบบอมตะ (Invincibility) จากอัลติ ---
-            if (player.custom.invincibleTimer > 0) {
-                player.hp = player.maxHp; // ลบล้างดาเมจทั้งหมด
-                return;
-            }
-    
-            // --- 2. ระบบ Cursed Shield รับดาเมจ 2 เท่า ---
-            let damageTaken = 1 - player.hp; // ปกติ maxHp คือ 1
-    
-            if (damageTaken > 0) {
-                // โล่ได้รับดาเมจ 2 หน่วยต่อ 1 ดาเมจที่โดน
-                let shieldDamage = damageTaken * 2;
-    
-                if (player.custom.shield >= shieldDamage) {
-                    // ถ้าโล่มีพอรับดาเมจ 2 เท่า
-                    player.custom.shield -= shieldDamage;
-                    player.hp = 1; // เติมเลือดกลับเป็น 1 (เสมือนไม่เข้าเลือดจริง)
-                    game.spawnParticles(player.x, player.y, 8, "#8A2BE2"); 
-                } else {
-                    // ถ้าโล่แตก ดาเมจที่ทะลุจะถูกหาร 2 กลับไปเป็นเลือดจริง 
-                    let overflowShieldDamage = shieldDamage - player.custom.shield;
-                    let actualOverflowDamage = overflowShieldDamage / 2;
-                    
-                    player.custom.shield = 0;
-                    player.hp = 1 - actualOverflowDamage; 
-                }
-            }
-        },
-    
-        onUltimateActivate(player, game) {
-            // ระยะเวลาสกิล 3 วินาที (3000ms)
-            player.custom.ultTimer = 3000;
-            // เป็นอมตะศัตรูตีไม่เข้า 3 วิ
-            player.custom.invincibleTimer = 3000; 
-            
-            game.spawnParticles(player.x, player.y, 40, "#111111");
-            game.spawnParticles(player.x, player.y, 40, "#8A2BE2");
-            game.triggerHitStop(100); // หน้าจอหยุดชะงักกระแทกอารมณ์อัลติ
-        }
     }
 };
 
@@ -2078,27 +701,25 @@ const BOSS_REGISTRY = {
         name: "Slime King", color: "#4caf50", radius: 65, maxHp: 1500,
         iFrameDuration: 100, 
         init(boss) {
-            boss.custom.jumpTimer = 2000; boss.custom.spawnTimer = 5000;
-            boss.passiveText = "Bounces heavily & spawns minions";
+            boss.custom.jumpTimer = 2000;
+            boss.passiveText = "Bounces heavily";
         },
         onUpdate(boss, game) {
-            boss.custom.jumpTimer -= game.delta; boss.custom.spawnTimer -= game.delta;
+            boss.custom.jumpTimer -= game.delta;
             let enemies = game.getEnemies(boss);
             let target = null; let minDist = Infinity;
             for (let e of enemies) { let d = MathUtils.distance(boss.x, boss.y, e.x, e.y); if (d < minDist) { minDist = d; target = e; } }
+            
             if (boss.custom.jumpTimer <= 0 && target) {
                 boss.custom.jumpTimer = 3000;
                 let n = MathUtils.normalize(target.x - boss.x, target.y - boss.y);
                 boss.vx += n.x * 20; boss.vy += n.y * 20;
                 game.spawnParticles(boss.x, boss.y, 20, "#4caf50");
-            }
-            if (boss.custom.spawnTimer <= 0) {
-                boss.custom.spawnTimer = 6000; game.spawnParticles(boss.x, boss.y, 30, "#4caf50");
-                this.spawnMiniSlime(boss, game);
+                game.triggerScreenShake(5, 200);
             }
         },
         render(ctx, boss, game) {
-            ctx.fillStyle = "#b89947"; ctx.fillRect(-20, -boss.radius - 15, 40, 20); // Gold crown
+            ctx.fillStyle = boss.ultimateActive ? "#ffeb3b" : "#b89947"; ctx.fillRect(-20, -boss.radius - 15, 40, 20); // Crown
             ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(-10, -boss.radius - 15, 5, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(10, -boss.radius - 15, 5, 0, Math.PI*2); ctx.fill();
         },
@@ -2106,6 +727,17 @@ const BOSS_REGISTRY = {
             player.takeDamage(15, "blunt", boss, game);
             let n = MathUtils.normalize(player.x - boss.x, player.y - boss.y);
             player.applyForce(n.x * 30, n.y * 30);
+        },
+        onHitWeapon(boss, attacker, game, hitboxObj) {
+            // Weapon intercepts Slime King's sticky body! Slows attacker down.
+            attacker.vx *= 0.5;
+            attacker.vy *= 0.5;
+            game.spawnParticles(attacker.weaponX || attacker.x, attacker.weaponY || attacker.y, 5, "#4caf50");
+        },
+        onUltimateActivate(boss, game) {
+            for(let i=0; i<3; i++) this.spawnMiniSlime(boss, game);
+            game.triggerScreenShake(15, 500);
+            boss.passiveText = "ULTIMATE: Slime Army!";
         },
         onTakeDamage(boss, source, game) { },
         spawnMiniSlime(owner, game) {
@@ -2142,463 +774,55 @@ const BOSS_REGISTRY = {
     "Dark Knight": {
         name: "Dark Knight", color: "#424242", radius: 40, maxHp: 1200,
         iFrameDuration: 100, 
-        init(boss) { boss.custom.dashTimer = 3000; boss.custom.isDashing = false; boss.passiveText = "Relentless rusher"; },
+        init(boss) { 
+            boss.custom.dashTimer = 3000; boss.custom.isDashing = false; 
+            boss.passiveText = "Relentless rusher"; 
+            boss.custom.phase2 = false;
+        },
         onUpdate(boss, game) {
             boss.custom.dashTimer -= game.delta;
+
             if (boss.custom.dashTimer <= 0) {
                 let enemies = game.getEnemies(boss);
                 if(enemies.length > 0) {
                     let target = enemies[Math.floor(Math.random()*enemies.length)];
                     let n = MathUtils.normalize(target.x - boss.x, target.y - boss.y);
-                    boss.vx = n.x * 35; boss.vy = n.y * 35;
-                    boss.custom.dashTimer = 2500 + Math.random()*1000; boss.custom.isDashing = true;
+                    boss.vx = n.x * (boss.custom.phase2 ? 45 : 35);
+                    boss.vy = n.y * (boss.custom.phase2 ? 45 : 35);
+                    boss.custom.dashTimer = (boss.custom.phase2 ? 1500 : 2500) + Math.random()*1000; 
+                    boss.custom.isDashing = true;
                     setTimeout(() => boss.custom.isDashing = false, 500);
-                    game.spawnParticles(boss.x, boss.y, 15, "#757575");
+                    game.spawnParticles(boss.x, boss.y, 15, boss.color);
+                    if(boss.custom.phase2) game.triggerScreenShake(8, 300);
                 }
             }
         },
         render(ctx, boss, game) {
             ctx.fillStyle = "#212121"; ctx.fillRect(-15, -15, 30, 10);
-            ctx.fillStyle = "#d32f2f"; ctx.shadowColor = "#d32f2f"; ctx.shadowBlur = 10;
+            ctx.fillStyle = "#fff"; ctx.shadowColor = "#fff"; ctx.shadowBlur = 10;
             ctx.beginPath(); ctx.arc(-6, -10, 3, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(6, -10, 3, 0, Math.PI*2); ctx.fill();
             ctx.shadowBlur = 0;
             
-            if(boss.custom.isDashing) { ctx.strokeStyle = "#d32f2f"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, boss.radius + 10, 0, Math.PI*2); ctx.stroke(); }
+            if(boss.custom.isDashing) { ctx.strokeStyle = boss.custom.phase2 ? "#ff5252" : "#d32f2f"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, boss.radius + 10, 0, Math.PI*2); ctx.stroke(); }
         },
         onHitPlayer(boss, player, game) {
             let dmg = boss.custom.isDashing ? 20 : 8;
+            if(boss.custom.phase2) dmg *= 1.5;
             player.takeDamage(dmg, "pierce", boss, game); player.applyForce(boss.vx * 0.5, boss.vy * 0.5);
         },
-        onTakeDamage(boss, source, game) {
-            boss.ultimateGauge += 5;
-            if (boss.ultimateGauge >= 100) {
-                boss.ultimateGauge = 0; game.spawnParticles(boss.x, boss.y, 50, "#424242");
-                let enemies = game.getEnemies(boss);
-                for(let e of enemies) {
-                    let n = MathUtils.normalize(e.x - boss.x, e.y - boss.y);
-                    e.applyForce(n.x * 40, n.y * 40); e.takeDamage(10, "magic", boss, game);
-                }
-            }
-        }
-    },
-    "DEMON": {
-        name: "DEMON", 
-        color: "#000000", 
-        radius: 70, 
-        maxHp: 6666,
-        
-        // Physics Hacks: ตัวหนักมาก เคลื่อนที่ช้า กันการผลักและการกระเด็นโดยสมบูรณ์
-        baseSpeedCap: 4,   // เดินช้ามาก ดุดัน
-        minSpeed: 1,
-        collisionBounce: 0.01, // ชนแล้วแทบไม่ขยับ
-        wallBounce: 0.05,      // ชนกำแพงไม่เด้ง
-        friction: 0.85,        // แรงเสียดทานสูงมาก หยุดไว น้ำหนักเยอะ
-        hitStopDuration: 0,    // ไม่ชะงักเลยเวลาโดนโจมตี
-        iFrameDuration: 30,
-        
-        init(boss) {
-            boss.custom = {
-                state: "idle",
-                stateTimer: 2000, // ใช้หน่วยเป็นมิลลิวินาที (ms)
-                phase: 1,
-                trailTimer: 0,
-                mapBurnTimer: 0,
-                auraTimer: 0,
-                invulnerable: false,
-                furyTimer: 0,
-                dashTarget: null,
-                dashDir: { x: 0, y: 0 },
-                lastPos: { x: boss.x, y: boss.y }
-            };
-            boss.ultimateGauge = 0;
-            boss.passiveText = "🔥 ออร่าเพลิง & ทิ้งรอยไฟ | 🛡️ ไร้พ่ายต่อ CC | 🔴 เลือด < 25% เผาผลาญทั้งแมพ!";
-    
-            // --- ฟังก์ชันเสกกองไฟ (พาสซีฟ) ---
-            boss.custom.spawnFirePatch = (game, x, y) => {
-                game.spawn({
-                    id: "demon_fire_" + Math.random(),
-                    x: x || 0, y: y || 0, 
-                    radius: 40, 
-                    color: "#ff4500",
-                    team: boss.team,
-                    custom: { lifeTimer: 2000, tickTimer: 0 }, // คงอยู่ 2 วินาที
-                    onUpdate(entity, gameEngine) {
-                        let dt = gameEngine.delta || 16.6;
-                        entity.custom.lifeTimer -= dt;
-                        
-                        if (entity.custom.lifeTimer <= 0) {
-                            entity.hp = 0; // หมดเวลา สลายกองไฟ
-                            return;
-                        }
-    
-                        entity.custom.tickTimer += dt;
-                        if (entity.custom.tickTimer >= 350) { // ดาเมจ 2 ต่อ 0.35 วิ (350 ms)
-                            entity.custom.tickTimer = 0;
-                            let list = gameEngine.getEnemies(entity) || []; // [FIXED] ดักค่า null
-                            list.forEach(e => {
-                                let dist = Math.hypot(e.x - entity.x, e.y - entity.y);
-                                if (dist < entity.radius + (e.radius || 15)) {
-                                    e.takeDamage(2, "fire", boss, gameEngine);
-                                }
-                            });
-                        }
-                    },
-                    render(ctx, entity) {
-                        let alpha = Math.max(0, entity.custom.lifeTimer / 2000);
-                        ctx.globalAlpha = alpha;
-                        ctx.fillStyle = entity.color;
-                        ctx.beginPath();
-                        // วาดเปลวไฟแบบสุ่ม
-                        for(let i=0; i<4; i++){
-                             let offset = Math.random() * 15;
-                             ctx.arc(Math.random()*20 - 10, Math.random()*20 - 10, Math.max(0, entity.radius - offset), 0, Math.PI * 2);
-                        }
-                        ctx.fill();
-                        ctx.globalAlpha = 1.0;
-                    }
-                });
-            };
-    
-            // --- ฟังก์ชันเสกลูกไฟระเบิด ---
-            boss.custom.spawnFireball = (game, target) => {
-                if (!target || target.x === undefined) return;
-                let dirX = target.x - boss.x;
-                let dirY = target.y - boss.y;
-                let dist = Math.hypot(dirX, dirY) || 1;
-                let speed = 10;
-                
-                game.spawn({
-                    id: "demon_fireball_" + Math.random(),
-                    x: boss.x, y: boss.y, 
-                    vx: (dirX / dist) * speed, 
-                    vy: (dirY / dist) * speed,
-                    radius: 18, 
-                    color: "#ff2200",
-                    team: boss.team,
-                    onUpdate(entity, gameEngine) {
-                        entity.x += entity.vx;
-                        entity.y += entity.vy;
-                        
-                        let list = gameEngine.getEnemies(entity) || []; // [FIXED] ดักค่า null
-                        let hitEnemy = list.find(e => Math.hypot(e.x - entity.x, e.y - entity.y) < e.radius + (entity.radius || 18));
-                        
-                        let arenaSize = gameEngine.arena ? gameEngine.arena.size : 800; // [FIXED] ดักตัวแปร arena หาย
-                        let outOfBounds = entity.x < 0 || entity.x > arenaSize || entity.y < 0 || entity.y > arenaSize;
-                        
-                        if (hitEnemy || outOfBounds) {
-                            if (hitEnemy) hitEnemy.takeDamage(15, "fire", boss, gameEngine);
-                            boss.custom.spawnFirePatch(gameEngine, entity.x, entity.y); // ทิ้งกองไฟเมื่อระเบิด
-                            entity.hp = 0; 
-                        }
-                    },
-                    render(ctx, entity) {
-                        ctx.fillStyle = entity.color;
-                        ctx.shadowBlur = 15;
-                        ctx.shadowColor = "#ff4500";
-                        ctx.beginPath();
-                        ctx.arc(0, 0, entity.radius, 0, Math.PI * 2);
-                        ctx.fill();
-                        ctx.shadowBlur = 0;
-                    }
-                });
-            };
-        },
-    
-        // ฮิตบล็อก 2 ชั้น: ตัวหลัก 70, ออร่าไฟ 110 (รัศมีเบิร์นต่อเนื่อง)
-        getHitboxes(boss, game) {
-            return [
-                { x: boss.x, y: boss.y, r: boss.radius, type: "body" },
-                { x: boss.x, y: boss.y, r: boss.radius + 40, type: "fire_aura" }
-            ];
-        },
-    
-        onUpdate(boss, game) {
-            let dt = game.delta || 16.6; // ใช้ delta time เพื่อความแม่นยำ
-            let enemies = game.getEnemies(boss) || [];
-            
-            // --- อมตะ (Invulnerable Hack) ---
-            if (boss.custom.invulnerable) {
-                if (boss.hp < boss.custom.lockedHp) {
-                    boss.hp = boss.custom.lockedHp; // เด้งเลือดกลับแทนเพื่อป้องกัน error ตอนโดนดาเมจแปลกๆ
-                }
-            } else {
-                boss.custom.lockedHp = boss.hp;
-            }
-    
-            // --- กลไกป้องกันการหยุด/สตันท์ (Anti-CC Force) ---
-            if (boss.custom.state === "dashing") {
-                // บังคับความเร็วตอนพุ่งเสมอ ไม่ให้โดนสกิลผลักหรือหยุด
-                boss.vx = boss.custom.dashDir.x * 25;
-                boss.vy = boss.custom.dashDir.y * 25;
-            } else if (boss.custom.state === "charging" || boss.custom.state === "roaring" || boss.custom.state === "ultimating" || boss.custom.state === "phase_transition") {
-                // ล็อกให้อยู่กับที่
-                boss.vx = 0;
-                boss.vy = 0;
-            }
-    
-            // --- ระบบชาร์จเกจ Ultimate (Fury) ---
-            if (boss.custom.state !== "ultimating" && boss.ultimateGauge < 100) {
-                boss.custom.furyTimer += dt;
-                if (boss.custom.furyTimer >= 200) { // เพิ่มเกจทุกๆ 0.2 วิ
-                    boss.ultimateGauge += 1;
-                    boss.custom.furyTimer = 0;
-                }
-            }
-    
-            // --- เช็คเปลี่ยนเฟส 2 (< 25%) ---
-            if (boss.custom.phase === 1 && boss.hp <= boss.maxHp * 0.25) {
-                boss.custom.phase = 2;
-                boss.hp = boss.maxHp * 0.5; // ฮีลกลับเป็น 50%
-                boss.custom.state = "phase_transition";
-                boss.custom.stateTimer = 2000; // ทุบพื้น 2 วิ
-                boss.custom.invulnerable = true;
-                boss.ultimateGauge = 0;
-                boss.passiveText = "🔥 นรกจำแลง: แมพถูกแผดเผาอย่างต่อเนื่อง!";
-            }
-    
-            // --- พาสซีฟ: ทิ้งรอยไฟตามทางเดิน ---
-            if (boss.custom.lastPos.x === undefined) {
-                boss.custom.lastPos = { x: boss.x, y: boss.y }; // [FIXED] ตั้งค่าพิกัดใหม่ถ้าก่อนหน้าบั๊กเป็น undefined
-            }
-            let distMoved = Math.hypot(boss.x - boss.custom.lastPos.x, boss.y - boss.custom.lastPos.y);
-            if (distMoved > 40) { // วางกองไฟทุกๆ ระยะ 40 พิกเซลที่เดิน
-                boss.custom.spawnFirePatch(game, boss.x, boss.y);
-                boss.custom.lastPos = { x: boss.x, y: boss.y };
-            }
-    
-            // --- พาสซีฟ เฟส 2: เผาทั้งแมพ ---
-            if (boss.custom.phase === 2) {
-                boss.custom.mapBurnTimer += dt;
-                if (boss.custom.mapBurnTimer >= 350) { // 1 ดาเมจ ต่อ 0.35 วิ
-                    boss.custom.mapBurnTimer = 0;
-                    enemies.forEach(e => {
-                        if (e && e.takeDamage) e.takeDamage(1, "fire", boss, game); // [FIXED] ดักป้องกัน entity ผิดปกติ
-                    });
-                }
-            }
-    
-            if (enemies.length === 0) return;
-    
-            // --- AI State Machine ---
-            boss.custom.stateTimer -= dt;
-    
-            // แทรกอัลติเมตทันทีที่เกจเต็ม
-            if (boss.ultimateGauge >= 100 && boss.custom.state === "idle") {
-                boss.custom.state = "ultimating";
-                boss.custom.stateTimer = 3000; // พ่นไฟ 3 วิ
-                boss.ultimateGauge = 0;
-            }
-    
-            switch (boss.custom.state) {
-                case "idle":
-                    // เดินเข้าหาศัตรูช้าๆ (ความเร็วถูกแคปไว้ด้วย baseSpeedCap: 4)
-                    let target = enemies[0];
-                    if (target && target.x !== undefined) {
-                        let dx = target.x - boss.x;
-                        let dy = target.y - boss.y;
-                        let dist = Math.hypot(dx, dy) || 1;
-                        boss.vx += (dx / dist) * 0.8;
-                        boss.vy += (dy / dist) * 0.8;
-                    }
-    
-                    if (boss.custom.stateTimer <= 0) {
-                        let rand = Math.random();
-                        if (rand < 0.4) {
-                            boss.custom.state = "charging";
-                            boss.custom.stateTimer = 3000; // ชาร์จพุ่ง 3 วิ
-                            boss.custom.dashTarget = enemies[Math.floor(Math.random() * enemies.length)];
-                        } else if (rand < 0.7) {
-                            boss.custom.state = "fireball";
-                            boss.custom.stateTimer = 1000; // ร่ายโยนบอลไฟ
-                        } else {
-                            boss.custom.state = "roaring";
-                            boss.custom.stateTimer = 3000; // คำรามอมตะ 3 วิ
-                            boss.custom.invulnerable = true;
-                        }
-                    }
-                    break;
-    
-                case "charging":
-                    if (boss.custom.stateTimer <= 0) {
-                        let t = boss.custom.dashTarget && boss.custom.dashTarget.hp > 0 ? boss.custom.dashTarget : enemies[0];
-                        if (t) {
-                            boss.custom.state = "dashing";
-                            boss.custom.stateTimer = 800; // พุ่ง 0.8 วิ
-                            let dirX = t.x - boss.x;
-                            let dirY = t.y - boss.y;
-                            let dDist = Math.hypot(dirX, dirY) || 1; 
-                            boss.custom.dashDir = { x: dirX / dDist, y: dirY / dDist };
-                        } else {
-                            boss.custom.state = "idle";
-                            boss.custom.stateTimer = 1000;
-                        }
-                    }
-                    break;
-    
-                case "dashing":
-                    if (boss.custom.stateTimer <= 0) {
-                        boss.custom.state = "idle";
-                        boss.custom.stateTimer = 1500;
-                    }
-                    break;
-    
-                case "fireball":
-                    if (boss.custom.stateTimer <= 500 && !boss.custom.fired) { // ยิงตอนเหลือ 0.5 วิ
-                        boss.custom.fired = true;
-                        let fTarget = enemies[Math.floor(Math.random() * enemies.length)];
-                        boss.custom.spawnFireball(game, fTarget);
-                    }
-                    if (boss.custom.stateTimer <= 0) {
-                        boss.custom.fired = false;
-                        boss.custom.state = "idle";
-                        boss.custom.stateTimer = 1500;
-                    }
-                    break;
-    
-                case "roaring":
-                    if (boss.custom.stateTimer <= 0) {
-                        boss.custom.invulnerable = false;
-                        boss.custom.state = "idle";
-                        boss.custom.stateTimer = 1500;
-                    }
-                    break;
-    
-                case "ultimating":
-                    // สาดกองไฟรอบตัว
-                    if (Math.random() < 0.15) { // สุ่มดรอปไฟรอบๆ
-                        let angle = Math.random() * Math.PI * 2;
-                        let spawnDist = boss.radius + Math.random() * 80;
-                        boss.custom.spawnFirePatch(game, boss.x + Math.cos(angle)*spawnDist, boss.y + Math.sin(angle)*spawnDist);
-                    }
-                    if (boss.custom.stateTimer <= 0) {
-                        boss.custom.state = "idle";
-                        boss.custom.stateTimer = 2000;
-                    }
-                    break;
-    
-                case "phase_transition":
-                    if (boss.custom.stateTimer <= 0) {
-                        boss.custom.invulnerable = false;
-                        boss.custom.state = "idle";
-                        boss.custom.stateTimer = 1000;
-                    }
-                    break;
-            }
-        },
-    
-        onHitPlayer(boss, player, game, hitboxObj) {
-            let now = Date.now();
-    
-            if (!player || !player.custom) return; // [FIXED] ป้องกัน player object ไม่สมบูรณ์
-    
-            if (hitboxObj && hitboxObj.type === "fire_aura") {
-                // ออร่าเบิร์น: 1 ดาเมจ ทุกๆ 0.10 วิ
-                if (!player.custom.lastDemonAura || now - player.custom.lastDemonAura >= 100) {
-                    player.takeDamage(1, "fire", boss, game);
-                    player.custom.lastDemonAura = now;
-                }
-            } else {
-                // ชนตัวหลัก
-                if (!player.custom.lastDemonHit || now - player.custom.lastDemonHit >= 300) {
-                    player.takeDamage(25, "blunt", boss, game);
-                    player.custom.lastDemonHit = now;
-                    
-                    // ถ้าบอสพุ่งชน -> สตันท์เป้าหมาย + วางไฟใต้ตีน
-                    if (boss.custom.state === "dashing") {
-                        if (player.addStatus) player.addStatus({ type: "stun", duration: 1500 }); // สตันท์ 1.5s
-                        boss.custom.spawnFirePatch(game, player.x, player.y);
-                    }
-                }
-            }
-        },
-    
-        onTakeDamage(boss, source, game) {
-            // [FIXED] โค้ดอมตะถูกย้ายไปที่ onUpdate เพื่อความปลอดภัย 
-            // ฟังก์ชันนี้ปล่อยว่างไว้เพื่อป้องกันเอนจินส่ง source ขยะหรือ undefined มาจนเกมค้าง
-        },
-    
-        render(ctx, boss, game) {
-            // --- เอฟเฟกต์ออร่าเพลิง (Fire Aura) ---
-            let pulse = Math.sin(Date.now() / 150) * 8;
-            ctx.fillStyle = "rgba(255, 69, 0, 0.25)";
-            ctx.beginPath();
-            ctx.arc(0, 0, Math.max(0, boss.radius + 40 + pulse), 0, Math.PI * 2);
-            ctx.fill();
-    
-            ctx.fillStyle = "rgba(255, 140, 0, 0.4)";
-            ctx.beginPath();
-            ctx.arc(0, 0, Math.max(0, boss.radius + 15 + pulse/2), 0, Math.PI * 2);
-            ctx.fill();
-    
-            // --- ปีกปีศาจ (Demon Wings) ---
-            ctx.fillStyle = "#110000";
-            ctx.beginPath(); // ปีกซ้าย
-            ctx.moveTo(-boss.radius + 15, 0);
-            ctx.lineTo(-boss.radius - 70, -60);
-            ctx.lineTo(-boss.radius - 45, -10);
-            ctx.lineTo(-boss.radius - 80, 40);
-            ctx.lineTo(-boss.radius, 20);
-            ctx.fill();
-    
-            ctx.beginPath(); // ปีกขวา
-            ctx.moveTo(boss.radius - 15, 0);
-            ctx.lineTo(boss.radius + 70, -60);
-            ctx.lineTo(boss.radius + 45, -10);
-            ctx.lineTo(boss.radius + 80, 40);
-            ctx.lineTo(boss.radius, 20);
-            ctx.fill();
-    
-            // --- ลำตัวหลัก (Main Body) ---
-            ctx.fillStyle = boss.color;
-            ctx.beginPath();
-            ctx.arc(0, 0, boss.radius, 0, Math.PI * 2);
-            ctx.fill();
-    
-            // --- เขา (Horns) ---
-            ctx.fillStyle = "#ff6600";
-            ctx.beginPath(); // เขาซ้าย
-            ctx.moveTo(-25, -boss.radius + 15);
-            ctx.quadraticCurveTo(-50, -boss.radius - 30, -15, -boss.radius - 40);
-            ctx.lineTo(-10, -boss.radius + 5);
-            ctx.fill();
-    
-            ctx.beginPath(); // เขาขวา
-            ctx.moveTo(25, -boss.radius + 15);
-            ctx.quadraticCurveTo(50, -boss.radius - 30, 15, -boss.radius - 40);
-            ctx.lineTo(10, -boss.radius + 5);
-            ctx.fill();
-    
-            // --- ตาแดง (Glowing Red Eyes) ---
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = "#ff0000";
-            ctx.fillStyle = "#ff0000";
-            ctx.beginPath();
-            // หันตาไปทางที่กำลังพุ่ง หรือหันหน้าตรง
-            let eyeOffset = boss.custom.state === "dashing" ? 10 : 0;
-            ctx.ellipse(-15, -15 + eyeOffset, 12, 6, Math.PI/8, 0, Math.PI * 2);
-            ctx.ellipse(15, -15 + eyeOffset, 12, 6, -Math.PI/8, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-    
-            // --- Visual Effects เพิ่มเติม ---
-            if (boss.custom.state === "charging") {
-                ctx.strokeStyle = "#ff4500";
-                ctx.lineWidth = 4;
-                ctx.beginPath();
-                let chargeRadius = boss.radius + 10 + (Math.random() * 15);
-                ctx.arc(0, 0, chargeRadius, 0, Math.PI * 2);
-                ctx.stroke();
-            }
-    
-            if (boss.custom.invulnerable) {
-                ctx.strokeStyle = "#ffffff";
-                ctx.lineWidth = 3;
-                ctx.setLineDash([15, 10]);
-                ctx.beginPath();
-                ctx.arc(0, 0, boss.radius + 5, (Date.now() / 200) % (Math.PI*2), (Date.now() / 200) % (Math.PI*2) + Math.PI);
-                ctx.stroke();
-                ctx.setLineDash([]);
+        onTakeDamage(boss, source, game) { },
+        onDeath(boss, killer, game) {
+            // 🔥 Action Skill แปลกๆ: ตายแล้วฟื้นกลับมาในร่าง Phase 2!
+            if (!boss.custom.phase2) {
+                boss.custom.phase2 = true;
+                boss.hp = boss.maxHp; // Revive!
+                boss.color = "#d32f2f";
+                boss.baseSpeedCap = 30;
+                boss.passiveText = "PHASE 2: UNDYING!";
+                game.triggerScreenShake(30, 1000);
+                game.setArenaBgOverride("rgba(50, 0, 0, 0.9)");
+                game.spawnParticles(boss.x, boss.y, 100, "#d32f2f");
             }
         }
     }
@@ -2639,6 +863,42 @@ class Actor {
         else if (this.x + r > arena.x + arena.size) { this.x = arena.x + arena.size - r; this.vx = -Math.abs(this.vx) * bounce + perturb(); this.vy += perturb(); }
         if (this.y - r < arena.y) { this.y = arena.y + r; this.vy = Math.abs(this.vy) * bounce + perturb(); this.vx += perturb(); }
         else if (this.y + r > arena.y + arena.size) { this.y = arena.y + arena.size - r; this.vy = -Math.abs(this.vy) * bounce + perturb(); this.vx += perturb(); }
+    }
+    // Unified Damage & Death Core
+    takeDamage(amount, type, source, game) {
+        if (this.iFrames > 0 || this.hp <= 0) return; 
+        
+        this.hp = Math.max(0, this.hp - amount); 
+        this.iFrames = MathUtils.getStat(this, 'iFrameDuration'); 
+        
+        let hsTime = MathUtils.getStat(source || this, 'hitStopDuration');
+        game.triggerHitStop(hsTime); 
+        
+        game.spawnParticles(this.x, this.y, 15, source ? source.color : "#fff");
+        let dc = "#333"; if (type === "physical") dc = "#555"; else if (type === "pierce") dc = "#b89947"; else if (type === "blunt") dc = "#795548"; else if (type === "magic") dc = "#9c27b0"; else if (type === "burn") dc = "#d84315";
+        game.spawnFloatingText(this.x, this.y, amount, dc);
+        
+        // Ultimate Charge Logic for ALL Actors (Player & Boss)
+        if (source && !source.ultimateActive && source.id) {
+            let chargeAmt = source.isBoss ? 10 : 20; 
+            source.ultimateGauge += chargeAmt;
+            if (source.ultimateGauge >= 100) { 
+                source.ultimateGauge = 100; source.ultimateActive = true; source.ultimateTimer = 2000; 
+                game.spawnParticles(source.x, source.y, 40, "#d4af37"); 
+                if (source.isPlayer && source.weaponDef && source.weaponDef.onUltimateActivate) source.weaponDef.onUltimateActivate(source, game);
+                if (source.isBoss && source.bossDef && source.bossDef.onUltimateActivate) source.bossDef.onUltimateActivate(source, game);
+            }
+        }
+        
+        // Defensive Hooks
+        if (this.isPlayer && this.weaponDef && this.weaponDef.onTakeDamage) this.weaponDef.onTakeDamage(this, source, game);
+        if (this.isBoss && this.bossDef && this.bossDef.onTakeDamage) this.bossDef.onTakeDamage(this, source, game);
+
+        // Death Hook (Allows Revive or Final Actions)
+        if (this.hp <= 0) {
+            if (this.isPlayer && this.weaponDef && this.weaponDef.onDeath) this.weaponDef.onDeath(this, source, game);
+            if (this.isBoss && this.bossDef && this.bossDef.onDeath) this.bossDef.onDeath(this, source, game);
+        }
     }
 }
 
@@ -2716,23 +976,6 @@ class Player extends Actor {
         ctx.fillStyle = "rgba(44, 36, 27, 0.8)"; ctx.font = "bold 13px 'Cinzel', serif"; ctx.textAlign="center"; ctx.fillText(this.id, this.x, this.y - r - 12);
     }
     
-    takeDamage(amount, type, source, game) {
-        if (this.iFrames > 0) return; 
-        this.hp = Math.max(0, this.hp - amount); 
-        this.iFrames = MathUtils.getStat(this, 'iFrameDuration'); 
-        
-        let hsTime = MathUtils.getStat(source || this, 'hitStopDuration');
-        game.triggerHitStop(hsTime); 
-        
-        game.spawnParticles(this.x, this.y, 15, source ? source.color : "#fff");
-        let dc = "#333"; if (type === "physical") dc = "#555"; else if (type === "pierce") dc = "#b89947"; else if (type === "blunt") dc = "#795548"; else if (type === "magic") dc = "#9c27b0"; else if (type === "burn") dc = "#d84315";
-        game.spawnFloatingText(this.x, this.y, amount, dc);
-        if (source && source.isPlayer && !source.ultimateActive && source.id) {
-            source.ultimateGauge += 20; if (source.ultimateGauge >= 100) { source.ultimateGauge = 100; source.ultimateActive = true; source.ultimateTimer = 2000; if(source.weaponDef && source.weaponDef.onUltimateActivate) source.weaponDef.onUltimateActivate(source, game); game.spawnParticles(source.x, source.y, 40, "#d4af37"); }
-        }
-        if (this.weaponDef && this.weaponDef.onTakeDamage) this.weaponDef.onTakeDamage(this, source, game);
-    }
-    
     reverseWeapon() { if (this.weaponCooldown <= 0) { this.weaponDir *= -1; this.weaponCooldown = 200; } }
 }
 
@@ -2773,7 +1016,9 @@ class Boss extends Actor {
             }
         }
 
-        if (this.iFrames > 0) this.iFrames -= game.delta; this.updateEffects(game);
+        if (this.iFrames > 0) this.iFrames -= game.delta; 
+        this.updateEffects(game);
+        if (this.ultimateActive) { this.ultimateTimer -= game.delta; this.ultimateGauge = (this.ultimateTimer / 2000) * 100; if (this.ultimateTimer <= 0) { this.ultimateActive = false; this.ultimateGauge = 0; } }
         if (this.bossDef.onUpdate) this.bossDef.onUpdate(this, game);
         this.handleWallCollision(game.arena);
     }
@@ -2785,22 +1030,6 @@ class Boss extends Actor {
         ctx.lineWidth = 3; ctx.strokeStyle = "rgba(44, 36, 27, 0.5)"; ctx.stroke(); ctx.shadowBlur = 0; 
         if (this.bossDef.render) this.bossDef.render(ctx, this, game);
         ctx.restore(); ctx.fillStyle = "rgba(44, 36, 27, 0.9)"; ctx.font = "bold 16px 'Cinzel', serif"; ctx.textAlign="center"; ctx.fillText(this.bossDef.name, this.x, this.y - r - 15);
-    }
-    takeDamage(amount, type, source, game) {
-        if (this.iFrames > 0) return; 
-        this.hp = Math.max(0, this.hp - amount); 
-        this.iFrames = MathUtils.getStat(this, 'iFrameDuration'); 
-        
-        let hsTime = MathUtils.getStat(source || this, 'hitStopDuration');
-        game.triggerHitStop(hsTime);
-
-        game.spawnParticles(this.x, this.y, 20, source ? source.color : "#fff");
-        let dc = "#333"; if (type === "physical") dc = "#555"; else if (type === "pierce") dc = "#b89947"; else if (type === "blunt") dc = "#795548"; else if (type === "magic") dc = "#9c27b0"; else if (type === "burn") dc = "#d84315";
-        game.spawnFloatingText(this.x, this.y, amount, dc);
-        if (source && source.isPlayer && !source.ultimateActive && source.id) {
-            source.ultimateGauge += 10; if (source.ultimateGauge >= 100) { source.ultimateGauge = 100; source.ultimateActive = true; source.ultimateTimer = 2000; if(source.weaponDef && source.weaponDef.onUltimateActivate) source.weaponDef.onUltimateActivate(source, game); game.spawnParticles(source.x, source.y, 40, "#d4af37"); }
-        }
-        if (this.bossDef.onTakeDamage) this.bossDef.onTakeDamage(this, source, game);
     }
 }
 
@@ -2816,23 +1045,18 @@ const Engine = {
     
     // Global Configs
     config: {
-        arenaScale: 1.0,
-        bgColor: "#e8e4d8",
-        baseSpeedCap: 20,
-        minSpeed: 5,
-        collisionBounce: 1.05,
-        maxCollisionSpeed: 40,
-        iFrameDuration: 200,
-        hitStopDuration: 50,
-        wallBounce: 0.95,
-        friction: 0.995,
-        showHitboxes: false
+        arenaScale: 1.0, bgColor: "#e8e4d8", baseSpeedCap: 20, minSpeed: 5, collisionBounce: 1.05,
+        maxCollisionSpeed: 40, iFrameDuration: 200, hitStopDuration: 50, wallBounce: 0.95, friction: 0.995, showHitboxes: false
     },
     
     arena: { x: 0, y: 0, size: 0, scale: 1.0 }, 
     actors: [], entities: [], particles: [],
     lastTime: 0, delta: 0, hitStop: 0, state: 'MENU', mode: '1v1',
     
+    // Cinematic & Environmental effects
+    shakeX: 0, shakeY: 0, shakeTimer: 0, shakeIntensity: 0,
+    bgOverride: null, arenaBgOverride: null, arenaScaleOverride: null,
+
     init() {
         window.addEventListener('resize', () => this.resizeCanvas());
         this.resizeCanvas(); this.buildMenuUI();
@@ -2842,147 +1066,68 @@ const Engine = {
         // Settings Sync
         const configKeys = ['arenaScale', 'baseSpeedCap', 'minSpeed', 'collisionBounce', 'maxCollisionSpeed', 'iFrameDuration', 'hitStopDuration', 'wallBounce', 'friction'];
         configKeys.forEach(k => {
-            let el = document.getElementById(`cfg-${k}`);
-            let valEl = document.getElementById(`val-${k}`);
+            let el = document.getElementById(`cfg-${k}`); let valEl = document.getElementById(`val-${k}`);
             if(el) {
-                el.value = this.config[k];
-                if(valEl) valEl.innerText = this.config[k];
+                el.value = this.config[k]; if(valEl) valEl.innerText = this.config[k];
                 el.addEventListener('input', e => {
-                    let v = parseFloat(e.target.value);
-                    this.config[k] = v;
+                    let v = parseFloat(e.target.value); this.config[k] = v;
                     if(valEl) valEl.innerText = v;
                     if(k === 'arenaScale') { this.arena.scale = v; this.resizeCanvas(); }
                 });
             }
         });
         let chkHitbox = document.getElementById('cfg-showHitboxes');
-        if(chkHitbox) {
-            chkHitbox.checked = this.config.showHitboxes;
-            chkHitbox.addEventListener('change', e => this.config.showHitboxes = e.target.checked);
-        }
+        if(chkHitbox) { chkHitbox.checked = this.config.showHitboxes; chkHitbox.addEventListener('change', e => this.config.showHitboxes = e.target.checked); }
         let bgEl = document.getElementById('cfg-bgColor');
-        if(bgEl) {
-            bgEl.value = this.config.bgColor;
-            bgEl.addEventListener('input', e => this.config.bgColor = e.target.value);
-        }
+        if(bgEl) { bgEl.value = this.config.bgColor; bgEl.addEventListener('input', e => this.config.bgColor = e.target.value); }
 
-        // Open Settings from Main Menu
-        document.getElementById('menu-settings-btn').addEventListener('click', () => { 
-            document.getElementById('settings-modal').style.display = 'flex'; 
-            document.getElementById('quit-btn').style.display = 'none'; 
-            document.getElementById('resume-btn').innerText = 'Close';
-        });
+        document.getElementById('menu-settings-btn').addEventListener('click', () => { document.getElementById('settings-modal').style.display = 'flex'; document.getElementById('quit-btn').style.display = 'none'; document.getElementById('resume-btn').innerText = 'Close'; });
+        document.getElementById('settings-btn').addEventListener('click', () => { this.state = 'PAUSED'; document.getElementById('settings-modal').style.display = 'flex'; document.getElementById('quit-btn').style.display = 'block'; document.getElementById('resume-btn').innerText = 'Resume'; });
+        document.getElementById('resume-btn').addEventListener('click', () => { document.getElementById('settings-modal').style.display = 'none'; if(this.actors.length > 0) { this.state = 'PLAYING'; this.lastTime = performance.now(); } });
 
-        // Open Settings while Playing
-        document.getElementById('settings-btn').addEventListener('click', () => { 
-            this.state = 'PAUSED'; 
-            document.getElementById('settings-modal').style.display = 'flex'; 
-            document.getElementById('quit-btn').style.display = 'block';
-            document.getElementById('resume-btn').innerText = 'Resume';
-        });
-
-        // Close Settings
-        document.getElementById('resume-btn').addEventListener('click', () => { 
-            document.getElementById('settings-modal').style.display = 'none'; 
-            if(this.actors.length > 0) { 
-                this.state = 'PLAYING'; 
-                this.lastTime = performance.now(); 
-            }
-        });
-
-        // Reset Settings
         document.getElementById('reset-settings-btn').addEventListener('click', () => {
-            this.config = {
-                arenaScale: 1.0,
-                bgColor: "#e8e4d8",
-                baseSpeedCap: 20,
-                minSpeed: 5,
-                collisionBounce: 1.05,
-                maxCollisionSpeed: 40,
-                iFrameDuration: 200,
-                hitStopDuration: 50,
-                wallBounce: 0.95,
-                friction: 0.995,
-                showHitboxes: false
-            };
+            this.config = { arenaScale: 1.0, bgColor: "#e8e4d8", baseSpeedCap: 20, minSpeed: 5, collisionBounce: 1.05, maxCollisionSpeed: 40, iFrameDuration: 200, hitStopDuration: 50, wallBounce: 0.95, friction: 0.995, showHitboxes: false };
             this.arena.scale = 1.0;
-            
-            // Sync UI elements back to default values
-            configKeys.forEach(k => {
-                let el = document.getElementById(`cfg-${k}`);
-                let valEl = document.getElementById(`val-${k}`);
-                if(el) el.value = this.config[k];
-                if(valEl) valEl.innerText = this.config[k];
-            });
-            
-            let chkHitboxEl = document.getElementById('cfg-showHitboxes');
-            if(chkHitboxEl) chkHitboxEl.checked = this.config.showHitboxes;
-
-            // Sync Arena scale specifically
-            let oldArenaScaleEl = document.getElementById('arena-scale');
-            let oldArenaScaleVal = document.getElementById('arena-scale-val');
-            if(oldArenaScaleEl) oldArenaScaleEl.value = 1.0;
-            if(oldArenaScaleVal) oldArenaScaleVal.innerText = "100";
-
-            let bgColEl = document.getElementById('cfg-bgColor');
-            let oldBgColEl = document.getElementById('bg-color');
-            if(bgColEl) bgColEl.value = this.config.bgColor;
-            if(oldBgColEl) oldBgColEl.value = this.config.bgColor;
-
+            configKeys.forEach(k => { let el = document.getElementById(`cfg-${k}`); let valEl = document.getElementById(`val-${k}`); if(el) el.value = this.config[k]; if(valEl) valEl.innerText = this.config[k]; });
+            let chkHitboxEl = document.getElementById('cfg-showHitboxes'); if(chkHitboxEl) chkHitboxEl.checked = this.config.showHitboxes;
+            let oldArenaScaleEl = document.getElementById('arena-scale'); let oldArenaScaleVal = document.getElementById('arena-scale-val');
+            if(oldArenaScaleEl) oldArenaScaleEl.value = 1.0; if(oldArenaScaleVal) oldArenaScaleVal.innerText = "100";
+            let bgColEl = document.getElementById('cfg-bgColor'); let oldBgColEl = document.getElementById('bg-color');
+            if(bgColEl) bgColEl.value = this.config.bgColor; if(oldBgColEl) oldBgColEl.value = this.config.bgColor;
             this.resizeCanvas();
         });
 
         document.getElementById('quit-btn').addEventListener('click', () => {
             document.getElementById('settings-modal').style.display = 'none'; document.getElementById('game-ui').style.display = 'none';
             document.getElementById('settings-btn').style.display = 'none'; document.getElementById('menu').style.display = 'flex'; this.state = 'MENU';
-            this.actors = []; 
+            this.actors = []; this.clearEnvironmentOverrides();
         });
 
         requestAnimationFrame((t) => this.loop(t));
     },
 
+    // --- Cinematic APIs ---
+    triggerScreenShake(intensity, ms) { this.shakeIntensity = intensity; this.shakeTimer = ms; },
+    setBgOverride(color) { this.bgOverride = color; },
+    setArenaBgOverride(color) { this.arenaBgOverride = color; },
+    setArenaScaleOverride(scale) { this.arenaScaleOverride = scale; this.resizeCanvas(); },
+    clearEnvironmentOverrides() { this.bgOverride = null; this.arenaBgOverride = null; this.arenaScaleOverride = null; this.resizeCanvas(); },
+
     resizeCanvas() {
-        this.width = window.innerWidth;
-        this.height = window.innerHeight;
-        this.canvas.width = this.width;
-        this.canvas.height = this.height;
-        
-        let isMobile = this.width <= 768;
-        
+        this.width = window.innerWidth; this.height = window.innerHeight;
+        this.canvas.width = this.width; this.canvas.height = this.height;
+        let isMobile = this.width <= 768; let activeScale = this.arenaScaleOverride !== null ? this.arenaScaleOverride : this.arena.scale;
+
         if (isMobile) {
-            // Mobile Layout: Top & Bottom HUDs
-            let hudH = this.state !== 'MENU' ? 120 : 0; 
-            let availableW = this.width - 20; 
-            let availableH = this.height - (hudH * 2) - 20;
-            
-            let baseSize = Math.max(1, Math.min(availableW, availableH));
-            this.arena.size = baseSize * this.arena.scale;
-            
-            this.arena.x = (this.width - this.arena.size) / 2;
-            this.arena.y = hudH + 10 + (availableH - this.arena.size) / 2;
-
-            let sBtn = document.getElementById('settings-btn');
-            if (sBtn) {
-                sBtn.style.right = '10px';
-                sBtn.style.bottom = (hudH + 10) + 'px';
-            }
+            let hudH = this.state !== 'MENU' ? 120 : 0; let availableW = this.width - 20; let availableH = this.height - (hudH * 2) - 20;
+            let baseSize = Math.max(1, Math.min(availableW, availableH)); this.arena.size = baseSize * activeScale;
+            this.arena.x = (this.width - this.arena.size) / 2; this.arena.y = hudH + 10 + (availableH - this.arena.size) / 2;
+            let sBtn = document.getElementById('settings-btn'); if (sBtn) { sBtn.style.right = '10px'; sBtn.style.bottom = (hudH + 10) + 'px'; }
         } else {
-            // Desktop Layout: Left & Right HUDs
-            const hudWidth = 270;
-            let availableW = this.width - (hudWidth * 2) - 60; 
-            let availableH = this.height - 60;
-            
-            let baseSize = Math.max(1, Math.min(availableW, availableH));
-            this.arena.size = baseSize * this.arena.scale;
-            
-            this.arena.x = hudWidth + 30 + (availableW - this.arena.size) / 2;
-            this.arena.y = (this.height - this.arena.size) / 2;
-
-            let sBtn = document.getElementById('settings-btn');
-            if (sBtn) {
-                sBtn.style.right = '280px';
-                sBtn.style.bottom = '20px';
-            }
+            const hudWidth = 270; let availableW = this.width - (hudWidth * 2) - 60; let availableH = this.height - 60;
+            let baseSize = Math.max(1, Math.min(availableW, availableH)); this.arena.size = baseSize * activeScale;
+            this.arena.x = hudWidth + 30 + (availableW - this.arena.size) / 2; this.arena.y = (this.height - this.arena.size) / 2;
+            let sBtn = document.getElementById('settings-btn'); if (sBtn) { sBtn.style.right = '280px'; sBtn.style.bottom = '20px'; }
         }
     },
 
@@ -2990,7 +1135,6 @@ const Engine = {
         const container = document.getElementById('setup-container'); container.innerHTML = "";
         const gw = () => { let h = ""; for(let w in WEAPON_REGISTRY) h += `<option value="${w}">${w}</option>`; return h; };
         const gb = () => { let h = ""; for(let b in BOSS_REGISTRY) h += `<option value="${b}">${b}</option>`; return h; };
-        
         let team1Label = this.width <= 768 ? "P1 Weapon (Bottom):" : "P1 Weapon (Left):";
         let team2Label = this.width <= 768 ? "P2 Weapon (Top):" : "P2 Weapon (Right):";
         let pLabel = this.width <= 768 ? "Players (1-5, Bottom):" : "Players (1-5, Left):";
@@ -3024,9 +1168,9 @@ const Engine = {
 
     startGame() {
         document.getElementById('menu').style.display = 'none'; document.getElementById('game-ui').style.display = 'block'; document.getElementById('settings-btn').style.display = 'block';
+        this.clearEnvironmentOverrides();
         this.actors = []; this.entities = []; this.particles = []; this.hitStop = 0;
-        let colorsP = ["#4169e1", "#4682b4", "#5f9ea0", "#20b2aa", "#6a5acd"]; // Muted Blues
-        let colorsB = ["#e57373", "#ff8a65"]; // Bright reds for visibility on bright bg
+        let colorsP = ["#4169e1", "#4682b4", "#5f9ea0", "#20b2aa", "#6a5acd"]; let colorsB = ["#e57373", "#ff8a65"]; 
         if (this.mode === '1v1') {
             this.actors.push(new Player("P1", 0, 0, colorsP[0], 1, document.getElementById('p1-w').value));
             this.actors.push(new Player("P2", 0, 0, colorsB[0], 2, document.getElementById('p2-w').value));
@@ -3050,7 +1194,7 @@ const Engine = {
                 <div class="hud-title" style="color:var(--text-main)">${b?a.bossDef.name:`${a.id} (${a.weaponDef.name})`}</div>
                 <div class="stat-row"><span>HP</span><span id="${a.id}-hp-text">${a.maxHp}/${a.maxHp}</span></div>
                 <div class="bar-container"><div class="hp-bar" id="${a.id}-hp" style="background:${a.color};width:100%"></div></div>
-                ${a.isPlayer?`<div class="stat-row"><span style="color:var(--gold-dark)">Ult</span><span id="${a.id}-ult-text">0%</span></div><div class="bar-container"><div class="ult-bar" id="${a.id}-ult"></div></div>`:""}
+                <div class="stat-row"><span style="color:var(--gold-dark)">Ult</span><span id="${a.id}-ult-text">0%</span></div><div class="bar-container"><div class="ult-bar" id="${a.id}-ult"></div></div>
                 <div class="passive-text" id="${a.id}-passive">Passive: --</div>
             </div>`;
         this.actors.filter(a => a.team === 1).forEach(a => footer.innerHTML += cPanel(a, a.isBoss));
@@ -3063,28 +1207,25 @@ const Engine = {
             if(hpB) hpB.style.width = `${(a.hp / a.maxHp) * 100}%`;
             if(hpT) hpT.innerText = `${Math.ceil(a.hp)}/${a.maxHp}`;
             if(pT) pT.innerText = `Passive: ${a.passiveText || "--"}`;
-            if(a.isPlayer) {
-                let uB = document.getElementById(`${a.id}-ult`), uT = document.getElementById(`${a.id}-ult-text`);
-                if(uB) { uB.style.width = `${a.ultimateGauge}%`; uB.style.background = a.ultimateActive?"#fff":"linear-gradient(90deg, #d4c4a8, var(--gold))"; }
-                if(uT) uT.innerText = a.ultimateActive?"ACTIVE":`${Math.floor(a.ultimateGauge)}%`;
-            }
+            
+            let uB = document.getElementById(`${a.id}-ult`), uT = document.getElementById(`${a.id}-ult-text`);
+            if(uB) { uB.style.width = `${a.ultimateGauge}%`; uB.style.background = a.ultimateActive?"#fff":"linear-gradient(90deg, #d4c4a8, var(--gold))"; }
+            if(uT) uT.innerText = a.ultimateActive?"ACTIVE":`${Math.floor(a.ultimateGauge)}%`;
         });
     },
 
     getEnemies(a) { return this.actors.filter(x => x.team !== a.team && x.hp > 0); },
     spawn(e) { this.entities.push(e); },
-    spawnActor(actor) { 
-        this.actors.push(actor); 
-        this.buildHUD(); 
-    },
+    spawnActor(actor) { this.actors.push(actor); this.buildHUD(); },
     spawnParticles(x, y, c, col) { for(let i=0; i<c; i++) { let a = Math.random()*Math.PI*2, s = Math.random()*5+2; this.particles.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,color:col,type:"particle"}); } },
     spawnFloatingText(x, y, amt, col) { this.spawn({x:x+(Math.random()*30-15),y:y-40,vx:(Math.random()-0.5)*2,vy:-2,lifetime:800,maxLife:800,text:Math.ceil(amt).toString(),color:col,type:"text",update(g){this.x+=this.vx*(g.delta/16);this.y+=this.vy*(g.delta/16);this.lifetime-=g.delta;},render(ctx){ctx.save();ctx.globalAlpha=Math.max(0,this.lifetime/this.maxLife);ctx.fillStyle=this.color;ctx.font="bold 24px 'Cinzel', serif";ctx.textAlign="center";ctx.strokeStyle="rgba(255,255,255,0.8)";ctx.lineWidth=3;ctx.strokeText(this.text,this.x,this.y);ctx.fillText(this.text,this.x,this.y);ctx.restore();}}); },
     triggerHitStop(ms) { this.hitStop = ms; },
 
+    // 🔥 Cross-Collision System
     checkCollisions() {
         let active = this.actors.filter(a => a.hp > 0);
 
-        // 1. Body vs Body (Physics & Simple Boss Damage)
+        // 1. Body vs Body (Physics & Fallback Body Damage)
         for(let i=0; i<active.length; i++) {
             for(let j=i+1; j<active.length; j++) {
                 let a1 = active[i], a2 = active[j];
@@ -3098,68 +1239,54 @@ const Engine = {
                     
                     let b1 = MathUtils.getStat(a1, 'collisionBounce');
                     let b2 = MathUtils.getStat(a2, 'collisionBounce');
+                    let tx = a1.vx, ty = a1.vy; a1.vx = a2.vx * b1; a1.vy = a2.vy * b1; a2.vx = tx * b2; a2.vy = ty * b2;
                     
-                    let tx = a1.vx, ty = a1.vy; 
-                    a1.vx = a2.vx * b1; a1.vy = a2.vy * b1; 
-                    a2.vx = tx * b2; a2.vy = ty * b2;
-                    
-                    // Fallback body damage
-                    if(a1.isBoss && a2.isPlayer && a1.team!==a2.team && a1.bossDef.onHitPlayer) a1.bossDef.onHitPlayer(a1,a2,this);
-                    else if(a2.isBoss && a1.isPlayer && a2.team!==a1.team && a2.bossDef.onHitPlayer) a2.bossDef.onHitPlayer(a2,a1,this);
+                    if(a1.isBoss && a2.isPlayer && a1.team!==a2.team && a1.bossDef.onHitPlayer) a1.bossDef.onHitPlayer(a1,a2,this, null);
+                    else if(a2.isBoss && a1.isPlayer && a2.team!==a1.team && a2.bossDef.onHitPlayer) a2.bossDef.onHitPlayer(a2,a1,this, null);
                 }
             }
         }
 
-        // 2. Boss Custom Hitboxes vs Players
-        let bossesWithHitboxes = active.filter(a => a.isBoss && a.bossDef.getHitboxes);
-        bossesWithHitboxes.forEach(boss => {
-            let hitboxes = boss.bossDef.getHitboxes(boss, this) || [];
-            let players = this.getEnemies(boss).filter(p => p.isPlayer);
-            players.forEach(p => {
-                let pr = MathUtils.getStat(p, 'actorRadius') ?? p.radius;
-                for (let hb of hitboxes) {
-                    if (MathUtils.distance(hb.x, hb.y, p.x, p.y) < hb.r + pr) {
-                        if (boss.bossDef.onHitPlayer) boss.bossDef.onHitPlayer(boss, p, this, hb);
-                        break; // Only trigger one hit per frame per player
-                    }
-                }
-            });
-        });
-
-        // 3. Weapons vs Bodies & Weapons vs Weapons
+        // 2. Weapons vs EVERYTHING (Bodies + Other Weapons + Boss Custom Hitboxes)
         active.filter(a=>a.isPlayer && a.weaponDef).forEach(att => {
             let enemies = this.getEnemies(att);
             let wHitboxes = att.weaponDef.getHitboxes ? 
                             att.weaponDef.getHitboxes(att, this) : 
                             [{ x: att.weaponX, y: att.weaponY, r: MathUtils.getStat(att, 'weaponHitboxRadius') ?? att.weaponHitboxRadius }];
             
-            // Weapon vs Body
             enemies.forEach(t => { 
-                let tr = MathUtils.getStat(t, 'actorRadius') ?? t.radius;
-                for(let wh of wHitboxes) {
-                    if(MathUtils.distance(wh.x, wh.y, t.x, t.y) < wh.r + tr) { 
-                        if(att.weaponCooldown<=0 && att.weaponDef.onHitPlayer) att.weaponDef.onHitPlayer(att,t,this, wh); 
-                        break; 
-                    }
-                }
-            });
+                let tHitboxes = [];
+                // Add Target's Body
+                tHitboxes.push({ x: t.x, y: t.y, r: MathUtils.getStat(t, 'actorRadius') ?? t.radius, isBody: true });
 
-            // Weapon vs Weapon
-            enemies.filter(e=>e.isPlayer && e.weaponDef).forEach(t => { 
-                let tHitboxes = t.weaponDef.getHitboxes ? 
-                                t.weaponDef.getHitboxes(t, this) : 
-                                [{ x: t.weaponX, y: t.weaponY, r: MathUtils.getStat(t, 'weaponHitboxRadius') ?? t.weaponHitboxRadius }];
-                
-                let clashed = false;
+                // Add Target's Custom Hitboxes
+                if (t.isPlayer && t.weaponDef) {
+                    let th = t.weaponDef.getHitboxes ? t.weaponDef.getHitboxes(t, this) : [{ x: t.weaponX, y: t.weaponY, r: MathUtils.getStat(t, 'weaponHitboxRadius') ?? t.weaponHitboxRadius }];
+                    th.forEach(h => tHitboxes.push({...h, isWeapon: true}));
+                } else if (t.isBoss && t.bossDef && t.bossDef.getHitboxes) {
+                    let th = t.bossDef.getHitboxes(t, this) || [];
+                    th.forEach(h => tHitboxes.push({...h, isBossHitbox: true}));
+                }
+
+                let clashing = false;
                 for(let wh of wHitboxes) {
                     for(let th of tHitboxes) {
                         if(MathUtils.distance(wh.x, wh.y, th.x, th.y) < wh.r + th.r) { 
-                            if(att.weaponCooldown<=0 && att.weaponDef.onHitWeapon) att.weaponDef.onHitWeapon(att,t,this); 
-                            if(t.weaponCooldown<=0 && t.weaponDef.onHitWeapon) t.weaponDef.onHitWeapon(t,att,this); 
-                            clashed = true; break; 
+                            if (th.isBody) {
+                                if(att.weaponCooldown<=0 && att.weaponDef.onHitPlayer) att.weaponDef.onHitPlayer(att, t, this, wh); 
+                            } else if (th.isWeapon) {
+                                if(att.weaponCooldown<=0 && att.weaponDef.onHitWeapon) att.weaponDef.onHitWeapon(att, t, this, wh); 
+                                if(t.weaponCooldown<=0 && t.weaponDef.onHitWeapon) t.weaponDef.onHitWeapon(t, att, this, th); 
+                                clashing = true;
+                            } else if (th.isBossHitbox) {
+                                if(att.weaponCooldown<=0 && att.weaponDef.onHitWeapon) att.weaponDef.onHitWeapon(att, t, this, wh); 
+                                if(t.bossDef.onHitWeapon) t.bossDef.onHitWeapon(t, att, this, th); 
+                                clashing = true;
+                            }
                         }
+                        if(clashing) break;
                     }
-                    if(clashed) break;
+                    if(clashing) break;
                 }
             });
         });
@@ -3177,50 +1304,35 @@ const Engine = {
         this.delta = timestamp - this.lastTime; this.lastTime = timestamp;
         if (this.delta > 100) this.delta = 16; 
         
-        // Background Color 
-        this.ctx.fillStyle = this.config.bgColor; 
+        this.ctx.fillStyle = this.bgOverride || this.config.bgColor; 
         this.ctx.fillRect(0, 0, this.width, this.height);
         
-        let radius = Math.max(1, this.arena.size);
-        // Dynamic Radial Gradient for Arena depth
-        let gradient = this.ctx.createRadialGradient(
-            this.arena.x + this.arena.size/2, this.arena.y + this.arena.size/2, 0,
-            this.arena.x + this.arena.size/2, this.arena.y + this.arena.size/2, radius
-        );
-        gradient.addColorStop(0, "rgba(255, 255, 255, 0.95)");
-        gradient.addColorStop(1, "rgba(235, 230, 220, 0.85)");
+        if (this.shakeTimer > 0) {
+            this.shakeTimer -= this.delta;
+            this.shakeX = (Math.random() - 0.5) * this.shakeIntensity;
+            this.shakeY = (Math.random() - 0.5) * this.shakeIntensity;
+        } else { this.shakeX = 0; this.shakeY = 0; }
         
-        this.ctx.fillStyle = gradient; 
-        this.ctx.fillRect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
+        this.ctx.save(); this.ctx.translate(this.shakeX, this.shakeY);
+
+        let radius = Math.max(0.1, this.arena.size); 
+        let gradient = this.ctx.createRadialGradient( this.arena.x + this.arena.size/2, this.arena.y + this.arena.size/2, 0, this.arena.x + this.arena.size/2, this.arena.y + this.arena.size/2, radius );
+        gradient.addColorStop(0, this.arenaBgOverride || "rgba(255, 255, 255, 0.95)");
+        gradient.addColorStop(1, this.arenaBgOverride || "rgba(235, 230, 220, 0.85)");
         
-        // Minimal Grid (Faint dark lines)
-        this.ctx.strokeStyle = "rgba(139, 121, 82, 0.15)"; 
-        this.ctx.lineWidth = 1; 
-        this.ctx.beginPath();
+        this.ctx.fillStyle = gradient; this.ctx.fillRect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
+        this.ctx.strokeStyle = "rgba(139, 121, 82, 0.15)"; this.ctx.lineWidth = 1; this.ctx.beginPath();
         for(let i=0; i<=this.arena.size; i+=50) { 
             this.ctx.moveTo(this.arena.x+i, this.arena.y); this.ctx.lineTo(this.arena.x+i, this.arena.y+this.arena.size); 
             this.ctx.moveTo(this.arena.x, this.arena.y+i); this.ctx.lineTo(this.arena.x+this.arena.size, this.arena.y+i); 
         }
         this.ctx.stroke();
         
-        // Dimensional Medieval Borders
-        this.ctx.strokeStyle = "#8b7952"; // Gold-dark border
-        this.ctx.lineWidth = 3; 
-        this.ctx.strokeRect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
+        this.ctx.strokeStyle = "#8b7952"; this.ctx.lineWidth = 3; this.ctx.strokeRect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
+        this.ctx.strokeStyle = "rgba(255, 255, 255, 0.9)"; this.ctx.lineWidth = 2; this.ctx.strokeRect(this.arena.x + 2, this.arena.y + 2, this.arena.size - 4, this.arena.size - 4);
+        this.ctx.strokeStyle = "rgba(0, 0, 0, 0.1)"; this.ctx.lineWidth = 4; this.ctx.strokeRect(this.arena.x - 2, this.arena.y - 2, this.arena.size + 4, this.arena.size + 4);
         
-        // Inner depth line
-        this.ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
-        this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(this.arena.x + 2, this.arena.y + 2, this.arena.size - 4, this.arena.size - 4);
-
-        // Outer shadow/trim
-        this.ctx.strokeStyle = "rgba(0, 0, 0, 0.1)";
-        this.ctx.lineWidth = 4;
-        this.ctx.strokeRect(this.arena.x - 2, this.arena.y - 2, this.arena.size + 4, this.arena.size + 4);
-        
-        // Clipping region for entities
-        this.ctx.save(); 
-        this.ctx.beginPath(); this.ctx.rect(this.arena.x, this.arena.y, this.arena.size, this.arena.size); this.ctx.clip();
+        this.ctx.save(); this.ctx.beginPath(); this.ctx.rect(this.arena.x, this.arena.y, this.arena.size, this.arena.size); this.ctx.clip();
         
         if (this.state === 'PLAYING') {
             if (this.hitStop > 0) this.hitStop -= this.delta;
@@ -3250,34 +1362,25 @@ const Engine = {
                 this.ctx.lineWidth = 2;
                 this.actors.filter(a => a.hp > 0).forEach(a => {
                     let r = MathUtils.getStat(a, 'actorRadius') ?? a.radius;
-                    this.ctx.strokeStyle = "rgba(0, 255, 255, 0.8)"; // Cyan: Body
+                    this.ctx.strokeStyle = "rgba(0, 255, 255, 0.8)"; 
                     this.ctx.beginPath(); this.ctx.arc(a.x, a.y, r, 0, Math.PI*2); this.ctx.stroke();
                     
                     if (a.isBoss && a.bossDef.getHitboxes) {
                         let bHitboxes = a.bossDef.getHitboxes(a, this) || [];
-                        this.ctx.strokeStyle = "rgba(255, 165, 0, 0.8)"; // Orange: Boss Custom Hitboxes
-                        bHitboxes.forEach(hb => {
-                            this.ctx.beginPath(); this.ctx.arc(hb.x, hb.y, hb.r, 0, Math.PI*2); this.ctx.stroke();
-                        });
+                        this.ctx.strokeStyle = "rgba(255, 165, 0, 0.8)"; 
+                        bHitboxes.forEach(hb => { this.ctx.beginPath(); this.ctx.arc(hb.x, hb.y, hb.r, 0, Math.PI*2); this.ctx.stroke(); });
                     }
 
                     if (a.isPlayer && a.weaponDef) {
-                        let wHitboxes = a.weaponDef.getHitboxes ? 
-                                        a.weaponDef.getHitboxes(a, this) : 
-                                        [{ x: a.weaponX, y: a.weaponY, r: MathUtils.getStat(a, 'weaponHitboxRadius') ?? a.weaponHitboxRadius }];
-                        this.ctx.strokeStyle = "rgba(255, 0, 0, 0.8)"; // Red: Weapons
-                        wHitboxes.forEach(hb => {
-                            this.ctx.beginPath(); this.ctx.arc(hb.x, hb.y, hb.r, 0, Math.PI*2); this.ctx.stroke();
-                        });
+                        let wHitboxes = a.weaponDef.getHitboxes ? a.weaponDef.getHitboxes(a, this) : [{ x: a.weaponX, y: a.weaponY, r: MathUtils.getStat(a, 'weaponHitboxRadius') ?? a.weaponHitboxRadius }];
+                        this.ctx.strokeStyle = "rgba(255, 0, 0, 0.8)"; 
+                        wHitboxes.forEach(hb => { this.ctx.beginPath(); this.ctx.arc(hb.x, hb.y, hb.r, 0, Math.PI*2); this.ctx.stroke(); });
                     }
                 });
                 this.entities.forEach(e => {
                     this.ctx.strokeStyle = e.type === "zone" ? "rgba(255, 255, 0, 0.8)" : "rgba(0, 255, 0, 0.8)";
                     if (e.getHitboxes) {
-                        let hbs = e.getHitboxes() || [];
-                        hbs.forEach(hb => {
-                            this.ctx.beginPath(); this.ctx.arc(hb.x, hb.y, hb.r, 0, Math.PI*2); this.ctx.stroke();
-                        });
+                        let hbs = e.getHitboxes() || []; hbs.forEach(hb => { this.ctx.beginPath(); this.ctx.arc(hb.x, hb.y, hb.r, 0, Math.PI*2); this.ctx.stroke(); });
                     } else if (e.radius) {
                         this.ctx.beginPath(); this.ctx.arc(e.x, e.y, e.radius, 0, Math.PI*2); this.ctx.stroke();
                     }
@@ -3285,6 +1388,7 @@ const Engine = {
             }
         }
         
+        this.ctx.restore(); 
         requestAnimationFrame((t) => this.loop(t));
     }
 };
@@ -3302,12 +1406,12 @@ const SafetySystem = {
     },
     safeguardWeapon(n, d) {
         if (!d || typeof d !== 'object') return null;
-        ['init', 'onUpdate', 'render', 'onHitPlayer', 'onHitWeapon', 'onTakeDamage', 'onUltimateActivate', 'getHitboxes'].forEach(h => { if (typeof d[h] === 'function') d[h] = this.createSafeFunction(`Weapon:${n}`, h, d[h]); });
+        ['init', 'onUpdate', 'render', 'onHitPlayer', 'onHitWeapon', 'onTakeDamage', 'onDeath', 'onUltimateActivate', 'getHitboxes'].forEach(h => { if (typeof d[h] === 'function') d[h] = this.createSafeFunction(`Weapon:${n}`, h, d[h]); });
         return d;
     },
     safeguardBoss(n, d) {
         if (!d || typeof d !== 'object') return null;
-        ['init', 'onUpdate', 'render', 'onHitPlayer', 'onTakeDamage', 'getHitboxes'].forEach(h => { if (typeof d[h] === 'function') d[h] = this.createSafeFunction(`Boss:${n}`, h, d[h]); });
+        ['init', 'onUpdate', 'render', 'onHitPlayer', 'onHitWeapon', 'onTakeDamage', 'onDeath', 'onUltimateActivate', 'getHitboxes'].forEach(h => { if (typeof d[h] === 'function') d[h] = this.createSafeFunction(`Boss:${n}`, h, d[h]); });
         return d;
     },
     applyWrappers() {
