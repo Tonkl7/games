@@ -987,13 +987,15 @@ const BOSS_REGISTRY = {
                             boss.custom.state = "meteor_roar"; 
                             boss.custom.stateTimer = 10000; 
                             boss.custom.meteorTimer = 0;
-                            // เสกบ่อไฟสุ่มในแมพ 5 บ่อทันทีเมื่อใช้สกิลอุกกาบาต
-                            this.spawnRandomMapFirePools(game, boss, 5);
+                            
+                            // สาดลูกไฟแบบสุ่ม 5 ลูกทันทีเมื่อเริ่มสกิลอุกกาบาต
+                            this.shootRandomFireballs(game, boss, 5);
                         } else if (rand < 0.75) {
                             boss.custom.state = "fireball"; 
                             boss.custom.stateTimer = 500;
-                            // เสกบ่อไฟสุ่มในแมพ 3 บ่อตอนปาลูกไฟ
-                            this.spawnRandomMapFirePools(game, boss, 3);
+                            
+                            // สาดลูกไฟแบบสุ่มกระจายรอบตัวเพิ่มเติม 3 ลูก
+                            this.shootRandomFireballs(game, boss, 3);
                         } else {
                             boss.custom.state = "smashing_charge"; 
                             boss.custom.stateTimer = 1000;
@@ -1013,8 +1015,8 @@ const BOSS_REGISTRY = {
                         boss.custom.dashVx = (cx / cdist) * 55; 
                         boss.custom.dashVy = (cy / cdist) * 55;
                         
-                        // เสกบ่อไฟสุ่มในแมพ 4 บ่อเมื่อเริ่มพุ่งตัว
-                        this.spawnRandomMapFirePools(game, boss, 4);
+                        // ยิงลูกไฟสุ่มกระจาย 4 ลูกเมื่อเริ่มพุ่งตัว
+                        this.shootRandomFireballs(game, boss, 4);
                     }
                     break;
 
@@ -1081,7 +1083,8 @@ const BOSS_REGISTRY = {
                 case "fireball":
                     boss.custom.stateTimer -= game.delta;
                     if (boss.custom.stateTimer <= 0) {
-                        this.spawnFireball(game, boss, target);
+                        // ปาบอลไฟหลักไปที่เป้าหมาย
+                        this.spawnFireball(game, boss, target.x, target.y);
                         boss.custom.state = "idle";
                     }
                     break;
@@ -1105,9 +1108,9 @@ const BOSS_REGISTRY = {
                         let dist = 80 + Math.random() * 100;
                         this.spawnFirePool(game, boss.x + Math.cos(angle)*dist, boss.y + Math.sin(angle)*dist, 40, 2000, 2, 350, boss);
                         
-                        // ระหว่างอันติก็สุ่มเกิดบ่อไฟรอบแมพด้วย
+                        // ระหว่างอันติสุ่มยิงลูกไฟสะเปะสะปะ
                         if (Math.random() < 0.2) {
-                            this.spawnRandomMapFirePools(game, boss, 1);
+                            this.shootRandomFireballs(game, boss, 1);
                         }
                     }
 
@@ -1152,8 +1155,8 @@ const BOSS_REGISTRY = {
             boss.ultimateGauge = 0;
             game.triggerScreenShake(15, 3000);
             
-            // เสกบ่อไฟสุ่มเมื่อกดใช้อันติเมตทันที 8 บ่อ
-            this.spawnRandomMapFirePools(game, boss, 8);
+            // สาดลูกไฟ 8 ลูกรวดเมื่อกดใช้อันติเมต
+            this.shootRandomFireballs(game, boss, 8);
         },
 
         render(ctx, boss, game) {
@@ -1232,14 +1235,16 @@ const BOSS_REGISTRY = {
 
         // --- HELPER FUNCTIONS ---
         
-        // เสกบ่อไฟแบบสุ่มในพื้นที่ที่กำหนด
-        spawnRandomMapFirePools(game, boss, count) {
-            let limit = game.arena.size || 1000;
-            for(let i=0; i<count; i++) {
-                let rx = Math.random() * limit;
-                let ry = Math.random() * limit;
-                // ดาเมจ 2 ต่อ 0.35 วิ คงอยู่ 3 วิ ตามแบบฉบับปกติ
-                this.spawnFirePool(game, rx, ry, 50, 3000, 2, 350, boss);
+        // ฟังก์ชันสำหรับปล่อยลูกบอลไฟสุ่มทิศทาง แทนการสร้างบ่อไฟทันที
+        shootRandomFireballs(game, boss, count) {
+            for(let i = 0; i < count; i++) {
+                let angle = Math.random() * Math.PI * 2;
+                // สุ่มเป้าหมายจำลองรอบๆ ตัวเพื่อส่งให้ spawnFireball
+                let targetX = boss.x + Math.cos(angle) * 100;
+                let targetY = boss.y + Math.sin(angle) * 100;
+                // สุ่มความเร็ว 6 ถึง 12
+                let speed = 6 + Math.random() * 6;
+                this.spawnFireball(game, boss, targetX, targetY, speed);
             }
         },
 
@@ -1302,6 +1307,7 @@ const BOSS_REGISTRY = {
         },
         
         spawnFallingMeteor(game, boss, x, y) {
+            let spawnPoolFn = this.spawnFirePool.bind(this);
             game.spawn({
                 id: "meteor_" + Math.random(),
                 x: x, y: y, radius: 40, team: boss.team,
@@ -1309,7 +1315,7 @@ const BOSS_REGISTRY = {
                 update(entity, g) {
                     entity.custom.life -= g.delta;
                     if (entity.custom.life <= 0) {
-                        DemonBoss.DEMON.spawnFirePool(g, entity.x, entity.y, 70, 4000, 3, 250, entity.custom.bossRef);
+                        spawnPoolFn(g, entity.x, entity.y, 70, 4000, 3, 250, entity.custom.bossRef);
                         g.remove(entity);
                     }
                 },
@@ -1337,6 +1343,7 @@ const BOSS_REGISTRY = {
         },
         
         spawnFireDebris(game, boss, x, y, vx, vy) {
+            let spawnPoolFn = this.spawnFirePool.bind(this);
             game.spawn({
                 id: "debris_" + Math.random(),
                 x: x, y: y, vx: vx, vy: vy,
@@ -1350,7 +1357,7 @@ const BOSS_REGISTRY = {
                     entity.vy *= 0.92;
                     
                     if (entity.custom.life <= 0) {
-                        DemonBoss.DEMON.spawnFirePool(g, entity.x, entity.y, 60, 5000, 2, 150, entity.custom.bossRef);
+                        spawnPoolFn(g, entity.x, entity.y, 60, 5000, 2, 150, entity.custom.bossRef);
                         g.remove(entity);
                     }
                 },
@@ -1405,13 +1412,18 @@ const BOSS_REGISTRY = {
             });
         },
 
-        spawnFireball(game, boss, target) {
-            let dx = target.x - boss.x; let dy = target.y - boss.y;
+        spawnFireball(game, boss, targetX, targetY, speedOverride) {
+            let dx = targetX - boss.x; 
+            let dy = targetY - boss.y;
             let dist = Math.sqrt(dx*dx + dy*dy);
+            let speed = speedOverride || 12;
+            
+            // นำฟังก์ชันลงตัวแปรเพื่อป้องกันปัญหา this หายเมื่อเข้าไปอยู่ใน object ใหม่
+            let spawnPoolFn = this.spawnFirePool.bind(this);
             
             game.spawn({
                 id: "fireball_" + Math.random(),
-                x: boss.x, y: boss.y, vx: (dx / dist) * 12, vy: (dy / dist) * 12, 
+                x: boss.x, y: boss.y, vx: (dx / dist) * speed, vy: (dy / dist) * speed, 
                 radius: 20, team: boss.team,
                 custom: { life: 2000, bossRef: boss },
                 update(entity, g) {
@@ -1427,8 +1439,9 @@ const BOSS_REGISTRY = {
                         }
                     });
 
+                    // ถ้ายิงโดนเป้าหมาย หรือหมดเวลา หรือออกนอกขอบจอ ให้ระเบิดเป็นบ่อไฟ
                     if (hit || entity.custom.life <= 0 || entity.x < 0 || entity.y < 0 || entity.x > g.arena.size || entity.y > g.arena.size) {
-                        DemonBoss.DEMON.spawnFirePool(g, entity.x, entity.y, 60, 2000, 2, 350, entity.custom.bossRef);
+                        spawnPoolFn(g, entity.x, entity.y, 60, 2000, 2, 350, entity.custom.bossRef);
                         g.remove(entity);
                     }
                 },
