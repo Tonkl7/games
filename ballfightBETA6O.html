@@ -883,7 +883,7 @@ const WEAPON_REGISTRY = {
             }
     
             // ==========================================
-            // 2. ระบบโจมตี (ยิงการ์ดแบบล็อกเป้า)
+            // 2. ระบบโจมตี (กระจายไพ่ 360 องศาแล้วพุ่งเป้า)
             // ==========================================
             if (player.custom.attackCooldown > 0) {
                 player.custom.attackCooldown -= game.delta;
@@ -910,13 +910,12 @@ const WEAPON_REGISTRY = {
                 }
                 player.passiveText = `โชค: ${player.custom.luck} | สุ่มยิงการ์ด | อัลติ: หมุนสล็อต`;
     
-                // ยิงไพ่ไปหาเป้าหมาย
-                let baseAngle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
+                // สร้างไพ่ให้กระจายออกจากตัว
                 for (let i = 0; i < numCards; i++) {
-                    // ให้ทิศทางกระจายออกนิดเดียวตอนยิง (เพื่อให้เห็นไพ่เป็นแผง)
-                    let angle = baseAngle + (Math.random() - 0.5) * 0.5; 
-                    // โปรเจคไทล์พุ่งช้าๆ
-                    let speed = 4 + Math.random() * 2;
+                    // ทิศทางกระจาย 360 องศา ออกจากตัวผู้เล่น
+                    let angle = Math.random() * Math.PI * 2; 
+                    // ความเร็วพุ่งกระจายตอนแรก
+                    let speed = 6 + Math.random() * 4; 
                     
                     let types = ["root", "aoe", "debuff", "normal"];
                     let type = types[Math.floor(Math.random() * types.length)];
@@ -930,36 +929,45 @@ const WEAPON_REGISTRY = {
                         damage: cardDmg,
                         type: type,
                         color: colors[type],
-                        life: 2500 // อายุการ์ด 2.5 วิ เพราะบินช้า
+                        life: 3000, // อายุ 3 วินาที (ให้มีเวลาลอยค้าง)
+                        burstTimer: 300 + Math.random() * 300 // เวลาในการกระจายตัวแล้วค้างบนอากาศ (0.3 - 0.6 วิ)
                     });
                 }
             }
     
             // ==========================================
-            // 3. จัดการกระสุนการ์ด (Homing Projectiles)
+            // 3. จัดการกระสุนการ์ด (พุ่งตรงเหมือนลูกธนู)
             // ==========================================
             let enemies = game.getEnemies(player);
             for (let i = player.custom.projectiles.length - 1; i >= 0; i--) {
                 let p = player.custom.projectiles[i];
                 p.life -= game.delta;
                 
-                // --- ระบบล็อกเป้าหมาย (Homing) ---
-                if (closestEnemy) {
-                    let targetAngle = Math.atan2(closestEnemy.y - p.y, closestEnemy.x - p.x);
-                    let currentAngle = Math.atan2(p.vy, p.vx);
-                    let diff = targetAngle - currentAngle;
+                // ถ้ายิงเพิ่งออกจากตัว ให้ชะลอความเร็วเหมือนลอยค้างบนอากาศ
+                if (p.burstTimer > 0) {
+                    p.burstTimer -= game.delta;
+                    // สร้างแรงเสียดทานให้ไพ่ลอยช้าลง
+                    p.vx *= Math.pow(0.90, game.delta / 16);
+                    p.vy *= Math.pow(0.90, game.delta / 16);
                     
-                    // ปรับมุมให้อยู่ในระยะ -PI ถึง PI
-                    while (diff < -Math.PI) diff += Math.PI * 2;
-                    while (diff > Math.PI) diff -= Math.PI * 2;
-                    
-                    // ค่อยๆ เลี้ยวหาเป้าหมาย
-                    let turnRate = 0.05 * (game.delta / 16);
-                    let newAngle = currentAngle + Math.sign(diff) * Math.min(Math.abs(diff), turnRate);
-                    
-                    let currentSpeed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
-                    p.vx = Math.cos(newAngle) * currentSpeed;
-                    p.vy = Math.sin(newAngle) * currentSpeed;
+                    // เมื่อลอยค้างเสร็จ ให้ล็อกเป้าศัตรูที่ใกล้ที่สุดแล้วพุ่ง "เส้นตรง" ไม่เลี้ยวอีก
+                    if (p.burstTimer <= 0) {
+                        let target = closestEnemy;
+                        if (!target && enemies.length > 0) target = enemies[0]; // เผื่อศัตรูเป้าหมายเดิมตายไปแล้ว
+                        
+                        if (target) {
+                            let targetAngle = Math.atan2(target.y - p.y, target.x - p.x);
+                            let shootSpeed = 12 + Math.random() * 4; // ความเร็วพุ่งเหมือนธนู
+                            p.vx = Math.cos(targetAngle) * shootSpeed;
+                            p.vy = Math.sin(targetAngle) * shootSpeed;
+                        } else {
+                            // ถ้าไม่มีศัตรูให้ยิงตรงไปทิศเดิม
+                            let curAng = Math.atan2(p.vy, p.vx);
+                            let shootSpeed = 12 + Math.random() * 4;
+                            p.vx = Math.cos(curAng) * shootSpeed;
+                            p.vy = Math.sin(curAng) * shootSpeed;
+                        }
+                    }
                 }
     
                 // เคลื่อนที่ตามแกน
@@ -1060,9 +1068,15 @@ const WEAPON_REGISTRY = {
                 ctx.save();
                 ctx.translate(p.x - player.x, p.y - player.y);
                 
-                // หมุนไพ่ให้ชี้หัวไปทางที่มันกำลังบินไป (พุ่งเหมือนลูกศร ไม่ได้หมุนรอบตัว)
+                // หันหัวไปทางทิศทางการเคลื่อนที่เสมอ
                 let flyAngle = Math.atan2(p.vy, p.vx);
                 ctx.rotate(flyAngle);
+                
+                // ถ้าระยะเวลาเตรียมยิงหมด (แปลว่ากำลังพุ่งด้วยความเร็วสูง) ให้วาดเอฟเฟกต์หางยาวๆ เหมือนลูกธนู
+                if (p.burstTimer <= 0) {
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+                    ctx.fillRect(-20, -3, 12, 6); // เส้นหางความเร็ว
+                }
                 
                 // วาดรูปไพ่ (ให้ด้านกว้างคือหัวที่พุ่งไป)
                 ctx.fillStyle = "#FFFFFF";
@@ -1070,8 +1084,9 @@ const WEAPON_REGISTRY = {
                 ctx.strokeStyle = "#000000";
                 ctx.strokeRect(-8, -6, 16, 12);
                 
+                // แต้มสีอยู่ด้านหน้าสุด
                 ctx.fillStyle = p.color;
-                ctx.beginPath(); ctx.arc(2, 0, 4, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(3, 0, 4, 0, Math.PI*2); ctx.fill();
                 ctx.restore();
             }
     
