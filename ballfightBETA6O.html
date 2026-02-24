@@ -1686,6 +1686,7 @@ const WEAPON_REGISTRY = {
             player.custom.shield = 100;
             player.custom.maxShield = 100;
             player.custom.shieldRegenTimer = 0;
+            player.custom.isRegenerating = false; // ตัวแปรเช็คสถานะการฮีลโล่
     
             // ตัวแปรสำหรับจัดการสกิล
             player.custom.balls = [];
@@ -1695,7 +1696,7 @@ const WEAPON_REGISTRY = {
             player.custom.ultTimer = 0;
             player.custom.invincibleTimer = 0;
     
-            player.passiveText = "HP 1, Shield 100 (Regen 5/10s). โจมตีด้วยลูกบอลคำสาปและรอยเท้า อัลติเมต: คลื่นคำสาปอมตะ"; 
+            player.passiveText = "HP 1, Shield 100 (รีเจน 5/12วิ เมื่อต่ำกว่า 50%). โจมตีด้วยลูกบอลคำสาปและรอยเท้า อัลติเมต: คลื่นคำสาปอมตะ"; 
         },
     
         getHitboxes(player, game) {
@@ -1738,11 +1739,23 @@ const WEAPON_REGISTRY = {
                 if (player.custom.shadows[i].alpha <= 0) player.custom.shadows.splice(i, 1);
             }
     
-            // --- 2. ฟื้นฟูโล่คำสาป (5 หน่วย / 10 วิ) ---
-            player.custom.shieldRegenTimer += game.delta;
-            if (player.custom.shieldRegenTimer >= 10000) {
-                player.custom.shieldRegenTimer = 0;
-                player.custom.shield = Math.min(player.custom.maxShield, player.custom.shield + 5);
+            // --- 2. ฟื้นฟูโล่คำสาป (ฮีล 5 หน่วย ต่อ 12 วินาที เมื่อต่ำกว่า 50%) ---
+            if (player.custom.shield < player.custom.maxShield * 0.5) {
+                player.custom.isRegenerating = true; // เริ่มกระบวนการฮีลเมื่อต่ำกว่า 50%
+            }
+            if (player.custom.shield >= player.custom.maxShield) {
+                player.custom.isRegenerating = false; // หยุดฮีลเมื่อเต็ม
+                player.custom.shield = player.custom.maxShield; // ป้องกันการฮีลเกินขีดจำกัด
+            }
+    
+            if (player.custom.isRegenerating) {
+                player.custom.shieldRegenTimer += game.delta;
+                if (player.custom.shieldRegenTimer >= 12000) { // 12 วินาที = 12000 ms
+                    player.custom.shieldRegenTimer = 0;
+                    player.custom.shield += 5; // เพิ่มโล่ 5 หน่วย
+                }
+            } else {
+                player.custom.shieldRegenTimer = 0; // รีเซ็ตตัวนับเวลาหากไม่ได้อยู่ในสถานะฟื้นฟู
             }
     
             // --- 3. อัลติเมตและการนับเวลาอมตะ ---
@@ -1877,7 +1890,8 @@ const WEAPON_REGISTRY = {
             ctx.fillStyle = "#333";
             ctx.fillRect(player.x - barWidth/2, player.y - player.radius - 20, barWidth, 6);
             ctx.fillStyle = "#8A2BE2"; // สีม่วงคำสาป
-            ctx.fillRect(player.x - barWidth/2, player.y - player.radius - 20, barWidth * (player.custom.shield / 100), 6);
+            // โล่ลดลงแถบจะหดตามค่า player.custom.shield ที่อัปเดตแบบเรียลไทม์
+            ctx.fillRect(player.x - barWidth/2, player.y - player.radius - 20, barWidth * (Math.max(0, player.custom.shield) / 100), 6);
     
             ctx.restore();
     
@@ -1983,12 +1997,12 @@ const WEAPON_REGISTRY = {
             }
     
             // --- 2. ระบบ Cursed Shield รับดาเมจแทนเลือด ---
-            // คำนวณดาเมจที่ได้รับเข้ามา (สมมติว่า engine ตัดเลือดไปแล้วก่อนเข้า Event นี้)
+            // คำนวณดาเมจที่ได้รับเข้ามา (ระบบ Engine มักจะตัดเลือดไปแล้วก่อนเข้า Event นี้)
             let damageTaken = 1 - player.hp; // ปกติ maxHp คือ 1
     
             if (damageTaken > 0) {
                 if (player.custom.shield >= damageTaken) {
-                    // ถ้าโล่มีพอรับดาเมจ
+                    // ถ้าโล่มีพอรับดาเมจ โล่จะถูกหักออกตามดาเมจนั้น
                     player.custom.shield -= damageTaken;
                     player.hp = 1; // เติมเลือดกลับเป็น 1 (เสมือนไม่เข้าเลือดจริง)
                     game.spawnParticles(player.x, player.y, 8, "#8A2BE2"); // เอฟเฟคตีติดโล่
