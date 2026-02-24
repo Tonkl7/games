@@ -810,311 +810,256 @@ const WEAPON_REGISTRY = {
             }
         }
     },
-    "Joker": {
-        name: "Joker",
-        color: "#FFD700", // สีเหลืองทอง
-        width: 25, 
-        length: 0, // อาวุธซ้อนกับตัวละคร
-        baseDamage: 0, // ดาเมจพื้นฐานเป็น 0 เพราะจะสุ่มดาเมจผ่านการยิงการ์ด
+    "Cross Bow": {
+        name: "Cross Bow", 
+        color: "#808080", // สีเทา
+        width: 20, 
+        length: 40, 
+        baseDamage: 20,
         
+        // --- Physics Hacks ---
+        baseSpeedCap: 30, // ทำให้เคลื่อนที่เร็วขึ้น (ค่าปกติ 20)
+        minSpeed: 15,     // ความเร็วขั้นต่ำเพิ่มขึ้น
+    
         init(player) { 
-            // Physics Hack: ตั้งค่าเลือดเริ่มต้น 120
-            player.hp = 120;
-            player.maxHp = 120;
+            // กำหนดเลือดเป็น 75 ตามเงื่อนไข
+            player.maxHp = 75;
+            player.hp = 75;
+            
+            // กำหนด State ของหน้าไม้
+            player.custom.state = 'idle'; // idle, charging, loaded
+            player.custom.charge = 1;
+            player.custom.loadedTimer = 0;
+            player.custom.loadedDamage = 0;
+            player.custom.arrows = []; // เก็บลูกธนูที่ถูกยิงออกไป
+            player.custom.invisible = false;
+            
+            player.passiveText = "ง้างเพื่อเพิ่มดาเมจสูงสุด 20 (หยุดเดิน) หากถูกโจมตีจะยิงสวนหรือดาเมจลดลง";
     
-            // Custom Variables สำหรับจัดการระบบดวงและการ์ด
-            player.custom.luck = 1; // ค่าโชคเริ่มต้น
-            player.custom.projectiles = []; // เก็บ Array ของการ์ดที่ยิงออกไป
-            player.custom.attackCooldown = 0;
-            
-            // ตัวแปรสำหรับ Ultimate สล็อต
-            player.custom.slotTimer = 0;
-            player.custom.slots = [1, 2, 3];
-            
-            player.passiveText = "โชค: 1 | สุ่มยิงการ์ด (อิงตามโชค) | อัลติ: หมุนสล็อต"; 
+            // ฟังก์ชันช่วยเหลือสำหรับยิงธนู
+            player.custom.fireArrow = (damage) => {
+                let speed = 25; // ความเร็วลูกธนู
+                let dirX = Math.cos(player.weaponRotation);
+                let dirY = Math.sin(player.weaponRotation);
+                player.custom.arrows.push({
+                    x: player.weaponX,
+                    y: player.weaponY,
+                    vx: dirX * speed,
+                    vy: dirY * speed,
+                    damage: Math.max(1, Math.floor(damage)),
+                    active: true,
+                    rot: player.weaponRotation
+                });
+            };
         },
-        
-        // คืนค่า Hitbox ว่างเปล่า เพื่อปิดการโจมตีระยะประชิด (ให้เป็นการยิงล้วนๆ)
+    
         getHitboxes(player, game) {
-            return [];
-        },
-        
-        onUpdate(player, closestEnemy, game) {
-            // หมุนอาวุธ (ระบบต้องการ)
-            player.weaponRotation += 0.08 * player.weaponDir * (game.delta / 16);
+            let hitboxes = [];
     
-            // ==========================================
-            // 1. ระบบ Ultimate (หมุนสล็อตแมชชีน 1.5 วิ)
-            // ==========================================
-            if (player.custom.slotTimer > 0) {
-                // ล็อกตัวละครให้อยู่กับที่
-                player.vx = 0; 
-                player.vy = 0;
-                player.custom.slotTimer -= game.delta;
+            // 1. ฮิตบ็อกซ์ของคันหน้าไม้ (ซ้ายและขวา) - ทำดาเมจ 1
+            let perpX = Math.cos(player.weaponRotation + Math.PI/2);
+            let perpY = Math.sin(player.weaponRotation + Math.PI/2);
     
-                // รันอนิเมชั่นสุ่มเลขระหว่างที่เวลายังไม่หมด
-                if (player.custom.slotTimer > 0) {
-                    if (Math.random() < 0.2) { // อัปเดตเลขสล็อตเป็นระยะๆ
-                        player.custom.slots = [
-                            Math.floor(Math.random() * 9) + 1,
-                            Math.floor(Math.random() * 9) + 1,
-                            Math.floor(Math.random() * 9) + 1
-                        ];
-                    }
-                } else {
-                    // คำนวณผลลัพธ์เมื่อจบการหมุน
-                    let s = player.custom.slots;
-                    if (s[0] === s[1] && s[1] === s[2]) {
-                        // ตรง 3 ตัว: โชคพุ่งกระฉูด
-                        player.custom.luck += 50;
-                        game.spawnParticles(player.x, player.y, 50, "#FFD700");
-                    } else if (s[0] === s[1] || s[1] === s[2] || s[0] === s[2]) {
-                        // ตรง 2 ตัว: ได้โชคเล็กน้อย
-                        player.custom.luck += 10;
-                        game.spawnParticles(player.x, player.y, 20, "#FFFFFF");
-                    } else {
-                        // ไม่ตรงเลย: เสียโชคทั้งหมดกลับไปที่ 1
-                        player.custom.luck = 1;
-                        game.spawnParticles(player.x, player.y, 10, "#000000");
-                    }
-                    player.passiveText = `โชค: ${player.custom.luck} | สุ่มยิงการ์ด | อัลติ: หมุนสล็อต`;
-                }
-                return; // ข้ามการโจมตีขณะใช้อัลติเมต
-            }
+            hitboxes.push({
+                x: player.weaponX + perpX * 15,
+                y: player.weaponY + perpY * 15,
+                r: 10,
+                isBow: true // Tag พิเศษเพื่อแยกชนิดฮิตบ็อกซ์
+            });
+            hitboxes.push({
+                x: player.weaponX - perpX * 15,
+                y: player.weaponY - perpY * 15,
+                r: 10,
+                isBow: true
+            });
     
-            // ==========================================
-            // 2. ระบบโจมตี (กระจายไพ่ 360 องศาแล้วพุ่งเป้า)
-            // ==========================================
-            if (player.custom.attackCooldown > 0) {
-                player.custom.attackCooldown -= game.delta;
-            } else if (closestEnemy) {
-                // โจมตีช้าลง (ปรับคูลดาวน์เป็น 2.5 วินาที)
-                player.custom.attackCooldown = 2500; 
-    
-                // คำนวณโบนัสโชคแบบกดเรท
-                let luckBonus = player.custom.luck * 0.005; 
-                
-                // สุ่มจำนวนการ์ด 1 - 44 ใบ: ใช้ Math.pow(Math.random(), 3) เพื่อให้โอกาสได้เลขสูงๆ "ยากมาก"
-                let rollCards = Math.pow(Math.random(), 3) + luckBonus;
-                let numCards = Math.floor(1 + 43 * Math.min(1, rollCards));
-    
-                // สุ่มดาเมจ 1 - 10: ใช้ Math.pow เหมือนกัน กดเรทให้ส่วนใหญ่ได้แค่ 1-3 ดาเมจ
-                let rollDmg = Math.pow(Math.random(), 3) + luckBonus;
-                let cardDmg = Math.floor(1 + 9 * Math.min(1, rollDmg));
-    
-                // เช็คเงื่อนไขรีเซ็ตโชค (ถ้าได้การ์ด 25 ใบขึ้นไป จะโดนรีเซ็ต)
-                if (numCards >= 25) {
-                    player.custom.luck = 1; 
-                } else {
-                    player.custom.luck += 1; 
-                }
-                player.passiveText = `โชค: ${player.custom.luck} | สุ่มยิงการ์ด | อัลติ: หมุนสล็อต`;
-    
-                // สร้างไพ่ให้กระจายออกจากตัว
-                for (let i = 0; i < numCards; i++) {
-                    // ทิศทางกระจาย 360 องศา ออกจากตัวผู้เล่น
-                    let angle = Math.random() * Math.PI * 2; 
-                    // ความเร็วพุ่งกระจายตอนแรก
-                    let speed = 6 + Math.random() * 4; 
-                    
-                    let types = ["root", "aoe", "debuff", "normal"];
-                    let type = types[Math.floor(Math.random() * types.length)];
-                    let colors = { "root": "#8A2BE2", "aoe": "#FF4500", "debuff": "#32CD32", "normal": "#FFFFFF" };
-    
-                    player.custom.projectiles.push({
-                        x: player.x,
-                        y: player.y,
-                        vx: Math.cos(angle) * speed,
-                        vy: Math.sin(angle) * speed,
-                        damage: cardDmg,
-                        type: type,
-                        color: colors[type],
-                        life: 3000, // อายุ 3 วินาที (ให้มีเวลาลอยค้าง)
-                        burstTimer: 300 + Math.random() * 300 // เวลาในการกระจายตัวแล้วค้างบนอากาศ (0.3 - 0.6 วิ)
+            // 2. ฮิตบ็อกซ์ของลูกธนูแต่ละลูกที่ยิงออกไปแล้ว
+            for (let arrow of player.custom.arrows) {
+                if (arrow.active) {
+                    hitboxes.push({
+                        x: arrow.x,
+                        y: arrow.y,
+                        r: 8,
+                        isArrow: true, // Tag สำหรับลูกธนู
+                        arrowRef: arrow,
+                        damage: arrow.damage
                     });
                 }
             }
     
-            // ==========================================
-            // 3. จัดการกระสุนการ์ด (พุ่งตรงเหมือนลูกธนู)
-            // ==========================================
-            let enemies = game.getEnemies(player);
-            for (let i = player.custom.projectiles.length - 1; i >= 0; i--) {
-                let p = player.custom.projectiles[i];
-                p.life -= game.delta;
-                
-                // ถ้ายิงเพิ่งออกจากตัว ให้ชะลอความเร็วเหมือนลอยค้างบนอากาศ
-                if (p.burstTimer > 0) {
-                    p.burstTimer -= game.delta;
-                    // สร้างแรงเสียดทานให้ไพ่ลอยช้าลง
-                    p.vx *= Math.pow(0.90, game.delta / 16);
-                    p.vy *= Math.pow(0.90, game.delta / 16);
-                    
-                    // เมื่อลอยค้างเสร็จ ให้ล็อกเป้าศัตรูที่ใกล้ที่สุดแล้วพุ่ง "เส้นตรง" ไม่เลี้ยวอีก
-                    if (p.burstTimer <= 0) {
-                        let target = closestEnemy;
-                        if (!target && enemies.length > 0) target = enemies[0]; // เผื่อศัตรูเป้าหมายเดิมตายไปแล้ว
-                        
-                        if (target) {
-                            let targetAngle = Math.atan2(target.y - p.y, target.x - p.x);
-                            let shootSpeed = 12 + Math.random() * 4; // ความเร็วพุ่งเหมือนธนู
-                            p.vx = Math.cos(targetAngle) * shootSpeed;
-                            p.vy = Math.sin(targetAngle) * shootSpeed;
-                        } else {
-                            // ถ้าไม่มีศัตรูให้ยิงตรงไปทิศเดิม
-                            let curAng = Math.atan2(p.vy, p.vx);
-                            let shootSpeed = 12 + Math.random() * 4;
-                            p.vx = Math.cos(curAng) * shootSpeed;
-                            p.vy = Math.sin(curAng) * shootSpeed;
-                        }
+            return hitboxes;
+        },
+    
+        onUpdate(player, closestEnemy, game) {
+            // อัปเดตการหมุนของอาวุธตามปกติ
+            player.weaponRotation += 0.08 * player.weaponDir * (game.delta / 16);
+    
+            // ตรวจสอบการหายตัวจากอัลติเมต
+            if (!player.ultimateActive || player.ultimateGauge <= 0) {
+                player.custom.invisible = false;
+            }
+    
+            // อัปเดตตำแหน่งลูกธนู
+            for (let i = player.custom.arrows.length - 1; i >= 0; i--) {
+                let arrow = player.custom.arrows[i];
+                if (arrow.active) {
+                    arrow.x += arrow.vx * (game.delta / 16);
+                    arrow.y += arrow.vy * (game.delta / 16);
+                    // ลบลูกธนูเมื่อออกนอกจอ
+                    if (arrow.x < 0 || arrow.x > game.arena.size || arrow.y < 0 || arrow.y > game.arena.size) {
+                        arrow.active = false;
                     }
+                } else {
+                    player.custom.arrows.splice(i, 1);
                 }
+            }
     
-                // เคลื่อนที่ตามแกน
-                p.x += p.vx * (game.delta / 16);
-                p.y += p.vy * (game.delta / 16);
-    
-                if (p.life <= 0) {
-                    player.custom.projectiles.splice(i, 1);
-                    continue;
+            // State Machine สำหรับระบบการง้างยิง
+            if (player.custom.state === 'idle') {
+                if (closestEnemy) {
+                    // เริ่มง้างหน้าไม้
+                    player.custom.state = 'charging';
+                    player.custom.charge = 1;
                 }
+            } else if (player.custom.state === 'charging') {
+                // หยุดเดินเมื่อง้างหน้าไม้ (ลดความเร็วลง 90%)
+                player.vx *= 0.1;
+                player.vy *= 0.1;
     
-                // เช็คการชนกับศัตรู
-                for (let e of enemies) {
-                    let dx = e.x - p.x;
-                    let dy = e.y - p.y;
-                    let hitRadius = (e.radius || 35);
-    
-                    if (dx*dx + dy*dy < hitRadius * hitRadius) {
-                        
-                        if (player.ultimateGauge !== undefined) {
-                            player.ultimateGauge = Math.min(100, player.ultimateGauge + 1);
-                        }
-    
-                        let finalDmg = p.damage;
-                        if (e.custom && e.custom.jokerDebuff) {
-                            finalDmg *= 1.1; 
-                        }
-    
-                        e.takeDamage(finalDmg, "physical", player, game);
-    
-                        // เอฟเฟกต์ของการ์ด
-                        if (p.type === "root") {
-                            e.addStatus({ name: "Stun", duration: 2000, speedModifier: 0, color: "#8A2BE2" });
-                        } 
-                        else if (p.type === "aoe") {
-                            game.spawnParticles(e.x, e.y, 10, "#FF4500");
-                            for (let e2 of enemies) {
-                                if (e2 === e) continue;
-                                let distSq = (e2.x - e.x)**2 + (e2.y - e.y)**2;
-                                if (distSq < 15000) { 
-                                    let aoeDmg = finalDmg * 0.5;
-                                    if (e2.custom && e2.custom.jokerDebuff) aoeDmg *= 1.1;
-                                    e2.takeDamage(aoeDmg, "physical", player, game);
-                                }
-                            }
-                        } 
-                        else if (p.type === "debuff") {
-                            if (!e.custom) e.custom = {};
-                            e.custom.jokerDebuff = true;
-                        }
-    
-                        game.spawnParticles(p.x, p.y, 3, p.color);
-                        player.custom.projectiles.splice(i, 1);
-                        break; 
-                    }
+                // เพิ่มดาเมจตามระยะเวลาที่ง้าง (สูงสุด 20)
+                player.custom.charge += 0.3 * (game.delta / 16);
+                if (player.custom.charge >= 20) {
+                    player.custom.charge = 20;
+                    player.custom.state = 'loaded';
+                    player.custom.loadedTimer = 1000; // บรรจุรอ 1 วินาที (1000 ms)
+                    player.custom.loadedDamage = 20;
+                }
+            } else if (player.custom.state === 'loaded') {
+                // นับถอยหลัง 1 วินาทีก่อนยิงจริง
+                player.custom.loadedTimer -= game.delta;
+                if (player.custom.loadedTimer <= 0) {
+                    player.custom.fireArrow(player.custom.loadedDamage);
+                    player.custom.state = 'idle'; // ยิงเสร็จกลับไปสถานะว่าง
                 }
             }
         },
-        
-        render(ctx, player, game) { 
+    
+        render(ctx, player, game) {
             ctx.save();
-            ctx.rotate(-player.weaponRotation);
+    
+            // เอฟเฟกต์หายตัวจากสกิลอัลติเมต (ทำให้จางลง)
+            if (player.custom.invisible) {
+                ctx.globalAlpha = 0.3;
+            }
+    
+            // --- วาดผ้าคลุมสีเขียว (อ้างอิงจากตำแหน่งผู้เล่น) ---
+            // Engine ปกติจะ Translate ไปที่ (weaponX, weaponY) แล้ว
+            // เราจะ Reset กลับไปที่จุด (0,0) ของโลก เพื่อวาดรอบตัวผู้เล่นให้ถูกต้อง
+            ctx.setTransform(1, 0, 0, 1, 0, 0); 
+            ctx.translate(player.x, player.y);
             
-            // --- 1. วาดหมวก Joker บนหัว ---
-            let headY = -player.radius;
-            ctx.fillStyle = "#FF1493"; 
+            // คำนวณทิศทางเดินเพื่อให้ผ้าคลุมปลิวไปด้านหลัง
+            let moveAngle = Math.atan2(player.vy, player.vx);
+            if (Math.abs(player.vx) < 0.1 && Math.abs(player.vy) < 0.1) {
+                moveAngle = player.weaponRotation + Math.PI; // ถ้าอยู่เฉยๆ ให้ห้อยไปด้านหลังหน้าไม้
+            }
+            ctx.rotate(moveAngle + Math.PI); // หมุนไปทิศตรงข้ามกับการเดิน
+            
+            ctx.fillStyle = "#2E8B57"; // สีเขียวผ้าคลุม (Sea Green)
             ctx.beginPath();
-            ctx.moveTo(-15, headY); ctx.lineTo(-25, headY - 20); ctx.lineTo(0, headY - 10); ctx.fill();
-            ctx.fillStyle = "#FFD700"; 
+            ctx.moveTo(-18, 15);
+            ctx.lineTo(18, 15);
+            ctx.lineTo(25, 45); // ปลายผ้าคลุม
+            ctx.lineTo(-25, 45);
+            ctx.fill();
+            
+            // --- วาดหน้าไม้ ---
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.translate(player.weaponX, player.weaponY);
+            ctx.rotate(player.weaponRotation);
+    
+            ctx.fillStyle = this.color;
+            // ด้ามจับ/รางหน้าไม้
+            ctx.fillRect(-this.length/2, -4, this.length, 8);
+            
+            // คันหน้าไม้
             ctx.beginPath();
-            ctx.moveTo(15, headY); ctx.lineTo(25, headY - 20); ctx.lineTo(0, headY - 10); ctx.fill();
-            ctx.fillStyle = "#FFF";
-            ctx.beginPath(); ctx.arc(-25, headY - 20, 5, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(25, headY - 20, 5, 0, Math.PI*2); ctx.fill();
+            ctx.moveTo(10, -25);
+            ctx.quadraticCurveTo(5, 0, 10, 25);
+            ctx.lineWidth = 6;
+            ctx.strokeStyle = "#555";
+            ctx.stroke();
     
-            // --- 2. วาดสำรับไพ่ในมือ ---
-            ctx.fillStyle = "#FFFFFF";
-            ctx.fillRect(player.radius - 5, -10, 15, 20);
-            ctx.strokeStyle = "#000000";
-            ctx.strokeRect(player.radius - 5, -10, 15, 20);
-            ctx.fillStyle = "#FF0000";
-            ctx.font = "12px Arial";
-            ctx.fillText("J", player.radius - 3, 5);
-    
-            // --- 3. วาด UI สล็อตแมชชีนตอนใช้อัลติ ---
-            if (player.custom.slotTimer > 0) {
-                ctx.fillStyle = "rgba(0,0,0,0.8)";
-                ctx.fillRect(-35, headY - 45, 70, 25);
-                ctx.fillStyle = "#FFD700";
-                ctx.font = "16px Arial";
-                ctx.textAlign = "center";
-                ctx.fillText(player.custom.slots.join("   "), 0, headY - 28);
+            // วาดลูกธนูขณะกำลังง้างหรือบรรจุเสร็จ
+            if (player.custom.state === 'charging' || player.custom.state === 'loaded') {
+                let pullBack = player.custom.state === 'charging' ? (player.custom.charge / 20) * 15 : 15;
+                ctx.fillStyle = "#FFD700"; // ลูกธนูสีทอง
+                ctx.fillRect(-pullBack, -2, 25, 4); // ก้าน
+                ctx.beginPath(); // หัวลูกธนู
+                ctx.moveTo(25 - pullBack, -4);
+                ctx.lineTo(32 - pullBack, 0);
+                ctx.lineTo(25 - pullBack, 4);
+                ctx.fill();
             }
             ctx.restore();
     
-            // --- 4. วาดการ์ดที่ยิงออกไป (Projectiles) ---
-            for (let p of player.custom.projectiles) {
-                ctx.save();
-                ctx.translate(p.x - player.x, p.y - player.y);
-                
-                // หันหัวไปทางทิศทางการเคลื่อนที่เสมอ
-                let flyAngle = Math.atan2(p.vy, p.vx);
-                ctx.rotate(flyAngle);
-                
-                // ถ้าระยะเวลาเตรียมยิงหมด (แปลว่ากำลังพุ่งด้วยความเร็วสูง) ให้วาดเอฟเฟกต์หางยาวๆ เหมือนลูกธนู
-                if (p.burstTimer <= 0) {
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-                    ctx.fillRect(-20, -3, 12, 6); // เส้นหางความเร็ว
-                }
-                
-                // วาดรูปไพ่ (ให้ด้านกว้างคือหัวที่พุ่งไป)
-                ctx.fillStyle = "#FFFFFF";
-                ctx.fillRect(-8, -6, 16, 12);
-                ctx.strokeStyle = "#000000";
-                ctx.strokeRect(-8, -6, 16, 12);
-                
-                // แต้มสีอยู่ด้านหน้าสุด
-                ctx.fillStyle = p.color;
-                ctx.beginPath(); ctx.arc(3, 0, 4, 0, Math.PI*2); ctx.fill();
-                ctx.restore();
+            // --- วาดลูกธนูที่ถูกยิงออกไปแล้ว ---
+            ctx.save();
+            if (player.custom.invisible) {
+                ctx.globalAlpha = 0.3;
             }
-    
-            // --- 5. วาดสัญลักษณ์ Target บนศัตรูที่ติด Debuff ---
-            let enemies = game.getEnemies(player);
-            for (let e of enemies) {
-                if (e.custom && e.custom.jokerDebuff) {
-                    ctx.save();
-                    ctx.translate(e.x - player.x, e.y - player.y);
-                    
-                    ctx.strokeStyle = "#32CD32"; 
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.arc(0, -(e.radius || 35) - 15, 8, 0, Math.PI*2);
-                    ctx.moveTo(-12, -(e.radius || 35) - 15); ctx.lineTo(12, -(e.radius || 35) - 15);
-                    ctx.moveTo(0, -(e.radius || 35) - 27); ctx.lineTo(0, -(e.radius || 35) - 3);
-                    ctx.stroke();
-                    
-                    ctx.restore();
+            ctx.setTransform(1, 0, 0, 1, 0, 0); 
+            ctx.fillStyle = "#FFF";
+            for (let arrow of player.custom.arrows) {
+                if (arrow.active) {
+                    ctx.translate(arrow.x, arrow.y);
+                    ctx.rotate(arrow.rot);
+                    ctx.fillRect(-10, -2, 20, 4); // ก้านธนู
+                    ctx.beginPath(); // หัวธนู
+                    ctx.moveTo(10, -4);
+                    ctx.lineTo(16, 0);
+                    ctx.lineTo(10, 4);
+                    ctx.fill();
+                    ctx.rotate(-arrow.rot);
+                    ctx.translate(-arrow.x, -arrow.y);
                 }
+            }
+            ctx.restore();
+        },
+    
+        onHitPlayer(player, target, game, hitBoxUsed) {
+            // เช็คว่าฮิตบ็อกซ์ที่ชนเป็นส่วนไหน
+            if (hitBoxUsed && hitBoxUsed.isArrow) {
+                // โดนลูกธนู
+                target.takeDamage(hitBoxUsed.damage, "physical", player, game);
+                hitBoxUsed.arrowRef.active = false; // ทำลายลูกธนูทิ้ง
+            } else if (hitBoxUsed && hitBoxUsed.isBow) {
+                // เอาคันหน้าไม้ไปฟาด (ดาเมจ 1)
+                target.takeDamage(1, "physical", player, game);
+                player.reverseWeapon();
             }
         },
-        
-        onHitPlayer(player, target, game, hitBoxUsed) {},
-        onHitWeapon(player, enemyPlayer, game) {},
-        onTakeDamage(player, source, game) {},
+    
+        onHitWeapon(player, enemyPlayer, game) {
+            game.spawnParticles(player.weaponX, player.weaponY, 5, "#ccc");
+            player.reverseWeapon();
+        },
+    
+        onTakeDamage(player, source, game) {
+            // ระบบขัดจังหวะการง้างหน้าไม้เมื่อถูกโจมตี
+            if (player.custom.state === 'charging') {
+                // ยกเลิกการง้างและยิงออกไปทันทีด้วยดาเมจที่สะสมมา
+                player.custom.fireArrow(player.custom.charge);
+                player.custom.state = 'idle';
+            } else if (player.custom.state === 'loaded') {
+                // หากโดนโจมตีตอนบรรจุเสร็จ (รอ 1 วิ) หน้าไม้จะเบาลง
+                player.custom.loadedDamage = 1; // ดาเมจเหลือ 1
+            }
+        },
+    
         onUltimateActivate(player, game) {
-            player.custom.slotTimer = 1500;
+            // เปิดโหมดผ้าคลุมหายตัว
+            player.custom.invisible = true;
         }
     }
 };
