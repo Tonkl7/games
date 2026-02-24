@@ -926,13 +926,14 @@ const WEAPON_REGISTRY = {
         },
         
         render(ctx, player, game) {
-            // หมายเหตุ: Origin (0,0) ตรงนี้คือพิกัดปลายอาวุธ (weaponX, weaponY) 
-            // หากจะวาดสิ่งที่อยู่นอกอาวุธ (เช่น ลูกบอลร่องรอย หรือออร่า) ต้องแปลงพิกัดกลับเป็นแกน Global
-            
             ctx.save();
-            ctx.translate(-player.weaponX, -player.weaponY); // แปลงกลับสู่พิกัด Global ซ้ายบนสุด
+            // --- การแก้ไขแกนพิกัดให้เป็น Global แท้จริง ---
+            // Engine มีการใส่ Rotation หมุนและ Translate มาที่ปลายอาวุธไว้แล้ว
+            // เราต้องทำการ "หมุนกลับ" (-player.weaponRotation) และ "เลื่อนกลับ" เพื่อให้พิกัดทุกอย่างบนฉากไม่หมุนเหวี่ยงไปตามคทา
+            ctx.rotate(-player.weaponRotation);
+            ctx.translate(-player.weaponX, -player.weaponY); 
             
-            // --- วาดม่านพลังพันธนาการ 10 ชั้นรอบตัว Player ---
+            // --- วาดม่านพลังพันธนาการ 10 ชั้นรอบตัว Player (Global) ---
             if (player.custom.sealHits > 0) {
                 ctx.beginPath();
                 ctx.arc(player.x, player.y, player.radius + 15 + Math.sin(Date.now()/150)*5, 0, Math.PI * 2);
@@ -943,51 +944,45 @@ const WEAPON_REGISTRY = {
                 ctx.lineWidth = 2;
                 ctx.stroke();
                 
-                // ตัวหนังสือบอกจำนวนพันธนาการ
                 ctx.fillStyle = "#ffffff";
                 ctx.font = "bold 14px Arial";
                 ctx.fillText(`Seal: ${player.custom.sealHits}`, player.x - 25, player.y - player.radius - 25);
             }
     
-            // --- วาดร่องรอยคำสาป (Trail) ---
+            // --- วาดร่องรอยคำสาป (Global) ---
             player.custom.trails.forEach(t => {
                 ctx.beginPath();
                 ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(26, 0, 34, ${t.life / 2000})`; // ค่อยๆ จางหายไป
+                ctx.fillStyle = `rgba(26, 0, 34, ${t.life / 2000})`; 
                 ctx.fill();
             });
             
-            // --- วาดลูกบอลคำสาป (Projectile) ---
+            // --- วาดลูกบอลคำสาป (Global) ---
             player.custom.projectiles.forEach(p => {
-                // เงาออร่ารอบบอล
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, p.r + 5 + Math.sin(Date.now()/100)*3, 0, Math.PI * 2);
                 ctx.fillStyle = "rgba(42, 0, 68, 0.5)";
                 ctx.fill();
                 
-                // แกนลูกบอลสีดำ
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
                 ctx.fillStyle = "#000000";
                 ctx.fill();
                 
-                // จุดแดงข้างในลูกบอล
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, p.r * 0.4, 0, Math.PI * 2);
                 ctx.fillStyle = "#ff0000";
                 ctx.fill();
             });
             
-            // --- วาด Visual Effects คำสาปน่ากลัวๆ บนตัวศัตรู ---
+            // --- วาด Visual Effects คำสาปบนตัวศัตรู (Global) ---
             let enemies = game.getEnemies(player);
             enemies.forEach(enemy => {
                 if (enemy.custom.curseStacks > 0) {
-                    // วาดหัวกะโหลกพร้อมตัวเลขสแตค
                     ctx.fillStyle = "#000000";
                     ctx.font = "bold 16px Arial";
                     ctx.fillText(`💀 x${enemy.custom.curseStacks}`, enemy.x - 20, enemy.y - enemy.radius - 15);
                     
-                    // ถังศัตรูโดน Root ให้วาดหนามสีดำพันรอบขา
                     if (enemy.custom.rootTimer > 0) {
                          ctx.beginPath();
                          ctx.arc(enemy.x, enemy.y + enemy.radius, enemy.radius, Math.PI, Math.PI * 2);
@@ -1001,39 +996,35 @@ const WEAPON_REGISTRY = {
                 }
             });
             
-            ctx.restore(); // กลับมาโฟกัสที่จุดกึ่งกลางของอาวุธ
+            // คืนค่าพิกัดกลับมาเป็นของจุดอ้างอิงของอาวุธ
+            ctx.restore(); 
             
-            // --- วาดรูปคทาต้องคำสาป (Cursed Staff) ---
-            ctx.rotate(player.weaponRotation + Math.PI/4);
+            // --- วาดรูปคทาต้องคำสาป (Local Weapon) ---
+            // ไม่ต้องเอา player.weaponRotation มาบวกเพิ่มแล้ว เพราะ Engine จัดการให้แล้ว แค่บวก Math.PI/4 เพื่อตั้งมุมภาพ
+            ctx.rotate(Math.PI/4);
             
-            // ตัวด้ามจับคทา (ด้ามยาวสีดำสนิท)
             ctx.fillStyle = "#111111"; 
             ctx.fillRect(-this.width/2, -this.length + 20, this.width, this.length);
             
-            // อัญมณีหรือดวงตาปีศาจตรงหัวคทา
             ctx.beginPath();
             ctx.arc(0, -this.length + 10, 16, 0, Math.PI * 2);
-            ctx.fillStyle = "#2a0044"; // สีม่วงเข้ม
+            ctx.fillStyle = "#2a0044"; 
             ctx.fill();
             ctx.lineWidth = 3;
-            ctx.strokeStyle = "#000000"; // ขอบดำ
+            ctx.strokeStyle = "#000000"; 
             ctx.stroke();
             
-            // รูม่านตาปีศาจ (สีแดง)
             ctx.beginPath();
             ctx.arc(0, -this.length + 10, 6, 0, Math.PI * 2);
             ctx.fillStyle = "#ff0000";
             ctx.fill();
             
-            // หนามหรือกิ่งไม้ต้องคำสาปพันรอบๆ หัวคทา
             ctx.fillStyle = "#000000";
-            // หนามซ้าย
             ctx.beginPath();
             ctx.moveTo(-16, -this.length + 10);
             ctx.lineTo(-28, -this.length - 15);
             ctx.lineTo(-6, -this.length - 5);
             ctx.fill();
-            // หนามขวา
             ctx.beginPath();
             ctx.moveTo(16, -this.length + 10);
             ctx.lineTo(28, -this.length - 15);
