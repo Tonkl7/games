@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ball Fight betaV6</title>
+    <title>Ball Fight betaV8</title>
     <style>
         /* --- THEME: DIMENSIONAL MINIMAL MEDIEVAL --- */
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Lato:wght@400;700&display=swap');
@@ -376,7 +376,7 @@
     <!-- Scene 1: Main Menu -->
     <div id="menu">
         <div class="menu-box">
-            <h1>Ball Fight <span class="beta-tag">betaV6</span></h1>
+            <h1>Ball Fight <span class="beta-tag">betaV8</span></h1>
             
             <div class="mode-selector">
                 <label style="font-weight:bold; font-size: 1.1em; color: var(--text-main); font-family: 'Cinzel', serif;">Game Mode: </label>
@@ -701,27 +701,25 @@ const BOSS_REGISTRY = {
         name: "Slime King", color: "#4caf50", radius: 65, maxHp: 1500,
         iFrameDuration: 100, 
         init(boss) {
-            boss.custom.jumpTimer = 2000; boss.custom.spawnTimer = 5000;
-            boss.passiveText = "Bounces heavily & spawns minions";
+            boss.custom.jumpTimer = 2000;
+            boss.passiveText = "Bounces heavily";
         },
         onUpdate(boss, game) {
-            boss.custom.jumpTimer -= game.delta; boss.custom.spawnTimer -= game.delta;
+            boss.custom.jumpTimer -= game.delta;
             let enemies = game.getEnemies(boss);
             let target = null; let minDist = Infinity;
             for (let e of enemies) { let d = MathUtils.distance(boss.x, boss.y, e.x, e.y); if (d < minDist) { minDist = d; target = e; } }
+            
             if (boss.custom.jumpTimer <= 0 && target) {
                 boss.custom.jumpTimer = 3000;
                 let n = MathUtils.normalize(target.x - boss.x, target.y - boss.y);
                 boss.vx += n.x * 20; boss.vy += n.y * 20;
                 game.spawnParticles(boss.x, boss.y, 20, "#4caf50");
-            }
-            if (boss.custom.spawnTimer <= 0) {
-                boss.custom.spawnTimer = 6000; game.spawnParticles(boss.x, boss.y, 30, "#4caf50");
-                this.spawnMiniSlime(boss, game);
+                game.triggerScreenShake(5, 200);
             }
         },
         render(ctx, boss, game) {
-            ctx.fillStyle = "#b89947"; ctx.fillRect(-20, -boss.radius - 15, 40, 20); // Gold crown
+            ctx.fillStyle = boss.ultimateActive ? "#ffeb3b" : "#b89947"; ctx.fillRect(-20, -boss.radius - 15, 40, 20); // Crown
             ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(-10, -boss.radius - 15, 5, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(10, -boss.radius - 15, 5, 0, Math.PI*2); ctx.fill();
         },
@@ -729,6 +727,17 @@ const BOSS_REGISTRY = {
             player.takeDamage(15, "blunt", boss, game);
             let n = MathUtils.normalize(player.x - boss.x, player.y - boss.y);
             player.applyForce(n.x * 30, n.y * 30);
+        },
+        onHitWeapon(boss, attacker, game, hitboxObj) {
+            // Weapon intercepts Slime King's sticky body! Slows attacker down.
+            attacker.vx *= 0.5;
+            attacker.vy *= 0.5;
+            game.spawnParticles(attacker.weaponX || attacker.x, attacker.weaponY || attacker.y, 5, "#4caf50");
+        },
+        onUltimateActivate(boss, game) {
+            for(let i=0; i<3; i++) this.spawnMiniSlime(boss, game);
+            game.triggerScreenShake(15, 500);
+            boss.passiveText = "ULTIMATE: Slime Army!";
         },
         onTakeDamage(boss, source, game) { },
         spawnMiniSlime(owner, game) {
@@ -765,43 +774,55 @@ const BOSS_REGISTRY = {
     "Dark Knight": {
         name: "Dark Knight", color: "#424242", radius: 40, maxHp: 1200,
         iFrameDuration: 100, 
-        init(boss) { boss.custom.dashTimer = 3000; boss.custom.isDashing = false; boss.passiveText = "Relentless rusher"; },
+        init(boss) { 
+            boss.custom.dashTimer = 3000; boss.custom.isDashing = false; 
+            boss.passiveText = "Relentless rusher"; 
+            boss.custom.phase2 = false;
+        },
         onUpdate(boss, game) {
             boss.custom.dashTimer -= game.delta;
+
             if (boss.custom.dashTimer <= 0) {
                 let enemies = game.getEnemies(boss);
                 if(enemies.length > 0) {
                     let target = enemies[Math.floor(Math.random()*enemies.length)];
                     let n = MathUtils.normalize(target.x - boss.x, target.y - boss.y);
-                    boss.vx = n.x * 35; boss.vy = n.y * 35;
-                    boss.custom.dashTimer = 2500 + Math.random()*1000; boss.custom.isDashing = true;
+                    boss.vx = n.x * (boss.custom.phase2 ? 45 : 35);
+                    boss.vy = n.y * (boss.custom.phase2 ? 45 : 35);
+                    boss.custom.dashTimer = (boss.custom.phase2 ? 1500 : 2500) + Math.random()*1000; 
+                    boss.custom.isDashing = true;
                     setTimeout(() => boss.custom.isDashing = false, 500);
-                    game.spawnParticles(boss.x, boss.y, 15, "#757575");
+                    game.spawnParticles(boss.x, boss.y, 15, boss.color);
+                    if(boss.custom.phase2) game.triggerScreenShake(8, 300);
                 }
             }
         },
         render(ctx, boss, game) {
             ctx.fillStyle = "#212121"; ctx.fillRect(-15, -15, 30, 10);
-            ctx.fillStyle = "#d32f2f"; ctx.shadowColor = "#d32f2f"; ctx.shadowBlur = 10;
+            ctx.fillStyle = "#fff"; ctx.shadowColor = "#fff"; ctx.shadowBlur = 10;
             ctx.beginPath(); ctx.arc(-6, -10, 3, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(6, -10, 3, 0, Math.PI*2); ctx.fill();
             ctx.shadowBlur = 0;
             
-            if(boss.custom.isDashing) { ctx.strokeStyle = "#d32f2f"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, boss.radius + 10, 0, Math.PI*2); ctx.stroke(); }
+            if(boss.custom.isDashing) { ctx.strokeStyle = boss.custom.phase2 ? "#ff5252" : "#d32f2f"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, boss.radius + 10, 0, Math.PI*2); ctx.stroke(); }
         },
         onHitPlayer(boss, player, game) {
             let dmg = boss.custom.isDashing ? 20 : 8;
+            if(boss.custom.phase2) dmg *= 1.5;
             player.takeDamage(dmg, "pierce", boss, game); player.applyForce(boss.vx * 0.5, boss.vy * 0.5);
         },
-        onTakeDamage(boss, source, game) {
-            boss.ultimateGauge += 5;
-            if (boss.ultimateGauge >= 100) {
-                boss.ultimateGauge = 0; game.spawnParticles(boss.x, boss.y, 50, "#424242");
-                let enemies = game.getEnemies(boss);
-                for(let e of enemies) {
-                    let n = MathUtils.normalize(e.x - boss.x, e.y - boss.y);
-                    e.applyForce(n.x * 40, n.y * 40); e.takeDamage(10, "magic", boss, game);
-                }
+        onTakeDamage(boss, source, game) { },
+        onDeath(boss, killer, game) {
+            // 🔥 Action Skill แปลกๆ: ตายแล้วฟื้นกลับมาในร่าง Phase 2!
+            if (!boss.custom.phase2) {
+                boss.custom.phase2 = true;
+                boss.hp = boss.maxHp; // Revive!
+                boss.color = "#d32f2f";
+                boss.baseSpeedCap = 30;
+                boss.passiveText = "PHASE 2: UNDYING!";
+                game.triggerScreenShake(30, 1000);
+                game.setArenaBgOverride("rgba(50, 0, 0, 0.9)");
+                game.spawnParticles(boss.x, boss.y, 100, "#d32f2f");
             }
         }
     }
@@ -842,6 +863,42 @@ class Actor {
         else if (this.x + r > arena.x + arena.size) { this.x = arena.x + arena.size - r; this.vx = -Math.abs(this.vx) * bounce + perturb(); this.vy += perturb(); }
         if (this.y - r < arena.y) { this.y = arena.y + r; this.vy = Math.abs(this.vy) * bounce + perturb(); this.vx += perturb(); }
         else if (this.y + r > arena.y + arena.size) { this.y = arena.y + arena.size - r; this.vy = -Math.abs(this.vy) * bounce + perturb(); this.vx += perturb(); }
+    }
+    // Unified Damage & Death Core
+    takeDamage(amount, type, source, game) {
+        if (this.iFrames > 0 || this.hp <= 0) return; 
+        
+        this.hp = Math.max(0, this.hp - amount); 
+        this.iFrames = MathUtils.getStat(this, 'iFrameDuration'); 
+        
+        let hsTime = MathUtils.getStat(source || this, 'hitStopDuration');
+        game.triggerHitStop(hsTime); 
+        
+        game.spawnParticles(this.x, this.y, 15, source ? source.color : "#fff");
+        let dc = "#333"; if (type === "physical") dc = "#555"; else if (type === "pierce") dc = "#b89947"; else if (type === "blunt") dc = "#795548"; else if (type === "magic") dc = "#9c27b0"; else if (type === "burn") dc = "#d84315";
+        game.spawnFloatingText(this.x, this.y, amount, dc);
+        
+        // Ultimate Charge Logic for ALL Actors (Player & Boss)
+        if (source && !source.ultimateActive && source.id) {
+            let chargeAmt = source.isBoss ? 10 : 20; 
+            source.ultimateGauge += chargeAmt;
+            if (source.ultimateGauge >= 100) { 
+                source.ultimateGauge = 100; source.ultimateActive = true; source.ultimateTimer = 2000; 
+                game.spawnParticles(source.x, source.y, 40, "#d4af37"); 
+                if (source.isPlayer && source.weaponDef && source.weaponDef.onUltimateActivate) source.weaponDef.onUltimateActivate(source, game);
+                if (source.isBoss && source.bossDef && source.bossDef.onUltimateActivate) source.bossDef.onUltimateActivate(source, game);
+            }
+        }
+        
+        // Defensive Hooks
+        if (this.isPlayer && this.weaponDef && this.weaponDef.onTakeDamage) this.weaponDef.onTakeDamage(this, source, game);
+        if (this.isBoss && this.bossDef && this.bossDef.onTakeDamage) this.bossDef.onTakeDamage(this, source, game);
+
+        // Death Hook (Allows Revive or Final Actions)
+        if (this.hp <= 0) {
+            if (this.isPlayer && this.weaponDef && this.weaponDef.onDeath) this.weaponDef.onDeath(this, source, game);
+            if (this.isBoss && this.bossDef && this.bossDef.onDeath) this.bossDef.onDeath(this, source, game);
+        }
     }
 }
 
@@ -919,23 +976,6 @@ class Player extends Actor {
         ctx.fillStyle = "rgba(44, 36, 27, 0.8)"; ctx.font = "bold 13px 'Cinzel', serif"; ctx.textAlign="center"; ctx.fillText(this.id, this.x, this.y - r - 12);
     }
     
-    takeDamage(amount, type, source, game) {
-        if (this.iFrames > 0) return; 
-        this.hp = Math.max(0, this.hp - amount); 
-        this.iFrames = MathUtils.getStat(this, 'iFrameDuration'); 
-        
-        let hsTime = MathUtils.getStat(source || this, 'hitStopDuration');
-        game.triggerHitStop(hsTime); 
-        
-        game.spawnParticles(this.x, this.y, 15, source ? source.color : "#fff");
-        let dc = "#333"; if (type === "physical") dc = "#555"; else if (type === "pierce") dc = "#b89947"; else if (type === "blunt") dc = "#795548"; else if (type === "magic") dc = "#9c27b0"; else if (type === "burn") dc = "#d84315";
-        game.spawnFloatingText(this.x, this.y, amount, dc);
-        if (source && source.isPlayer && !source.ultimateActive && source.id) {
-            source.ultimateGauge += 20; if (source.ultimateGauge >= 100) { source.ultimateGauge = 100; source.ultimateActive = true; source.ultimateTimer = 2000; if(source.weaponDef && source.weaponDef.onUltimateActivate) source.weaponDef.onUltimateActivate(source, game); game.spawnParticles(source.x, source.y, 40, "#d4af37"); }
-        }
-        if (this.weaponDef && this.weaponDef.onTakeDamage) this.weaponDef.onTakeDamage(this, source, game);
-    }
-    
     reverseWeapon() { if (this.weaponCooldown <= 0) { this.weaponDir *= -1; this.weaponCooldown = 200; } }
 }
 
@@ -976,7 +1016,9 @@ class Boss extends Actor {
             }
         }
 
-        if (this.iFrames > 0) this.iFrames -= game.delta; this.updateEffects(game);
+        if (this.iFrames > 0) this.iFrames -= game.delta; 
+        this.updateEffects(game);
+        if (this.ultimateActive) { this.ultimateTimer -= game.delta; this.ultimateGauge = (this.ultimateTimer / 2000) * 100; if (this.ultimateTimer <= 0) { this.ultimateActive = false; this.ultimateGauge = 0; } }
         if (this.bossDef.onUpdate) this.bossDef.onUpdate(this, game);
         this.handleWallCollision(game.arena);
     }
@@ -988,22 +1030,6 @@ class Boss extends Actor {
         ctx.lineWidth = 3; ctx.strokeStyle = "rgba(44, 36, 27, 0.5)"; ctx.stroke(); ctx.shadowBlur = 0; 
         if (this.bossDef.render) this.bossDef.render(ctx, this, game);
         ctx.restore(); ctx.fillStyle = "rgba(44, 36, 27, 0.9)"; ctx.font = "bold 16px 'Cinzel', serif"; ctx.textAlign="center"; ctx.fillText(this.bossDef.name, this.x, this.y - r - 15);
-    }
-    takeDamage(amount, type, source, game) {
-        if (this.iFrames > 0) return; 
-        this.hp = Math.max(0, this.hp - amount); 
-        this.iFrames = MathUtils.getStat(this, 'iFrameDuration'); 
-        
-        let hsTime = MathUtils.getStat(source || this, 'hitStopDuration');
-        game.triggerHitStop(hsTime);
-
-        game.spawnParticles(this.x, this.y, 20, source ? source.color : "#fff");
-        let dc = "#333"; if (type === "physical") dc = "#555"; else if (type === "pierce") dc = "#b89947"; else if (type === "blunt") dc = "#795548"; else if (type === "magic") dc = "#9c27b0"; else if (type === "burn") dc = "#d84315";
-        game.spawnFloatingText(this.x, this.y, amount, dc);
-        if (source && source.isPlayer && !source.ultimateActive && source.id) {
-            source.ultimateGauge += 10; if (source.ultimateGauge >= 100) { source.ultimateGauge = 100; source.ultimateActive = true; source.ultimateTimer = 2000; if(source.weaponDef && source.weaponDef.onUltimateActivate) source.weaponDef.onUltimateActivate(source, game); game.spawnParticles(source.x, source.y, 40, "#d4af37"); }
-        }
-        if (this.bossDef.onTakeDamage) this.bossDef.onTakeDamage(this, source, game);
     }
 }
 
@@ -1019,23 +1045,18 @@ const Engine = {
     
     // Global Configs
     config: {
-        arenaScale: 1.0,
-        bgColor: "#e8e4d8",
-        baseSpeedCap: 20,
-        minSpeed: 5,
-        collisionBounce: 1.05,
-        maxCollisionSpeed: 40,
-        iFrameDuration: 200,
-        hitStopDuration: 50,
-        wallBounce: 0.95,
-        friction: 0.995,
-        showHitboxes: false
+        arenaScale: 1.0, bgColor: "#e8e4d8", baseSpeedCap: 20, minSpeed: 5, collisionBounce: 1.05,
+        maxCollisionSpeed: 40, iFrameDuration: 200, hitStopDuration: 50, wallBounce: 0.95, friction: 0.995, showHitboxes: false
     },
     
     arena: { x: 0, y: 0, size: 0, scale: 1.0 }, 
     actors: [], entities: [], particles: [],
     lastTime: 0, delta: 0, hitStop: 0, state: 'MENU', mode: '1v1',
     
+    // Cinematic & Environmental effects
+    shakeX: 0, shakeY: 0, shakeTimer: 0, shakeIntensity: 0,
+    bgOverride: null, arenaBgOverride: null, arenaScaleOverride: null,
+
     init() {
         window.addEventListener('resize', () => this.resizeCanvas());
         this.resizeCanvas(); this.buildMenuUI();
@@ -1045,147 +1066,68 @@ const Engine = {
         // Settings Sync
         const configKeys = ['arenaScale', 'baseSpeedCap', 'minSpeed', 'collisionBounce', 'maxCollisionSpeed', 'iFrameDuration', 'hitStopDuration', 'wallBounce', 'friction'];
         configKeys.forEach(k => {
-            let el = document.getElementById(`cfg-${k}`);
-            let valEl = document.getElementById(`val-${k}`);
+            let el = document.getElementById(`cfg-${k}`); let valEl = document.getElementById(`val-${k}`);
             if(el) {
-                el.value = this.config[k];
-                if(valEl) valEl.innerText = this.config[k];
+                el.value = this.config[k]; if(valEl) valEl.innerText = this.config[k];
                 el.addEventListener('input', e => {
-                    let v = parseFloat(e.target.value);
-                    this.config[k] = v;
+                    let v = parseFloat(e.target.value); this.config[k] = v;
                     if(valEl) valEl.innerText = v;
                     if(k === 'arenaScale') { this.arena.scale = v; this.resizeCanvas(); }
                 });
             }
         });
         let chkHitbox = document.getElementById('cfg-showHitboxes');
-        if(chkHitbox) {
-            chkHitbox.checked = this.config.showHitboxes;
-            chkHitbox.addEventListener('change', e => this.config.showHitboxes = e.target.checked);
-        }
+        if(chkHitbox) { chkHitbox.checked = this.config.showHitboxes; chkHitbox.addEventListener('change', e => this.config.showHitboxes = e.target.checked); }
         let bgEl = document.getElementById('cfg-bgColor');
-        if(bgEl) {
-            bgEl.value = this.config.bgColor;
-            bgEl.addEventListener('input', e => this.config.bgColor = e.target.value);
-        }
+        if(bgEl) { bgEl.value = this.config.bgColor; bgEl.addEventListener('input', e => this.config.bgColor = e.target.value); }
 
-        // Open Settings from Main Menu
-        document.getElementById('menu-settings-btn').addEventListener('click', () => { 
-            document.getElementById('settings-modal').style.display = 'flex'; 
-            document.getElementById('quit-btn').style.display = 'none'; 
-            document.getElementById('resume-btn').innerText = 'Close';
-        });
+        document.getElementById('menu-settings-btn').addEventListener('click', () => { document.getElementById('settings-modal').style.display = 'flex'; document.getElementById('quit-btn').style.display = 'none'; document.getElementById('resume-btn').innerText = 'Close'; });
+        document.getElementById('settings-btn').addEventListener('click', () => { this.state = 'PAUSED'; document.getElementById('settings-modal').style.display = 'flex'; document.getElementById('quit-btn').style.display = 'block'; document.getElementById('resume-btn').innerText = 'Resume'; });
+        document.getElementById('resume-btn').addEventListener('click', () => { document.getElementById('settings-modal').style.display = 'none'; if(this.actors.length > 0) { this.state = 'PLAYING'; this.lastTime = performance.now(); } });
 
-        // Open Settings while Playing
-        document.getElementById('settings-btn').addEventListener('click', () => { 
-            this.state = 'PAUSED'; 
-            document.getElementById('settings-modal').style.display = 'flex'; 
-            document.getElementById('quit-btn').style.display = 'block';
-            document.getElementById('resume-btn').innerText = 'Resume';
-        });
-
-        // Close Settings
-        document.getElementById('resume-btn').addEventListener('click', () => { 
-            document.getElementById('settings-modal').style.display = 'none'; 
-            if(this.actors.length > 0) { 
-                this.state = 'PLAYING'; 
-                this.lastTime = performance.now(); 
-            }
-        });
-
-        // Reset Settings
         document.getElementById('reset-settings-btn').addEventListener('click', () => {
-            this.config = {
-                arenaScale: 1.0,
-                bgColor: "#e8e4d8",
-                baseSpeedCap: 20,
-                minSpeed: 5,
-                collisionBounce: 1.05,
-                maxCollisionSpeed: 40,
-                iFrameDuration: 200,
-                hitStopDuration: 50,
-                wallBounce: 0.95,
-                friction: 0.995,
-                showHitboxes: false
-            };
+            this.config = { arenaScale: 1.0, bgColor: "#e8e4d8", baseSpeedCap: 20, minSpeed: 5, collisionBounce: 1.05, maxCollisionSpeed: 40, iFrameDuration: 200, hitStopDuration: 50, wallBounce: 0.95, friction: 0.995, showHitboxes: false };
             this.arena.scale = 1.0;
-            
-            // Sync UI elements back to default values
-            configKeys.forEach(k => {
-                let el = document.getElementById(`cfg-${k}`);
-                let valEl = document.getElementById(`val-${k}`);
-                if(el) el.value = this.config[k];
-                if(valEl) valEl.innerText = this.config[k];
-            });
-            
-            let chkHitboxEl = document.getElementById('cfg-showHitboxes');
-            if(chkHitboxEl) chkHitboxEl.checked = this.config.showHitboxes;
-
-            // Sync Arena scale specifically
-            let oldArenaScaleEl = document.getElementById('arena-scale');
-            let oldArenaScaleVal = document.getElementById('arena-scale-val');
-            if(oldArenaScaleEl) oldArenaScaleEl.value = 1.0;
-            if(oldArenaScaleVal) oldArenaScaleVal.innerText = "100";
-
-            let bgColEl = document.getElementById('cfg-bgColor');
-            let oldBgColEl = document.getElementById('bg-color');
-            if(bgColEl) bgColEl.value = this.config.bgColor;
-            if(oldBgColEl) oldBgColEl.value = this.config.bgColor;
-
+            configKeys.forEach(k => { let el = document.getElementById(`cfg-${k}`); let valEl = document.getElementById(`val-${k}`); if(el) el.value = this.config[k]; if(valEl) valEl.innerText = this.config[k]; });
+            let chkHitboxEl = document.getElementById('cfg-showHitboxes'); if(chkHitboxEl) chkHitboxEl.checked = this.config.showHitboxes;
+            let oldArenaScaleEl = document.getElementById('arena-scale'); let oldArenaScaleVal = document.getElementById('arena-scale-val');
+            if(oldArenaScaleEl) oldArenaScaleEl.value = 1.0; if(oldArenaScaleVal) oldArenaScaleVal.innerText = "100";
+            let bgColEl = document.getElementById('cfg-bgColor'); let oldBgColEl = document.getElementById('bg-color');
+            if(bgColEl) bgColEl.value = this.config.bgColor; if(oldBgColEl) oldBgColEl.value = this.config.bgColor;
             this.resizeCanvas();
         });
 
         document.getElementById('quit-btn').addEventListener('click', () => {
             document.getElementById('settings-modal').style.display = 'none'; document.getElementById('game-ui').style.display = 'none';
             document.getElementById('settings-btn').style.display = 'none'; document.getElementById('menu').style.display = 'flex'; this.state = 'MENU';
-            this.actors = []; 
+            this.actors = []; this.clearEnvironmentOverrides();
         });
 
         requestAnimationFrame((t) => this.loop(t));
     },
 
+    // --- Cinematic APIs ---
+    triggerScreenShake(intensity, ms) { this.shakeIntensity = intensity; this.shakeTimer = ms; },
+    setBgOverride(color) { this.bgOverride = color; },
+    setArenaBgOverride(color) { this.arenaBgOverride = color; },
+    setArenaScaleOverride(scale) { this.arenaScaleOverride = scale; this.resizeCanvas(); },
+    clearEnvironmentOverrides() { this.bgOverride = null; this.arenaBgOverride = null; this.arenaScaleOverride = null; this.resizeCanvas(); },
+
     resizeCanvas() {
-        this.width = window.innerWidth;
-        this.height = window.innerHeight;
-        this.canvas.width = this.width;
-        this.canvas.height = this.height;
-        
-        let isMobile = this.width <= 768;
-        
+        this.width = window.innerWidth; this.height = window.innerHeight;
+        this.canvas.width = this.width; this.canvas.height = this.height;
+        let isMobile = this.width <= 768; let activeScale = this.arenaScaleOverride !== null ? this.arenaScaleOverride : this.arena.scale;
+
         if (isMobile) {
-            // Mobile Layout: Top & Bottom HUDs
-            let hudH = this.state !== 'MENU' ? 120 : 0; 
-            let availableW = this.width - 20; 
-            let availableH = this.height - (hudH * 2) - 20;
-            
-            let baseSize = Math.max(1, Math.min(availableW, availableH));
-            this.arena.size = baseSize * this.arena.scale;
-            
-            this.arena.x = (this.width - this.arena.size) / 2;
-            this.arena.y = hudH + 10 + (availableH - this.arena.size) / 2;
-
-            let sBtn = document.getElementById('settings-btn');
-            if (sBtn) {
-                sBtn.style.right = '10px';
-                sBtn.style.bottom = (hudH + 10) + 'px';
-            }
+            let hudH = this.state !== 'MENU' ? 120 : 0; let availableW = this.width - 20; let availableH = this.height - (hudH * 2) - 20;
+            let baseSize = Math.max(1, Math.min(availableW, availableH)); this.arena.size = baseSize * activeScale;
+            this.arena.x = (this.width - this.arena.size) / 2; this.arena.y = hudH + 10 + (availableH - this.arena.size) / 2;
+            let sBtn = document.getElementById('settings-btn'); if (sBtn) { sBtn.style.right = '10px'; sBtn.style.bottom = (hudH + 10) + 'px'; }
         } else {
-            // Desktop Layout: Left & Right HUDs
-            const hudWidth = 270;
-            let availableW = this.width - (hudWidth * 2) - 60; 
-            let availableH = this.height - 60;
-            
-            let baseSize = Math.max(1, Math.min(availableW, availableH));
-            this.arena.size = baseSize * this.arena.scale;
-            
-            this.arena.x = hudWidth + 30 + (availableW - this.arena.size) / 2;
-            this.arena.y = (this.height - this.arena.size) / 2;
-
-            let sBtn = document.getElementById('settings-btn');
-            if (sBtn) {
-                sBtn.style.right = '280px';
-                sBtn.style.bottom = '20px';
-            }
+            const hudWidth = 270; let availableW = this.width - (hudWidth * 2) - 60; let availableH = this.height - 60;
+            let baseSize = Math.max(1, Math.min(availableW, availableH)); this.arena.size = baseSize * activeScale;
+            this.arena.x = hudWidth + 30 + (availableW - this.arena.size) / 2; this.arena.y = (this.height - this.arena.size) / 2;
+            let sBtn = document.getElementById('settings-btn'); if (sBtn) { sBtn.style.right = '280px'; sBtn.style.bottom = '20px'; }
         }
     },
 
@@ -1193,7 +1135,6 @@ const Engine = {
         const container = document.getElementById('setup-container'); container.innerHTML = "";
         const gw = () => { let h = ""; for(let w in WEAPON_REGISTRY) h += `<option value="${w}">${w}</option>`; return h; };
         const gb = () => { let h = ""; for(let b in BOSS_REGISTRY) h += `<option value="${b}">${b}</option>`; return h; };
-        
         let team1Label = this.width <= 768 ? "P1 Weapon (Bottom):" : "P1 Weapon (Left):";
         let team2Label = this.width <= 768 ? "P2 Weapon (Top):" : "P2 Weapon (Right):";
         let pLabel = this.width <= 768 ? "Players (1-5, Bottom):" : "Players (1-5, Left):";
@@ -1227,9 +1168,9 @@ const Engine = {
 
     startGame() {
         document.getElementById('menu').style.display = 'none'; document.getElementById('game-ui').style.display = 'block'; document.getElementById('settings-btn').style.display = 'block';
+        this.clearEnvironmentOverrides();
         this.actors = []; this.entities = []; this.particles = []; this.hitStop = 0;
-        let colorsP = ["#4169e1", "#4682b4", "#5f9ea0", "#20b2aa", "#6a5acd"]; // Muted Blues
-        let colorsB = ["#e57373", "#ff8a65"]; // Bright reds for visibility on bright bg
+        let colorsP = ["#4169e1", "#4682b4", "#5f9ea0", "#20b2aa", "#6a5acd"]; let colorsB = ["#e57373", "#ff8a65"]; 
         if (this.mode === '1v1') {
             this.actors.push(new Player("P1", 0, 0, colorsP[0], 1, document.getElementById('p1-w').value));
             this.actors.push(new Player("P2", 0, 0, colorsB[0], 2, document.getElementById('p2-w').value));
@@ -1253,7 +1194,7 @@ const Engine = {
                 <div class="hud-title" style="color:var(--text-main)">${b?a.bossDef.name:`${a.id} (${a.weaponDef.name})`}</div>
                 <div class="stat-row"><span>HP</span><span id="${a.id}-hp-text">${a.maxHp}/${a.maxHp}</span></div>
                 <div class="bar-container"><div class="hp-bar" id="${a.id}-hp" style="background:${a.color};width:100%"></div></div>
-                ${a.isPlayer?`<div class="stat-row"><span style="color:var(--gold-dark)">Ult</span><span id="${a.id}-ult-text">0%</span></div><div class="bar-container"><div class="ult-bar" id="${a.id}-ult"></div></div>`:""}
+                <div class="stat-row"><span style="color:var(--gold-dark)">Ult</span><span id="${a.id}-ult-text">0%</span></div><div class="bar-container"><div class="ult-bar" id="${a.id}-ult"></div></div>
                 <div class="passive-text" id="${a.id}-passive">Passive: --</div>
             </div>`;
         this.actors.filter(a => a.team === 1).forEach(a => footer.innerHTML += cPanel(a, a.isBoss));
@@ -1266,28 +1207,25 @@ const Engine = {
             if(hpB) hpB.style.width = `${(a.hp / a.maxHp) * 100}%`;
             if(hpT) hpT.innerText = `${Math.ceil(a.hp)}/${a.maxHp}`;
             if(pT) pT.innerText = `Passive: ${a.passiveText || "--"}`;
-            if(a.isPlayer) {
-                let uB = document.getElementById(`${a.id}-ult`), uT = document.getElementById(`${a.id}-ult-text`);
-                if(uB) { uB.style.width = `${a.ultimateGauge}%`; uB.style.background = a.ultimateActive?"#fff":"linear-gradient(90deg, #d4c4a8, var(--gold))"; }
-                if(uT) uT.innerText = a.ultimateActive?"ACTIVE":`${Math.floor(a.ultimateGauge)}%`;
-            }
+            
+            let uB = document.getElementById(`${a.id}-ult`), uT = document.getElementById(`${a.id}-ult-text`);
+            if(uB) { uB.style.width = `${a.ultimateGauge}%`; uB.style.background = a.ultimateActive?"#fff":"linear-gradient(90deg, #d4c4a8, var(--gold))"; }
+            if(uT) uT.innerText = a.ultimateActive?"ACTIVE":`${Math.floor(a.ultimateGauge)}%`;
         });
     },
 
     getEnemies(a) { return this.actors.filter(x => x.team !== a.team && x.hp > 0); },
     spawn(e) { this.entities.push(e); },
-    spawnActor(actor) { 
-        this.actors.push(actor); 
-        this.buildHUD(); 
-    },
+    spawnActor(actor) { this.actors.push(actor); this.buildHUD(); },
     spawnParticles(x, y, c, col) { for(let i=0; i<c; i++) { let a = Math.random()*Math.PI*2, s = Math.random()*5+2; this.particles.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,color:col,type:"particle"}); } },
     spawnFloatingText(x, y, amt, col) { this.spawn({x:x+(Math.random()*30-15),y:y-40,vx:(Math.random()-0.5)*2,vy:-2,lifetime:800,maxLife:800,text:Math.ceil(amt).toString(),color:col,type:"text",update(g){this.x+=this.vx*(g.delta/16);this.y+=this.vy*(g.delta/16);this.lifetime-=g.delta;},render(ctx){ctx.save();ctx.globalAlpha=Math.max(0,this.lifetime/this.maxLife);ctx.fillStyle=this.color;ctx.font="bold 24px 'Cinzel', serif";ctx.textAlign="center";ctx.strokeStyle="rgba(255,255,255,0.8)";ctx.lineWidth=3;ctx.strokeText(this.text,this.x,this.y);ctx.fillText(this.text,this.x,this.y);ctx.restore();}}); },
     triggerHitStop(ms) { this.hitStop = ms; },
 
+    // 🔥 Cross-Collision System
     checkCollisions() {
         let active = this.actors.filter(a => a.hp > 0);
 
-        // 1. Body vs Body (Physics & Simple Boss Damage)
+        // 1. Body vs Body (Physics & Fallback Body Damage)
         for(let i=0; i<active.length; i++) {
             for(let j=i+1; j<active.length; j++) {
                 let a1 = active[i], a2 = active[j];
@@ -1301,68 +1239,54 @@ const Engine = {
                     
                     let b1 = MathUtils.getStat(a1, 'collisionBounce');
                     let b2 = MathUtils.getStat(a2, 'collisionBounce');
+                    let tx = a1.vx, ty = a1.vy; a1.vx = a2.vx * b1; a1.vy = a2.vy * b1; a2.vx = tx * b2; a2.vy = ty * b2;
                     
-                    let tx = a1.vx, ty = a1.vy; 
-                    a1.vx = a2.vx * b1; a1.vy = a2.vy * b1; 
-                    a2.vx = tx * b2; a2.vy = ty * b2;
-                    
-                    // Fallback body damage
-                    if(a1.isBoss && a2.isPlayer && a1.team!==a2.team && a1.bossDef.onHitPlayer) a1.bossDef.onHitPlayer(a1,a2,this);
-                    else if(a2.isBoss && a1.isPlayer && a2.team!==a1.team && a2.bossDef.onHitPlayer) a2.bossDef.onHitPlayer(a2,a1,this);
+                    if(a1.isBoss && a2.isPlayer && a1.team!==a2.team && a1.bossDef.onHitPlayer) a1.bossDef.onHitPlayer(a1,a2,this, null);
+                    else if(a2.isBoss && a1.isPlayer && a2.team!==a1.team && a2.bossDef.onHitPlayer) a2.bossDef.onHitPlayer(a2,a1,this, null);
                 }
             }
         }
 
-        // 2. Boss Custom Hitboxes vs Players
-        let bossesWithHitboxes = active.filter(a => a.isBoss && a.bossDef.getHitboxes);
-        bossesWithHitboxes.forEach(boss => {
-            let hitboxes = boss.bossDef.getHitboxes(boss, this) || [];
-            let players = this.getEnemies(boss).filter(p => p.isPlayer);
-            players.forEach(p => {
-                let pr = MathUtils.getStat(p, 'actorRadius') ?? p.radius;
-                for (let hb of hitboxes) {
-                    if (MathUtils.distance(hb.x, hb.y, p.x, p.y) < hb.r + pr) {
-                        if (boss.bossDef.onHitPlayer) boss.bossDef.onHitPlayer(boss, p, this, hb);
-                        break; // Only trigger one hit per frame per player
-                    }
-                }
-            });
-        });
-
-        // 3. Weapons vs Bodies & Weapons vs Weapons
+        // 2. Weapons vs EVERYTHING (Bodies + Other Weapons + Boss Custom Hitboxes)
         active.filter(a=>a.isPlayer && a.weaponDef).forEach(att => {
             let enemies = this.getEnemies(att);
             let wHitboxes = att.weaponDef.getHitboxes ? 
                             att.weaponDef.getHitboxes(att, this) : 
                             [{ x: att.weaponX, y: att.weaponY, r: MathUtils.getStat(att, 'weaponHitboxRadius') ?? att.weaponHitboxRadius }];
             
-            // Weapon vs Body
             enemies.forEach(t => { 
-                let tr = MathUtils.getStat(t, 'actorRadius') ?? t.radius;
-                for(let wh of wHitboxes) {
-                    if(MathUtils.distance(wh.x, wh.y, t.x, t.y) < wh.r + tr) { 
-                        if(att.weaponCooldown<=0 && att.weaponDef.onHitPlayer) att.weaponDef.onHitPlayer(att,t,this, wh); 
-                        break; 
-                    }
-                }
-            });
+                let tHitboxes = [];
+                // Add Target's Body
+                tHitboxes.push({ x: t.x, y: t.y, r: MathUtils.getStat(t, 'actorRadius') ?? t.radius, isBody: true });
 
-            // Weapon vs Weapon
-            enemies.filter(e=>e.isPlayer && e.weaponDef).forEach(t => { 
-                let tHitboxes = t.weaponDef.getHitboxes ? 
-                                t.weaponDef.getHitboxes(t, this) : 
-                                [{ x: t.weaponX, y: t.weaponY, r: MathUtils.getStat(t, 'weaponHitboxRadius') ?? t.weaponHitboxRadius }];
-                
-                let clashed = false;
+                // Add Target's Custom Hitboxes
+                if (t.isPlayer && t.weaponDef) {
+                    let th = t.weaponDef.getHitboxes ? t.weaponDef.getHitboxes(t, this) : [{ x: t.weaponX, y: t.weaponY, r: MathUtils.getStat(t, 'weaponHitboxRadius') ?? t.weaponHitboxRadius }];
+                    th.forEach(h => tHitboxes.push({...h, isWeapon: true}));
+                } else if (t.isBoss && t.bossDef && t.bossDef.getHitboxes) {
+                    let th = t.bossDef.getHitboxes(t, this) || [];
+                    th.forEach(h => tHitboxes.push({...h, isBossHitbox: true}));
+                }
+
+                let clashing = false;
                 for(let wh of wHitboxes) {
                     for(let th of tHitboxes) {
                         if(MathUtils.distance(wh.x, wh.y, th.x, th.y) < wh.r + th.r) { 
-                            if(att.weaponCooldown<=0 && att.weaponDef.onHitWeapon) att.weaponDef.onHitWeapon(att,t,this); 
-                            if(t.weaponCooldown<=0 && t.weaponDef.onHitWeapon) t.weaponDef.onHitWeapon(t,att,this); 
-                            clashed = true; break; 
+                            if (th.isBody) {
+                                if(att.weaponCooldown<=0 && att.weaponDef.onHitPlayer) att.weaponDef.onHitPlayer(att, t, this, wh); 
+                            } else if (th.isWeapon) {
+                                if(att.weaponCooldown<=0 && att.weaponDef.onHitWeapon) att.weaponDef.onHitWeapon(att, t, this, wh); 
+                                if(t.weaponCooldown<=0 && t.weaponDef.onHitWeapon) t.weaponDef.onHitWeapon(t, att, this, th); 
+                                clashing = true;
+                            } else if (th.isBossHitbox) {
+                                if(att.weaponCooldown<=0 && att.weaponDef.onHitWeapon) att.weaponDef.onHitWeapon(att, t, this, wh); 
+                                if(t.bossDef.onHitWeapon) t.bossDef.onHitWeapon(t, att, this, th); 
+                                clashing = true;
+                            }
                         }
+                        if(clashing) break;
                     }
-                    if(clashed) break;
+                    if(clashing) break;
                 }
             });
         });
@@ -1380,50 +1304,35 @@ const Engine = {
         this.delta = timestamp - this.lastTime; this.lastTime = timestamp;
         if (this.delta > 100) this.delta = 16; 
         
-        // Background Color 
-        this.ctx.fillStyle = this.config.bgColor; 
+        this.ctx.fillStyle = this.bgOverride || this.config.bgColor; 
         this.ctx.fillRect(0, 0, this.width, this.height);
         
-        let radius = Math.max(1, this.arena.size);
-        // Dynamic Radial Gradient for Arena depth
-        let gradient = this.ctx.createRadialGradient(
-            this.arena.x + this.arena.size/2, this.arena.y + this.arena.size/2, 0,
-            this.arena.x + this.arena.size/2, this.arena.y + this.arena.size/2, radius
-        );
-        gradient.addColorStop(0, "rgba(255, 255, 255, 0.95)");
-        gradient.addColorStop(1, "rgba(235, 230, 220, 0.85)");
+        if (this.shakeTimer > 0) {
+            this.shakeTimer -= this.delta;
+            this.shakeX = (Math.random() - 0.5) * this.shakeIntensity;
+            this.shakeY = (Math.random() - 0.5) * this.shakeIntensity;
+        } else { this.shakeX = 0; this.shakeY = 0; }
         
-        this.ctx.fillStyle = gradient; 
-        this.ctx.fillRect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
+        this.ctx.save(); this.ctx.translate(this.shakeX, this.shakeY);
+
+        let radius = Math.max(0.1, this.arena.size); 
+        let gradient = this.ctx.createRadialGradient( this.arena.x + this.arena.size/2, this.arena.y + this.arena.size/2, 0, this.arena.x + this.arena.size/2, this.arena.y + this.arena.size/2, radius );
+        gradient.addColorStop(0, this.arenaBgOverride || "rgba(255, 255, 255, 0.95)");
+        gradient.addColorStop(1, this.arenaBgOverride || "rgba(235, 230, 220, 0.85)");
         
-        // Minimal Grid (Faint dark lines)
-        this.ctx.strokeStyle = "rgba(139, 121, 82, 0.15)"; 
-        this.ctx.lineWidth = 1; 
-        this.ctx.beginPath();
+        this.ctx.fillStyle = gradient; this.ctx.fillRect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
+        this.ctx.strokeStyle = "rgba(139, 121, 82, 0.15)"; this.ctx.lineWidth = 1; this.ctx.beginPath();
         for(let i=0; i<=this.arena.size; i+=50) { 
             this.ctx.moveTo(this.arena.x+i, this.arena.y); this.ctx.lineTo(this.arena.x+i, this.arena.y+this.arena.size); 
             this.ctx.moveTo(this.arena.x, this.arena.y+i); this.ctx.lineTo(this.arena.x+this.arena.size, this.arena.y+i); 
         }
         this.ctx.stroke();
         
-        // Dimensional Medieval Borders
-        this.ctx.strokeStyle = "#8b7952"; // Gold-dark border
-        this.ctx.lineWidth = 3; 
-        this.ctx.strokeRect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
+        this.ctx.strokeStyle = "#8b7952"; this.ctx.lineWidth = 3; this.ctx.strokeRect(this.arena.x, this.arena.y, this.arena.size, this.arena.size);
+        this.ctx.strokeStyle = "rgba(255, 255, 255, 0.9)"; this.ctx.lineWidth = 2; this.ctx.strokeRect(this.arena.x + 2, this.arena.y + 2, this.arena.size - 4, this.arena.size - 4);
+        this.ctx.strokeStyle = "rgba(0, 0, 0, 0.1)"; this.ctx.lineWidth = 4; this.ctx.strokeRect(this.arena.x - 2, this.arena.y - 2, this.arena.size + 4, this.arena.size + 4);
         
-        // Inner depth line
-        this.ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
-        this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(this.arena.x + 2, this.arena.y + 2, this.arena.size - 4, this.arena.size - 4);
-
-        // Outer shadow/trim
-        this.ctx.strokeStyle = "rgba(0, 0, 0, 0.1)";
-        this.ctx.lineWidth = 4;
-        this.ctx.strokeRect(this.arena.x - 2, this.arena.y - 2, this.arena.size + 4, this.arena.size + 4);
-        
-        // Clipping region for entities
-        this.ctx.save(); 
-        this.ctx.beginPath(); this.ctx.rect(this.arena.x, this.arena.y, this.arena.size, this.arena.size); this.ctx.clip();
+        this.ctx.save(); this.ctx.beginPath(); this.ctx.rect(this.arena.x, this.arena.y, this.arena.size, this.arena.size); this.ctx.clip();
         
         if (this.state === 'PLAYING') {
             if (this.hitStop > 0) this.hitStop -= this.delta;
@@ -1453,34 +1362,25 @@ const Engine = {
                 this.ctx.lineWidth = 2;
                 this.actors.filter(a => a.hp > 0).forEach(a => {
                     let r = MathUtils.getStat(a, 'actorRadius') ?? a.radius;
-                    this.ctx.strokeStyle = "rgba(0, 255, 255, 0.8)"; // Cyan: Body
+                    this.ctx.strokeStyle = "rgba(0, 255, 255, 0.8)"; 
                     this.ctx.beginPath(); this.ctx.arc(a.x, a.y, r, 0, Math.PI*2); this.ctx.stroke();
                     
                     if (a.isBoss && a.bossDef.getHitboxes) {
                         let bHitboxes = a.bossDef.getHitboxes(a, this) || [];
-                        this.ctx.strokeStyle = "rgba(255, 165, 0, 0.8)"; // Orange: Boss Custom Hitboxes
-                        bHitboxes.forEach(hb => {
-                            this.ctx.beginPath(); this.ctx.arc(hb.x, hb.y, hb.r, 0, Math.PI*2); this.ctx.stroke();
-                        });
+                        this.ctx.strokeStyle = "rgba(255, 165, 0, 0.8)"; 
+                        bHitboxes.forEach(hb => { this.ctx.beginPath(); this.ctx.arc(hb.x, hb.y, hb.r, 0, Math.PI*2); this.ctx.stroke(); });
                     }
 
                     if (a.isPlayer && a.weaponDef) {
-                        let wHitboxes = a.weaponDef.getHitboxes ? 
-                                        a.weaponDef.getHitboxes(a, this) : 
-                                        [{ x: a.weaponX, y: a.weaponY, r: MathUtils.getStat(a, 'weaponHitboxRadius') ?? a.weaponHitboxRadius }];
-                        this.ctx.strokeStyle = "rgba(255, 0, 0, 0.8)"; // Red: Weapons
-                        wHitboxes.forEach(hb => {
-                            this.ctx.beginPath(); this.ctx.arc(hb.x, hb.y, hb.r, 0, Math.PI*2); this.ctx.stroke();
-                        });
+                        let wHitboxes = a.weaponDef.getHitboxes ? a.weaponDef.getHitboxes(a, this) : [{ x: a.weaponX, y: a.weaponY, r: MathUtils.getStat(a, 'weaponHitboxRadius') ?? a.weaponHitboxRadius }];
+                        this.ctx.strokeStyle = "rgba(255, 0, 0, 0.8)"; 
+                        wHitboxes.forEach(hb => { this.ctx.beginPath(); this.ctx.arc(hb.x, hb.y, hb.r, 0, Math.PI*2); this.ctx.stroke(); });
                     }
                 });
                 this.entities.forEach(e => {
                     this.ctx.strokeStyle = e.type === "zone" ? "rgba(255, 255, 0, 0.8)" : "rgba(0, 255, 0, 0.8)";
                     if (e.getHitboxes) {
-                        let hbs = e.getHitboxes() || [];
-                        hbs.forEach(hb => {
-                            this.ctx.beginPath(); this.ctx.arc(hb.x, hb.y, hb.r, 0, Math.PI*2); this.ctx.stroke();
-                        });
+                        let hbs = e.getHitboxes() || []; hbs.forEach(hb => { this.ctx.beginPath(); this.ctx.arc(hb.x, hb.y, hb.r, 0, Math.PI*2); this.ctx.stroke(); });
                     } else if (e.radius) {
                         this.ctx.beginPath(); this.ctx.arc(e.x, e.y, e.radius, 0, Math.PI*2); this.ctx.stroke();
                     }
@@ -1488,6 +1388,7 @@ const Engine = {
             }
         }
         
+        this.ctx.restore(); 
         requestAnimationFrame((t) => this.loop(t));
     }
 };
@@ -1505,12 +1406,12 @@ const SafetySystem = {
     },
     safeguardWeapon(n, d) {
         if (!d || typeof d !== 'object') return null;
-        ['init', 'onUpdate', 'render', 'onHitPlayer', 'onHitWeapon', 'onTakeDamage', 'onUltimateActivate', 'getHitboxes'].forEach(h => { if (typeof d[h] === 'function') d[h] = this.createSafeFunction(`Weapon:${n}`, h, d[h]); });
+        ['init', 'onUpdate', 'render', 'onHitPlayer', 'onHitWeapon', 'onTakeDamage', 'onDeath', 'onUltimateActivate', 'getHitboxes'].forEach(h => { if (typeof d[h] === 'function') d[h] = this.createSafeFunction(`Weapon:${n}`, h, d[h]); });
         return d;
     },
     safeguardBoss(n, d) {
         if (!d || typeof d !== 'object') return null;
-        ['init', 'onUpdate', 'render', 'onHitPlayer', 'onTakeDamage', 'getHitboxes'].forEach(h => { if (typeof d[h] === 'function') d[h] = this.createSafeFunction(`Boss:${n}`, h, d[h]); });
+        ['init', 'onUpdate', 'render', 'onHitPlayer', 'onHitWeapon', 'onTakeDamage', 'onDeath', 'onUltimateActivate', 'getHitboxes'].forEach(h => { if (typeof d[h] === 'function') d[h] = this.createSafeFunction(`Boss:${n}`, h, d[h]); });
         return d;
     },
     applyWrappers() {
