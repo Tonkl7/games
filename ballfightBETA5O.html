@@ -1037,6 +1037,137 @@ const WEAPON_REGISTRY = {
             
             game.spawnParticles(player.x, player.y, 30, "#FF4500");
         }
+    },
+    "Duplicate": {
+        name: "Duplicate",
+        color: "#800080", // สีม่วง
+        width: 0, // ซ่อนอาวุธ
+        length: 0, // ซ่อนอาวุธ
+        baseDamage: 5,
+    
+        // Physics Hacks
+        actorRadius: 35, // ขนาดตัวละครปกติ
+        weaponHitboxRadius: 35, // แฮ็กระยะอาวุธให้เท่ากับขนาดตัว (เพื่อให้ตีโดนเมื่อเอาตัวชน)
+        collisionBounce: 1.2, // เด้งออกเล็กน้อยเมื่อชนศัตรู
+    
+        init(player) { 
+            // เช็คว่าถ้าไม่ใช่ตัวโคลน ให้เซ็ตสถานะเป็นตัวจริง
+            if (player.custom.isClone === undefined) {
+                player.custom.isClone = false;
+            }
+            player.custom.collisionCount = 0;
+            player.passiveText = "ชนศัตรู 2 ครั้ง สร้างร่างก็อปปี้ 50% HP (สูงสุด 50 ร่าง)"; 
+        },
+    
+        onUpdate(player, closestEnemy, game) {
+            // อัปเดตการหมุนของอาวุธตามระบบ (แม้จะมองไม่เห็นก็ตาม)
+            player.weaponRotation += 0.08 * player.weaponDir * (game.delta / 16);
+            
+            // ระบบจัดการและนับจำนวนตัวโคลนในเกม
+            if (!game.custom) game.custom = {};
+            if (!game.custom.activeClones) game.custom.activeClones = [];
+    
+            // สุ่มตรวจสอบเป็นระยะเพื่อลบตัวโคลนที่ตายแล้วออกจากอาเรย์ (ลดภาระการประมวลผล)
+            if (Math.random() < 0.05) {
+                game.custom.activeClones = game.custom.activeClones.filter(c => c.hp > 0);
+            }
+        },
+    
+        render(ctx, player, game) { 
+            // ไม่มีการวาดอาวุธสี่เหลี่ยมตามปกติ เพราะ length และ width เป็น 0
+            
+            // วาดสัญลักษณ์ "ดาว" เฉพาะตัวจริงเท่านั้น
+            if (!player.custom.isClone) {
+                ctx.save();
+                ctx.fillStyle = "#FFD700"; // สีทอง
+                ctx.beginPath();
+                
+                // สร้างรูปดาว 5 แฉกตรงกลางตัว
+                for (let i = 0; i < 5; i++) {
+                    ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * 15,
+                               -Math.sin((18 + i * 72) * Math.PI / 180) * 15);
+                    ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * 6,
+                               -Math.sin((54 + i * 72) * Math.PI / 180) * 6);
+                }
+                ctx.closePath();
+                ctx.fill();
+                
+                // ขอบดาวเพิ่มความคมชัด
+                ctx.strokeStyle = "#B8860B";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.restore();
+            }
+        },
+    
+        onHitPlayer(player, target, game) {
+            // สร้างดาเมจเมื่อเอาตัวชน (เพราะ weaponHitboxRadius ทับซ้อนกับตัวละคร)
+            target.takeDamage(this.baseDamage, "physical", player, game);
+            player.reverseWeapon();
+    
+            // สะสมจำนวนการชน
+            player.custom.collisionCount = (player.custom.collisionCount || 0) + 1;
+    
+            if (player.custom.collisionCount >= 2) {
+                player.custom.collisionCount = 0; // รีเซ็ตค่า
+    
+                if (!game.custom.activeClones) game.custom.activeClones = [];
+    
+                // ตรวจสอบเงื่อนไขไม่ให้เกิน 50 ตัวโคลน
+                if (game.custom.activeClones.length < 50) {
+                    let cloneHp = player.hp * 0.5; // เลือด 50% ของตัวต้นทาง
+    
+                    // สร้างตัวก็อปปี้ก็ต่อเมื่อเลือดมีค่ามากกว่า 1 เท่านั้น
+                    if (cloneHp >= 1) {
+                        let clone = {
+                            ...player, // ดึงค่าเดิมมาทั้งหมดเพื่อให้จัดทีมและสีตรงกัน
+                            x: player.x + (Math.random() * 40 - 20),
+                            y: player.y + (Math.random() * 40 - 20),
+                            vx: player.vx * -1.5, // กระเด็นออกไปทิศตรงข้ามเล็กน้อย
+                            vy: player.vy * -1.5,
+                            hp: cloneHp,
+                            maxHp: player.maxHp * 0.5, // Max HP ก็ลดลงครึ่งนึงด้วย
+                            ultimateGauge: 0, // โคลนเริ่มเก็บเกจใหม่
+                            ultimateActive: false,
+                            custom: { isClone: true, collisionCount: 0 } // กำหนดว่าเป็นตัวโคลน
+                        };
+                        
+                        game.spawn(clone);
+                        game.custom.activeClones.push(clone); // บันทึกเข้าระบบนับ
+                        game.spawnParticles(clone.x, clone.y, 15, this.color);
+                    }
+                }
+            }
+        },
+    
+        onHitWeapon(player, enemyPlayer, game) {
+            // เมื่ออาวุธ(ตัว) ชนอาวุธศัตรู
+            game.spawnParticles(player.weaponX, player.weaponY, 5, "#fff");
+            player.reverseWeapon();
+        },
+    
+        onTakeDamage(player, source, game) {},
+    
+        onUltimateActivate(player, game) {
+            // สกิลอัลติเมต: สร้างตัวจริงขึ้นมาอีกตัว ด้วยเลือด 100% ณ ปัจจุบัน
+            let realClone = {
+                ...player,
+                x: player.x + (Math.random() * 60 - 30),
+                y: player.y + (Math.random() * 60 - 30),
+                vx: player.vx * -1,
+                vy: player.vy * -1,
+                hp: player.hp, // เลือด 100% ของตอนนั้น
+                maxHp: player.maxHp,
+                ultimateGauge: 0,
+                ultimateActive: false,
+                custom: { isClone: false, collisionCount: 0 } // กำหนดให้สถานะเป็น "ตัวจริง" (จะมีดาวขึ้นด้วย)
+            };
+            
+            game.spawn(realClone);
+            
+            // เอฟเฟกต์แสงอลังการตอนใช้อัลติ
+            game.spawnParticles(player.x, player.y, 40, "#FFD700");
+        }
     }
 };
 
