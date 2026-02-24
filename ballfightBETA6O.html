@@ -903,6 +903,7 @@ const BOSS_REGISTRY = {
                 // ฟังก์ชันสถานะเผาไหม้ (เช็คว่า Fury ทำงานไหม)
                 applyBurn: (target, game) => {
                     let isFury = boss.custom.furyActive;
+                    target.custom = target.custom || {}; // ป้องกัน error
                     target.custom.demonBurn = {
                         duration: isFury ? 10000 : 5000, // 10 วิ หรือ 5 วิ
                         tickRate: isFury ? 50 : 150,     // 0.05 วิ หรือ 0.15 วิ
@@ -953,7 +954,7 @@ const BOSS_REGISTRY = {
 
             // อัปเดตสถานะเผาไหม้ของศัตรู & ลดคูลดาวน์ Aura
             enemies.forEach(p => {
-                if (!p.custom) p.custom = {};
+                p.custom = p.custom || {}; // ป้องกัน error ถ้ายูนิตไม่มี custom
                 if (p.custom.auraCD > 0) p.custom.auraCD -= game.delta;
 
                 if (p.custom.demonBurn) {
@@ -985,7 +986,9 @@ const BOSS_REGISTRY = {
                 let dx = target.x - boss.x;
                 let dy = target.y - boss.y;
                 let dist = Math.hypot(dx, dy);
-                if (dist > 0) {
+                
+                // แก้บัค: ป้องกัน NaN เมื่อบอสและผู้เล่นทับกันพอดี
+                if (dist > 0.1) {
                     boss.vx += (dx / dist) * 0.5;
                     boss.vy += (dy / dist) * 0.5;
                 }
@@ -1014,8 +1017,11 @@ const BOSS_REGISTRY = {
                     let dx = target.x - boss.x;
                     let dy = target.y - boss.y;
                     let dist = Math.hypot(dx, dy);
-                    boss.vx = (dx / dist) * 25; // พุ่งแรงทะลุ speed cap ชั่วคราว
-                    boss.vy = (dy / dist) * 25;
+                    
+                    if (dist > 0.1) { // ป้องกันค่า NaN
+                        boss.vx = (dx / dist) * 25; // พุ่งแรงทะลุ speed cap ชั่วคราว
+                        boss.vy = (dy / dist) * 25;
+                    }
                     boss.custom.spawnPassiveFireballs(game); // Passive
                 }
             }
@@ -1036,7 +1042,8 @@ const BOSS_REGISTRY = {
                         x: boss.x, y: boss.y, radius: boss.radius, team: boss.team, life: 2000,
                         hitList: new Set(),
                         onUpdate(wave, g) {
-                            wave.radius += (g.arena.size / 2000) * g.delta; // ขยายจนคลุมแมพใน 2 วิ
+                            let arenaSize = g.arena ? g.arena.size : 1000; // ป้องกัน g.arena.size เป็น undefined
+                            wave.radius += (arenaSize / 2000) * g.delta; // ขยายจนคลุมแมพใน 2 วิ
                             wave.life -= g.delta;
                             if (wave.life <= 0) wave.dead = true;
 
@@ -1072,7 +1079,9 @@ const BOSS_REGISTRY = {
                     
                     // ปล่อยลูกไฟรัวๆ (เพิ่มเติมจากพาสซีฟ)
                     for(let i=0; i<10; i++) {
-                        setTimeout(() => boss.custom.spawnPassiveFireballs(game), i * 150);
+                        setTimeout(() => {
+                            if (boss && !boss.dead) boss.custom.spawnPassiveFireballs(game); // ป้องกันบอสตายระหว่างสุ่ม
+                        }, i * 150);
                     }
 
                     // สร้างพื้นที่เผาไหม้
@@ -1116,8 +1125,12 @@ const BOSS_REGISTRY = {
         },
 
         onHitPlayer(boss, player, game, hitboxObj) {
+            // ป้องกัน undefined ในกรณีที่ระบบ hit ของ engine ไม่ได้ส่ง object มาให้
+            if (!hitboxObj) return; 
+
             // ถ้าชน Aura ทำดาเมจ 1 หน่วย ทุก 0.1 วิ
             if (hitboxObj.isAura) {
+                player.custom = player.custom || {};
                 if (!player.custom.auraCD || player.custom.auraCD <= 0) {
                     player.takeDamage(1, "fire", boss, game);
                     player.custom.auraCD = 100; // 0.1s
