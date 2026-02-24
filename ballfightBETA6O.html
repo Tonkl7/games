@@ -1664,7 +1664,7 @@ const WEAPON_REGISTRY = {
             game.triggerHitStop(200); 
         }
     },
-    "Cursed Staff": {
+   "Cursed Staff": {
         name: "Cursed Staff",
         color: "#1a1a1a", // สีดำ
         width: 12, // ความกว้างคทา
@@ -1696,7 +1696,7 @@ const WEAPON_REGISTRY = {
             player.custom.ultTimer = 0;
             player.custom.invincibleTimer = 0;
     
-            player.passiveText = "HP 1, Shield 100 (รับดาเมจ 2เท่า, รีเจน 5/10วิ). คำสาปปกติ +2%, อัลติ +5%"; 
+            player.passiveText = "HP 1, Shield 100 (รับดาเมจ 2เท่า, รีเจน 5/10วิ เมื่อโล่ต่ำกว่า 25%). ลูกบอลระเบิดเป็นวงกว้าง คำสาปปกติ +2%, อัลติ +5%"; 
         },
     
         getHitboxes(player, game) {
@@ -1718,7 +1718,7 @@ const WEAPON_REGISTRY = {
     
             // 3. ฮิตบล็อกของร่องรอยคำสาป (Cursed Trails)
             for (let t of player.custom.trails) {
-                hitboxes.push({ x: t.x, y: t.y, r: 25, type: 'trail', ref: t });
+                hitboxes.push({ x: t.x, y: t.y, r: t.r || 25, type: 'trail', ref: t });
             }
     
             // 4. ฮิตบล็อกอัลติเมต (AOE Curse Wave)
@@ -1739,9 +1739,9 @@ const WEAPON_REGISTRY = {
                 if (player.custom.shadows[i].alpha <= 0) player.custom.shadows.splice(i, 1);
             }
     
-            // --- 2. ฟื้นฟูโล่คำสาป (ฮีล 5 หน่วย ต่อ 10 วินาที เมื่อต่ำกว่า 50%) ---
-            if (player.custom.shield < player.custom.maxShield * 0.5) {
-                player.custom.isRegenerating = true; // เริ่มกระบวนการฮีลเมื่อต่ำกว่า 50%
+            // --- 2. ฟื้นฟูโล่คำสาป (ฮีล 5 หน่วย ต่อ 10 วินาที เมื่อต่ำกว่า 25%) ---
+            if (player.custom.shield <= player.custom.maxShield * 0.25) {
+                player.custom.isRegenerating = true; // เริ่มกระบวนการฮีลเมื่อต่ำกว่า 25%
             }
             if (player.custom.shield >= player.custom.maxShield) {
                 player.custom.isRegenerating = false; // หยุดฮีลเมื่อเต็ม
@@ -1771,14 +1771,14 @@ const WEAPON_REGISTRY = {
                 // ควงคทาอย่างรวดเร็ว
                 player.weaponRotation += 0.25 * player.weaponDir * (game.delta / 16);
             } else {
-                // ควงคทาปกติ
-                player.weaponRotation += 0.08 * player.weaponDir * (game.delta / 16);
+                // ควงคทาปกติ (ลดความเร็วโจมตีลงเล็กน้อย)
+                player.weaponRotation += 0.07 * player.weaponDir * (game.delta / 16);
             }
     
             // --- 4. การยิงลูกบอลคำสาป ---
             player.custom.fireTimer += game.delta;
-            // ยิงทุกๆ 1.2 วินาทีเมื่อมีศัตรู และไม่ได้ใช้อัลติอยู่
-            if (player.custom.fireTimer > 1200 && closestEnemy && player.custom.ultTimer <= 0) {
+            // ยิงทุกๆ 1.5 วินาทีเมื่อมีศัตรู และไม่ได้ใช้อัลติอยู่ (ลดความเร็วการปล่อยบอลลง)
+            if (player.custom.fireTimer > 1500 && closestEnemy && player.custom.ultTimer <= 0) {
                 player.custom.fireTimer = 0;
                 player.custom.balls.push({
                     x: player.weaponX,
@@ -1823,10 +1823,15 @@ const WEAPON_REGISTRY = {
                 b.trailTimer += game.delta;
                 if (b.trailTimer > 150) {
                     b.trailTimer = 0;
-                    player.custom.trails.push({ x: b.x, y: b.y, life: 2000, tickTimer: 0 }); // คงอยู่ 2 วิ
+                    player.custom.trails.push({ x: b.x, y: b.y, life: 2000, tickTimer: 0, r: 25 }); // คงอยู่ 2 วิ
                 }
     
-                if (b.life <= 0) player.custom.balls.splice(i, 1);
+                if (b.life <= 0) {
+                    // ระเบิดสร้างวงคำสาปอันใหญ่เมื่อหมดเวลา
+                    player.custom.trails.push({ x: b.x, y: b.y, life: 2500, tickTimer: 0, r: 80 }); 
+                    if (game.spawnParticles) game.spawnParticles(b.x, b.y, 30, "#8A2BE2");
+                    player.custom.balls.splice(i, 1);
+                }
             }
     
             // --- 6. อัปเดตร่องรอยคำสาป ---
@@ -1858,7 +1863,7 @@ const WEAPON_REGISTRY = {
                 let trailAlpha = (t.life / 2000) * 0.5;
                 ctx.fillStyle = `rgba(75, 0, 130, ${trailAlpha})`; // สีม่วงโปร่งแสง
                 ctx.beginPath();
-                ctx.arc(t.x, t.y, 25, 0, Math.PI * 2);
+                ctx.arc(t.x, t.y, t.r || 25, 0, Math.PI * 2);
                 ctx.fill();
             }
     
