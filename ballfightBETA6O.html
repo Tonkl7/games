@@ -674,6 +674,118 @@ const WEAPON_REGISTRY = {
         },
         onHitPlayer(player, enemy, game) { enemy.takeDamage(this.baseDamage, "magic", player, game); player.reverseWeapon(); },
         onHitWeapon(player, enemy, game) { player.reverseWeapon(); }
+    },
+    "Duplicate": {
+        name: "Duplicate",
+        color: "#9b59b6", // สีม่วง
+        width: 35, // ตั้งค่าให้กว้างเท่ากับขนาดตัวละคร (รัศมี 35)
+        length: 0, // ตั้งความยาวเป็น 0 เพื่อให้อาวุธซ้อนทับกับจุดศูนย์กลางตัวละครพอดี
+        baseDamage: 5,
+        
+        // Physics Hacks
+        weaponHitboxRadius: 35, // แฮ็กระยะการชนของอาวุธให้ครอบคลุมขนาดลำตัวพอดี
+        
+        init(player) { 
+            // เช็คว่าเป็น "ตัวจริง" หรือไม่ โดยดูจาก ID ว่ามีคำว่า _Clone_ หรือเปล่า
+            if (!player.id.includes("_Clone_")) {
+                player.custom.isReal = true;
+            } else {
+                player.custom.isReal = false;
+            }
+            
+            // Cooldown ป้องกันการปั๊มลูกน้องจนเกมค้าง (หน่วยเป็น ms)
+            player.custom.cloneCooldown = 0; 
+            player.passiveText = "ชนศัตรูสร้างดาเมจ & แยกร่างลูกน้อง (HP 25%)"; 
+        },
+        
+        onUpdate(player, closestEnemy, game) {
+            // หมุนอาวุธตามปกติ (ถึงจะมองไม่เห็นแต่ Hitbox จะหมุนตาม)
+            player.weaponRotation += 0.08 * player.weaponDir * (game.delta / 16);
+            
+            // ลด Cooldown การแยกร่าง
+            if (player.custom.cloneCooldown > 0) {
+                player.custom.cloneCooldown -= game.delta;
+            }
+        },
+        
+        render(ctx, player, game) { 
+            // ไม่มีอาวุธ จึงไม่มีการวาดรูปทรงอาวุธ
+            // วาดแค่ "ดาว" บนหัวสำหรับตัวจริงเท่านั้น
+            if (player.custom.isReal) {
+                ctx.save();
+                // ยกเลิกการหมุนของตัวแปรอาวุธ เพื่อให้ดาวหันหัวขึ้นตรงๆ เสมอ
+                ctx.rotate(-player.weaponRotation);
+                
+                // วาดรูปดาว 5 แฉกสีทอง
+                ctx.fillStyle = "#FFD700";
+                ctx.beginPath();
+                for (let i = 0; i < 5; i++) {
+                    ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * 15, -Math.sin((18 + i * 72) * Math.PI / 180) * 15);
+                    ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * 7, -Math.sin((54 + i * 72) * Math.PI / 180) * 7);
+                }
+                ctx.closePath();
+                ctx.fill();
+                
+                // ใส่ขอบดำให้ดาวเห็นชัดขึ้น
+                ctx.strokeStyle = "#000";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.restore();
+            }
+        },
+        
+        onHitPlayer(player, target, game) {
+            // เมื่อลำตัว(อาวุธล่องหน) ชนศัตรู
+            target.takeDamage(this.baseDamage, "physical", player, game);
+            this.spawnClone(player, game, 0.25); // เรียกลูกน้อง HP 25%
+            player.reverseWeapon();
+        },
+        
+        onHitWeapon(player, enemyPlayer, game) {
+            // เมื่อลำตัว(อาวุธล่องหน) ชนอาวุธศัตรู ถือว่าสร้างดาเมจใส่เจ้าของอาวุธนั้นเลย
+            enemyPlayer.takeDamage(this.baseDamage, "physical", player, game);
+            game.spawnParticles(player.x, player.y, 5, this.color);
+            this.spawnClone(player, game, 0.25); // เรียกลูกน้อง HP 25%
+            player.reverseWeapon();
+        },
+        
+        onTakeDamage(player, source, game) {},
+        
+        onUltimateActivate(player, game) {
+            // อัลติเมต: สร้างร่างแยกที่มีเลือด 100% ของตัวปัจจุบัน
+            this.spawnClone(player, game, 1.0);
+        },
+    
+        // --- ฟังก์ชัน Custom สำหรับจัดการการสร้างร่างแยก ---
+        spawnClone(player, game, hpMultiplier) {
+            // ถ้าเป็นการสร้างลูกน้องจากพาสซีฟ ต้องเช็ค Cooldown ก่อน (กันบั๊กแยกร่างรัวเป็นล้านตัวตอนชนค้าง)
+            if (hpMultiplier < 1.0 && player.custom.cloneCooldown > 0) return;
+    
+            // สุ่ม ID ใหม่โดยมี tag _Clone_ แปะไว้
+            let cloneId = player.id + "_Clone_" + Math.floor(Math.random() * 100000);
+            
+            // ขยับตำแหน่งเกิดเล็กน้อยให้ร่างแยกกระจายตัวออกมา ไม่ซ้อนทับกันเป๊ะๆ
+            let offsetX = (Math.random() - 0.5) * 45;
+            let offsetY = (Math.random() - 0.5) * 45;
+            
+            // สร้าง Object Actor ใหม่
+            let clone = new Player(cloneId, player.x + offsetX, player.y + offsetY, player.color, player.team, this.name);
+            
+            // นำ Actor เข้าสู่ Engine
+            game.spawnActor(clone);
+            
+            // ปรับแก้ค่า HP หลังจากถูกสร้างมา
+            let targetHp = Math.max(1, player.hp * hpMultiplier);
+            clone.hp = targetHp;
+            clone.maxHp = targetHp;
+            
+            // ตั้งค่า Cooldown ให้ทั้งตัวแม่และตัวลูก (0.5 วินาที) ถ้าเป็นสกิลพาสซีฟ
+            if (hpMultiplier < 1.0) {
+                player.custom.cloneCooldown = 500; 
+                if(!clone.custom) clone.custom = {};
+                clone.custom.cloneCooldown = 500;
+            }
+        }
     }
 };
 
