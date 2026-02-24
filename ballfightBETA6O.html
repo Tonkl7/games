@@ -1663,6 +1663,354 @@ const WEAPON_REGISTRY = {
             game.spawnParticles(player.x, player.y, 200, "#FFD700");
             game.triggerHitStop(200); 
         }
+    },
+    "Cursed Staff": {
+        name: "Cursed Staff",
+        color: "#1a1a1a", // สีดำ
+        width: 12, // ความกว้างคทา
+        length: 70, // ความยาวคทา
+        baseDamage: 7, // ดาเมจพื้นฐาน
+        
+        // Physics Hacks
+        actorRadius: 30, // ปรับขนาดตัวละคร
+        baseSpeedCap: 18, // เดินช้าลงเล็กน้อยเพราะถือคทาหนัก
+        iFrameDuration: 200, 
+    
+        init(player) { 
+            // ทำให้ตัวละครกลายเป็นสีดำเท่ๆ
+            player.color = "#111111"; 
+            
+            // สถานะเลือดและโล่คำสาป
+            player.maxHp = 1;
+            player.hp = 1;
+            player.custom.shield = 100;
+            player.custom.maxShield = 100;
+            player.custom.shieldRegenTimer = 0;
+    
+            // ตัวแปรสำหรับจัดการสกิล
+            player.custom.balls = [];
+            player.custom.trails = [];
+            player.custom.shadows = [];
+            player.custom.fireTimer = 0;
+            player.custom.ultTimer = 0;
+            player.custom.invincibleTimer = 0;
+    
+            player.passiveText = "HP 1, Shield 100 (Regen 5/10s). โจมตีด้วยลูกบอลคำสาปและรอยเท้า อัลติเมต: คลื่นคำสาปอมตะ"; 
+        },
+    
+        getHitboxes(player, game) {
+            let hitboxes = [];
+            
+            // 1. ฮิตบล็อกบริเวณคทา (ด้ามและปลาย)
+            let reach = player.weaponReach || this.length;
+            hitboxes.push({ x: player.weaponX, y: player.weaponY, r: 15, type: 'staff' }); // ปลายคทา
+            hitboxes.push({ 
+                x: player.x + Math.cos(player.weaponRotation) * (reach * 0.5), 
+                y: player.y + Math.sin(player.weaponRotation) * (reach * 0.5), 
+                r: 10, type: 'staff' 
+            }); // กลางคทา
+    
+            // 2. ฮิตบล็อกของลูกบอลคำสาป (Homing Balls)
+            for (let b of player.custom.balls) {
+                hitboxes.push({ x: b.x, y: b.y, r: 12, type: 'ball', ref: b });
+            }
+    
+            // 3. ฮิตบล็อกของร่องรอยคำสาป (Cursed Trails)
+            for (let t of player.custom.trails) {
+                hitboxes.push({ x: t.x, y: t.y, r: 25, type: 'trail', ref: t });
+            }
+    
+            // 4. ฮิตบล็อกอัลติเมต (AOE Curse Wave)
+            if (player.custom.ultTimer > 0) {
+                hitboxes.push({ x: player.x, y: player.y, r: 150, type: 'ult_wave' });
+            }
+    
+            return hitboxes;
+        },
+    
+        onUpdate(player, closestEnemy, game) {
+            // --- 1. ระบบตกแต่งเฟดเงาติดตามตัว ---
+            if (game.frame % 4 === 0) {
+                player.custom.shadows.push({ x: player.x, y: player.y, alpha: 0.6 });
+            }
+            for (let i = player.custom.shadows.length - 1; i >= 0; i--) {
+                player.custom.shadows[i].alpha -= 0.03 * (game.delta / 16);
+                if (player.custom.shadows[i].alpha <= 0) player.custom.shadows.splice(i, 1);
+            }
+    
+            // --- 2. ฟื้นฟูโล่คำสาป (5 หน่วย / 10 วิ) ---
+            player.custom.shieldRegenTimer += game.delta;
+            if (player.custom.shieldRegenTimer >= 10000) {
+                player.custom.shieldRegenTimer = 0;
+                player.custom.shield = Math.min(player.custom.maxShield, player.custom.shield + 5);
+            }
+    
+            // --- 3. อัลติเมตและการนับเวลาอมตะ ---
+            if (player.custom.invincibleTimer > 0) {
+                player.custom.invincibleTimer -= game.delta;
+            }
+    
+            if (player.custom.ultTimer > 0) {
+                player.custom.ultTimer -= game.delta;
+                // หยุดอยู่กับที่เวลาใช้อัลติ
+                player.vx *= 0.5; 
+                player.vy *= 0.5;
+                // ควงคทาอย่างรวดเร็ว
+                player.weaponRotation += 0.25 * player.weaponDir * (game.delta / 16);
+            } else {
+                // ควงคทาปกติ
+                player.weaponRotation += 0.08 * player.weaponDir * (game.delta / 16);
+            }
+    
+            // --- 4. การยิงลูกบอลคำสาป ---
+            player.custom.fireTimer += game.delta;
+            // ยิงทุกๆ 1.2 วินาทีเมื่อมีศัตรู และไม่ได้ใช้อัลติอยู่
+            if (player.custom.fireTimer > 1200 && closestEnemy && player.custom.ultTimer <= 0) {
+                player.custom.fireTimer = 0;
+                player.custom.balls.push({
+                    x: player.weaponX,
+                    y: player.weaponY,
+                    vx: Math.cos(player.weaponRotation) * 6,
+                    vy: Math.sin(player.weaponRotation) * 6,
+                    life: 4000, // คงอยู่ 4 วิ
+                    trailTimer: 0
+                });
+            }
+    
+            // --- 5. อัปเดตลูกบอล (Homing & Trail) ---
+            let enemies = game.getEnemies(player);
+            for (let i = player.custom.balls.length - 1; i >= 0; i--) {
+                let b = player.custom.balls[i];
+                b.life -= game.delta;
+    
+                // ระบบ Homing ติดตามศัตรูที่ใกล้ที่สุด
+                let target = null;
+                let minDist = Infinity;
+                for (let e of enemies) {
+                    let d = Math.hypot(e.x - b.x, e.y - b.y);
+                    if (d < minDist) { minDist = d; target = e; }
+                }
+    
+                if (target) {
+                    let angle = Math.atan2(target.y - b.y, target.x - b.x);
+                    b.vx += Math.cos(angle) * 0.3 * (game.delta / 16);
+                    b.vy += Math.sin(angle) * 0.3 * (game.delta / 16);
+                    // จำกัดความเร็วลูกบอล
+                    let speed = Math.hypot(b.vx, b.vy);
+                    if (speed > 7) {
+                        b.vx = (b.vx / speed) * 7;
+                        b.vy = (b.vy / speed) * 7;
+                    }
+                }
+    
+                b.x += b.vx * (game.delta / 16);
+                b.y += b.vy * (game.delta / 16);
+    
+                // ทิ้งร่องรอยคำสาปไว้ระหว่างทาง (ทุกๆ 0.15 วิ / 150ms)
+                b.trailTimer += game.delta;
+                if (b.trailTimer > 150) {
+                    b.trailTimer = 0;
+                    player.custom.trails.push({ x: b.x, y: b.y, life: 2000, tickTimer: 0 }); // คงอยู่ 2 วิ
+                }
+    
+                if (b.life <= 0) player.custom.balls.splice(i, 1);
+            }
+    
+            // --- 6. อัปเดตร่องรอยคำสาป ---
+            for (let i = player.custom.trails.length - 1; i >= 0; i--) {
+                let t = player.custom.trails[i];
+                t.life -= game.delta;
+                t.tickTimer += game.delta; // นับเวลาทำดาเมจเรื่อยๆ
+                if (t.life <= 0) player.custom.trails.splice(i, 1);
+            }
+        },
+    
+        render(ctx, player, game) { 
+            // ใช้ ctx.save() และ resetTransform() เพื่อวาดสิ่งต่างๆ นอกเหนือจากคทา (พิกัดโลก)
+            ctx.save();
+            ctx.resetTransform();
+    
+            // 1. วาดเงาติดตามตัว (Player Shadow Fade)
+            for (let s of player.custom.shadows) {
+                ctx.globalAlpha = s.alpha;
+                ctx.fillStyle = "#3a005c"; // สีม่วงเข้มคำสาป
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, player.radius || 35, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+    
+            // 2. วาดร่องรอยคำสาป (Cursed Trails)
+            for (let t of player.custom.trails) {
+                let trailAlpha = (t.life / 2000) * 0.5;
+                ctx.fillStyle = `rgba(75, 0, 130, ${trailAlpha})`; // สีม่วงโปร่งแสง
+                ctx.beginPath();
+                ctx.arc(t.x, t.y, 25, 0, Math.PI * 2);
+                ctx.fill();
+            }
+    
+            // 3. วาดลูกบอลคำสาป (Homing Balls)
+            for (let b of player.custom.balls) {
+                ctx.fillStyle = "#000000"; // ลูกบอลสีดำ
+                ctx.shadowColor = "#8A2BE2"; // เงามืดคำสาป
+                ctx.shadowBlur = 15;
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, 12, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+    
+            // 4. วาดคลื่นอัลติเมต
+            if (player.custom.ultTimer > 0) {
+                ctx.strokeStyle = `rgba(138, 43, 226, ${(player.custom.ultTimer / 3000)})`;
+                ctx.lineWidth = 15;
+                ctx.shadowColor = "#000000";
+                ctx.shadowBlur = 20;
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, 150, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+    
+            // 5. วาดหลอดโล่คำสาป (Cursed Shield Bar) ไว้บนหัว
+            let barWidth = 60;
+            ctx.fillStyle = "#333";
+            ctx.fillRect(player.x - barWidth/2, player.y - player.radius - 20, barWidth, 6);
+            ctx.fillStyle = "#8A2BE2"; // สีม่วงคำสาป
+            ctx.fillRect(player.x - barWidth/2, player.y - player.radius - 20, barWidth * (player.custom.shield / 100), 6);
+    
+            ctx.restore();
+    
+            // --- วาดคทาต้องสาปสุดน่ากลัว (จุด Origin (0,0) คือตรงกลางคทา) ---
+            // ด้ามคทา
+            ctx.fillStyle = "#222222"; 
+            ctx.fillRect(-this.width/2, -this.length/2, this.width, this.length);
+    
+            // หัวคทา (แกนผลึกคำสาป)
+            ctx.fillStyle = "#111111"; // สีดำสนิท
+            ctx.shadowColor = "#8A2BE2";
+            ctx.shadowBlur = 20;
+            ctx.beginPath();
+            ctx.arc(0, this.length/2 + 5, 18, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+    
+            // ของตกแต่ง (หนามแหลม/กระดูกรอบหัวคทา)
+            ctx.fillStyle = "#4B0082"; // สีม่วงเข้ม
+            ctx.beginPath();
+            ctx.moveTo(0, this.length/2 + 25);
+            ctx.lineTo(12, this.length/2 + 10);
+            ctx.lineTo(-12, this.length/2 + 10);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.moveTo(20, this.length/2 + 5);
+            ctx.lineTo(10, this.length/2 + -5);
+            ctx.lineTo(10, this.length/2 + 15);
+            ctx.fill();
+    
+            ctx.beginPath();
+            ctx.moveTo(-20, this.length/2 + 5);
+            ctx.lineTo(-10, this.length/2 + -5);
+            ctx.lineTo(-10, this.length/2 + 15);
+            ctx.fill();
+        },
+    
+        onHitPlayer(player, target, game, hitBoxUsed) {
+            // ดึงจำนวน Stack คำสาปมาคำนวณดาเมจ
+            let stacks = target.custom.curseStacks || 0;
+            let ultStacks = target.custom.ultCurseStacks || 0;
+            
+            // เพิ่มดาเมจ 5% ต่อ 1 Stack ปกติ และ 10% ต่อ 1 Stack อัลติ
+            let dmgMultiplier = 1 + (stacks * 0.05) + (ultStacks * 0.10); 
+            let type = hitBoxUsed ? hitBoxUsed.type : 'staff';
+    
+            // ฟังก์ชั่นช่วยสาปเป้าหมาย
+            const applyCurse = () => {
+                target.custom.curseStacks = stacks + 1;
+                target.color = "#2a2a2a"; // ทำให้ศัตรูเป็นสีดำๆ
+                target.vx *= 0.85; // ทำให้เคลื่อนที่ช้าลง
+                target.vy *= 0.85;
+                game.spawnParticles(target.x, target.y, 5, "#4B0082");
+            };
+    
+            if (type === 'staff') {
+                // โจมตีด้วยการฟาดคทา
+                target.takeDamage(this.baseDamage * dmgMultiplier, "physical", player, game);
+                applyCurse();
+                player.reverseWeapon();
+            } 
+            else if (type === 'ball') {
+                // โจมตีด้วยลูกบอล
+                target.takeDamage(this.baseDamage * dmgMultiplier, "magical", player, game);
+                applyCurse();
+                if (hitBoxUsed.ref) hitBoxUsed.ref.life = 0; // ทำลายลูกบอลเมื่อชน
+            } 
+            else if (type === 'trail') {
+                // โจมตีด้วยรอยคำสาป (ทำดาเมจ 1 ทุกๆ 0.15 วิ หรือ 150ms)
+                if (hitBoxUsed.ref && hitBoxUsed.ref.tickTimer >= 150) {
+                    hitBoxUsed.ref.tickTimer = 0; // รีเซ็ตตัวนับเวลา
+                    target.takeDamage(1 * dmgMultiplier, "magical", player, game);
+                    applyCurse();
+                }
+            } 
+            else if (type === 'ult_wave') {
+                // โจมตีด้วยคลื่นอัลติเมต (ป้องกันไม่ให้ทำดาเมจถี่เกินไป)
+                if (!target.custom.lastUltHit || game.frame - target.custom.lastUltHit > 30) {
+                    target.custom.lastUltHit = game.frame;
+                    target.takeDamage(this.baseDamage * dmgMultiplier, "magical", player, game);
+                    
+                    // แสตคพิเศษ 10%
+                    target.custom.ultCurseStacks = ultStacks + 1;
+                    target.color = "#000000"; // ดำสนิท
+                    target.vx *= 0.6; // สโลว์หนักมาก
+                    target.vy *= 0.6;
+                    game.spawnParticles(target.x, target.y, 10, "#8A2BE2");
+                }
+            }
+        },
+    
+        onHitWeapon(player, enemyPlayer, game) {
+            game.spawnParticles(player.weaponX, player.weaponY, 10, "#4B0082");
+            player.reverseWeapon();
+        },
+    
+        onTakeDamage(player, source, game) {
+            // --- 1. ระบบอมตะ (Invincibility) จากอัลติ ---
+            if (player.custom.invincibleTimer > 0) {
+                player.hp = player.maxHp; // ลบล้างดาเมจทั้งหมด
+                return;
+            }
+    
+            // --- 2. ระบบ Cursed Shield รับดาเมจแทนเลือด ---
+            // คำนวณดาเมจที่ได้รับเข้ามา (สมมติว่า engine ตัดเลือดไปแล้วก่อนเข้า Event นี้)
+            let damageTaken = 1 - player.hp; // ปกติ maxHp คือ 1
+    
+            if (damageTaken > 0) {
+                if (player.custom.shield >= damageTaken) {
+                    // ถ้าโล่มีพอรับดาเมจ
+                    player.custom.shield -= damageTaken;
+                    player.hp = 1; // เติมเลือดกลับเป็น 1 (เสมือนไม่เข้าเลือดจริง)
+                    game.spawnParticles(player.x, player.y, 8, "#8A2BE2"); // เอฟเฟคตีติดโล่
+                } else {
+                    // ถ้าโล่แตก ดาเมจทะลุเข้าเลือดที่เหลือ 1 (ตายทันที)
+                    let overflow = damageTaken - player.custom.shield;
+                    player.custom.shield = 0;
+                    player.hp = 1 - overflow; 
+                }
+            }
+        },
+    
+        onUltimateActivate(player, game) {
+            // ระยะเวลาสกิล 3 วินาที (3000ms)
+            player.custom.ultTimer = 3000;
+            // เป็นอมตะศัตรูตีไม่เข้า 3 วิ
+            player.custom.invincibleTimer = 3000; 
+            
+            game.spawnParticles(player.x, player.y, 40, "#111111");
+            game.spawnParticles(player.x, player.y, 40, "#8A2BE2");
+            game.triggerHitStop(100); // หน้าจอหยุดชะงักกระแทกอารมณ์อัลติ
+        }
     }
 };
 
