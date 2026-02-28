@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Dead Pit: Bloody Steampunk v4.4</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700;900&display=swap');
+
+    body {
+      font-family: 'Chakra Petch', sans-serif;
+      background-color: #0c0a09;
+      background-image: 
+        radial-gradient(circle at 50% 50%, #450a0a 0%, #0c0a09 70%),
+        url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23292524' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+      overflow-x: hidden;
+      touch-action: manipulation; /* Prevent double-tap zoom on mobile */
+    }
+
+    /* Steampunk Elements */
+    .steam-border {
+      border: 2px solid #92400e; 
+      box-shadow: 0 0 10px #7f1d1d, inset 0 0 15px rgba(0,0,0,0.8);
+      position: relative;
+    }
+    .steam-border::before, .steam-border::after {
+      content: ''; position: absolute; width: 8px; height: 8px; background: #d97706; border-radius: 50%; border: 1px solid #451a03;
+    }
+    .steam-border::before { top: 4px; left: 4px; box-shadow: calc(100% - 16px) 0 #d97706; }
+    .steam-border::after { bottom: 4px; left: 4px; box-shadow: calc(100% - 16px) 0 #d97706; }
+
+    /* Symbols & Coins */
+    .sym-num {
+      font-family: monospace; font-weight: 900;
+      background: linear-gradient(to bottom, #fcd34d, #b45309);
+      -webkit-background-clip: text; color: transparent;
+      filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.8));
+    }
+    .sym-666 { color: #ef4444 !important; background: none; text-shadow: 0 0 10px #dc2626, 0 0 20px #991b1b; animation: pulseRed 1s infinite; }
+    .sym-777 { color: #fbbf24 !important; background: none; text-shadow: 0 0 10px #f59e0b, 0 0 20px #d97706; }
+
+    .coin-icon {
+      display: inline-block; width: 1em; height: 1em;
+      background: radial-gradient(circle at 30% 30%, #fde047, #b45309);
+      border-radius: 50%; border: 2px solid #78350f;
+      box-shadow: inset 0 0 4px #fef08a, 0 1px 3px rgba(0,0,0,0.8); vertical-align: text-bottom; margin: 0 2px;
+    }
+    .rain-coin {
+      position: fixed; z-index: 9999; pointer-events: none; width: 32px; height: 32px; border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #fde047, #d97706); border: 3px solid #78350f;
+      box-shadow: inset 0 0 8px #fef08a, 0 5px 15px rgba(0,0,0,0.6); animation: fall linear forwards;
+    }
+
+    /* Animations */
+    @keyframes pulseRed { 0%, 100% { filter: drop-shadow(0 0 5px #dc2626); transform: scale(1); } 50% { filter: drop-shadow(0 0 15px #ef4444); transform: scale(1.1); } }
+    @keyframes slotSpinCol { 0% { transform: translateY(-50%); filter: blur(3px); } 100% { transform: translateY(50%); filter: blur(3px); } }
+    .anim-spin-col { animation: slotSpinCol 0.1s linear infinite; }
+    @keyframes screenShake { 0% { transform: translate(1px, 1px) rotate(0deg); } 20% { transform: translate(-3px, 0px) rotate(1deg); } 40% { transform: translate(1px, -1px) rotate(1deg); } 60% { transform: translate(-3px, 1px) rotate(0deg); } 80% { transform: translate(-1px, -1px) rotate(1deg); } 100% { transform: translate(1px, -2px) rotate(-1deg); } }
+    .shake-intense { animation: screenShake 0.1s ease-in-out infinite; }
+    .hallucination { animation: screenShake 0.5s ease-in-out infinite; filter: hue-rotate(90deg) contrast(1.5); }
+    
+    @keyframes floatUp { 0% { opacity: 1; transform: translateY(0) scale(0.5); } 100% { opacity: 0; transform: translateY(-100px) scale(1.2); } }
+    .float-text { position: absolute; font-weight: 900; z-index: 50; animation: floatUp 1.5s ease-out forwards; pointer-events: none; text-shadow: 0 0 10px rgba(0,0,0,0.8); white-space: nowrap; }
+    
+    @keyframes popCoinAnim { 0% { transform: scale(0.2) translateY(0); opacity: 1; } 50% { transform: scale(1.3) translateY(-40px); opacity: 1; } 100% { transform: scale(1) translateY(20px); opacity: 0; } }
+    .pop-coin { animation: popCoinAnim 0.6s cubic-bezier(0.25, 1, 0.5, 1) forwards; pointer-events: none; }
+
+    @keyframes smokePuff { 0% { transform: scale(0.5); opacity: 0.8; } 100% { transform: scale(4) translateY(-30px); opacity: 0; } }
+    .smoke { position: fixed; width: 40px; height: 40px; background: radial-gradient(circle, rgba(168, 162, 158, 0.6) 0%, rgba(168, 162, 158, 0) 70%); border-radius: 50%; filter: blur(5px); pointer-events: none; z-index: 40; animation: smokePuff 1.2s ease-out forwards; mix-blend-mode: screen; }
+    
+    @keyframes sparkFly { 0% { transform: translate(0, 0) scale(1); opacity: 1; } 100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; } }
+    .spark { position: fixed; width: 4px; height: 16px; background: #fde047; border-radius: 2px; box-shadow: 0 0 8px #f59e0b, 0 0 15px #ef4444; pointer-events: none; z-index: 9999; animation: sparkFly 0.5s cubic-bezier(0.25, 1, 0.5, 1) forwards; mix-blend-mode: screen; }
+    
+    @keyframes buyFlash { 0% { box-shadow: inset 0 0 30px rgba(34, 197, 94, 0.8), 0 0 20px rgba(34, 197, 94, 0.5); border-color: #22c55e; } 100% { box-shadow: inset 0 0 0 rgba(34, 197, 94, 0), 0 0 0 rgba(34, 197, 94, 0); } }
+    .flash-buy { animation: buyFlash 0.6s ease-out; }
+    
+    @keyframes fall { 0% { transform: translateY(-10vh) rotateY(0deg) rotateZ(0deg); opacity: 1; } 100% { transform: translateY(110vh) rotateY(720deg) rotateZ(180deg); opacity: 0; } }
+    @keyframes flashRed { 0%, 100% { background-color: transparent; } 50% { background-color: rgba(220, 38, 38, 0.8); } }
+    .flash-danger { position: fixed; inset: 0; z-index: 9998; pointer-events: none; animation: flashRed 0.5s ease-in-out 3; }
+    
+    #drawer-overlay { transition: transform 0.8s cubic-bezier(0.32, 0, 0.67, 0); background-image: repeating-linear-gradient(45deg, #292524 25%, transparent 25%, transparent 75%, #292524 75%, #292524), repeating-linear-gradient(45deg, #292524 25%, #1c1917 25%, #1c1917 75%, #292524 75%, #292524); background-position: 0 0, 10px 10px; background-size: 20px 20px; border-bottom: 10px solid #78350f; box-shadow: 0 10px 30px rgba(0,0,0,0.9); }
+
+    /* Master Fall Animation */
+    @keyframes elevatorFall { 0% { transform: translateY(0) rotate(0deg); } 10% { transform: translateY(-30px) rotate(-1deg); } 20% { transform: translateY(0) rotate(1deg); } 100% { transform: translateY(200vh) rotate(-5deg); opacity: 0; } }
+    .elevator-fall { animation: elevatorFall 2.5s ease-in forwards; pointer-events: none; }
+
+    /* Header Cinematic Animation */
+    #main-header { transition: transform 2.5s ease-in-out; position: relative; z-index: 50; }
+    .header-center-anim { transform: translateY(35vh) scale(1.1); }
+    @media (min-width: 768px) { .header-center-anim { transform: translateY(35vh) scale(1.2); } }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #78350f; border-radius: 4px; }
+    .tab-btn.active { border-bottom-color: #f59e0b; color: #f59e0b; background: rgba(120, 53, 15, 0.3); }
+    .animate-spin-slow { animation: spin 3s linear infinite; }
+  </style>
+</head>
+<body class="min-h-screen text-stone-300 flex flex-col items-center">
+
+  <!-- Overlays -->
+  <div id="black-bg-overlay" class="fixed inset-0 bg-black opacity-0 pointer-events-none transition-opacity duration-[2000ms] z-[5]"></div>
+  <div id="danger-overlay" class="hidden"></div>
+  <div id="drawer-overlay" class="fixed inset-0 z-[9999] transform -translate-y-full flex flex-col items-center justify-center text-amber-500 text-shadow-xl pointer-events-none px-4">
+    <i data-lucide="lock" class="w-16 h-16 md:w-24 md:h-24 mb-4 text-stone-500 drop-shadow-lg animate-pulse"></i>
+    <h2 class="text-3xl md:text-6xl font-black uppercase tracking-widest bg-stone-900/80 px-4 md:px-8 py-4 rounded-xl border-4 border-stone-700 text-center">อัปเดตโควตาใหม่...</h2>
+  </div>
+
+  <button id="btn-restart" class="opacity-0 pointer-events-none fixed top-[55%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 px-6 py-3 md:px-8 md:py-4 bg-red-900 hover:bg-red-700 text-white font-bold rounded-xl border-2 border-red-500 shadow-[0_0_30px_rgba(220,38,38,1)] transition-opacity duration-1000 cursor-pointer z-[9999] text-lg md:text-xl">
+    <div class="animate-bounce">เกิดใหม่ในนรก (เริ่มเกมใหม่)</div>
+  </button>
+
+  <!-- Game Over Extras: Quote & Timer -->
+  <div id="game-over-extras" class="fixed top-[65%] md:top-[65%] left-1/2 transform -translate-x-1/2 flex flex-col items-center opacity-0 pointer-events-none transition-opacity duration-1000 z-[9999] text-center w-[95%] max-w-2xl">
+    <p id="gambling-quote" class="text-stone-300 text-sm md:text-xl italic mb-4 font-serif bg-stone-900/80 p-3 md:p-4 rounded-lg border border-stone-700 shadow-xl backdrop-blur-sm"></p>
+    <div class="text-stone-400 font-bold text-sm md:text-xl bg-black/50 px-4 md:px-6 py-2 rounded-full border border-stone-800 flex items-center justify-center whitespace-nowrap">
+      วิญญาณจะหวนคืนในอีก <span id="timer-count" class="text-red-500 font-black text-xl md:text-2xl mx-2">10</span> วินาที
+    </div>
+  </div>
+
+  <!-- MASTER CONTAINER -->
+  <main id="master-container" class="w-full max-w-7xl flex flex-col items-center py-2 md:py-4 px-2 relative transition-transform duration-1000">
+    
+    <!-- Header -->
+    <header id="main-header" class="text-center mb-3 md:mb-4 w-full px-2 relative">
+      <h1 class="text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-b from-amber-500 via-red-600 to-red-900 drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]" style="-webkit-text-stroke: 1px #450a0a;">
+        Dead Pit <span class="text-base sm:text-lg md:text-xl text-stone-400 block mt-1 tracking-normal" style="-webkit-text-stroke: 0px;">วงล้อเลือดเฟืองนรก</span>
+      </h1>
+    </header>
+
+    <!-- GAME CONTENT CONTAINER -->
+    <div id="game-content" class="flex flex-col lg:flex-row w-full gap-3 md:gap-4 relative z-10">
+      
+      <!-- LEFT: SHOP PANELS -->
+      <div id="left-panel" class="w-full lg:w-[28%] order-2 lg:order-1 flex flex-col gap-3 md:gap-4 lg:h-[650px]">
+        <div class="bg-stone-900/90 steam-border rounded-xl p-2 md:p-3 flex flex-col h-[350px] md:h-[400px] lg:h-full overflow-hidden">
+          <div class="flex border-b border-stone-800 mb-2 md:mb-3 shrink-0">
+            <button id="tab-trinket" class="tab-btn active flex-1 py-1 md:py-2 text-[10px] md:text-sm font-bold uppercase tracking-wider border-b-2 border-transparent text-stone-400 hover:text-amber-500 transition-colors flex justify-center items-center gap-1">
+              <i data-lucide="gem" class="w-3 h-3 md:w-4 md:h-4"></i> เครื่องราง
+            </button>
+            <button id="tab-consumable" class="tab-btn flex-1 py-1 md:py-2 text-[10px] md:text-sm font-bold uppercase tracking-wider border-b-2 border-transparent text-stone-400 hover:text-amber-500 transition-colors flex justify-center items-center gap-1">
+              <i data-lucide="flask-conical" class="w-3 h-3 md:w-4 md:h-4"></i> ตลาดมืด
+            </button>
+          </div>
+
+          <div id="view-trinket" class="flex-1 flex flex-col overflow-y-auto pr-1 pb-2">
+            <div class="flex justify-between items-center mb-2 shrink-0">
+              <span class="text-[9px] md:text-[10px] text-stone-400">สุ่มใหม่เมื่อผ่านด่าน</span>
+              <button id="btn-reroll-trinket" class="text-[9px] md:text-[10px] bg-stone-800 hover:bg-stone-700 border border-stone-600 px-2 py-1 rounded text-amber-500 flex items-center gap-1 transition-all disabled:opacity-50">
+                <i data-lucide="refresh-cw" class="w-3 h-3"></i> รีโรล (<span id="reroll-count">1</span>)
+              </button>
+            </div>
+            <div id="trinket-shop-container" class="space-y-2 flex-1"></div>
+          </div>
+
+          <div id="view-consumable" class="hidden flex-1 flex flex-col overflow-y-auto pr-1 pb-2">
+            <div class="text-[9px] md:text-[10px] text-stone-400 mb-2 shrink-0">ไอเทมกดใช้ ชิ้นเดียวหาย</div>
+            <div id="shop-container" class="space-y-2 flex-1"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CENTER: MAIN GAME -->
+      <div class="w-full lg:w-[44%] order-1 lg:order-2 flex flex-col gap-2 md:gap-3 relative" id="center-panel">
+        
+        <!-- Stats Board -->
+        <div id="stats-board" class="bg-stone-900/90 steam-border rounded-xl p-2 md:p-3 flex flex-wrap justify-between items-center relative">
+          <div class="flex flex-col items-center w-1/5">
+            <span class="text-stone-500 text-[9px] md:text-[10px] uppercase font-bold mb-0.5 md:mb-1">ชั้นนรก</span>
+            <div id="stat-round" class="text-sm md:text-lg font-black text-amber-600">1</div>
+          </div>
+          <div class="flex flex-col items-center w-1/5 border-l border-stone-800 relative">
+            <span class="text-stone-500 text-[9px] md:text-[10px] uppercase font-bold mb-0.5 md:mb-1">Combo</span>
+            <div class="text-sm md:text-lg font-black text-purple-400 flex items-center gap-1">
+              <i data-lucide="zap" class="w-3 h-3"></i> <span id="stat-combo">0</span>
+            </div>
+          </div>
+          <div class="flex flex-col items-center w-1/5 border-l border-stone-800 relative">
+            <span class="text-stone-500 text-[9px] md:text-[10px] uppercase font-bold mb-0.5 md:mb-1">วิญญาณ</span>
+            <div class="text-sm md:text-lg font-black text-yellow-500 flex items-center gap-1">
+              <div class="coin-icon w-3 h-3 mr-0.5" style="margin:0; border-width:1px;"></div> <span id="stat-coins" class="transition-all duration-100">100</span>
+            </div>
+          </div>
+          <div class="flex flex-col items-center w-1/5 border-l border-stone-800">
+            <span class="text-stone-500 text-[9px] md:text-[10px] uppercase font-bold mb-0.5 md:mb-1">ตั๋วปั่น</span>
+            <div id="ticket-container" class="text-sm md:text-lg font-black text-stone-300 flex items-center gap-1 transition-colors duration-300">
+              <i data-lucide="ticket" class="w-3 h-3"></i> <span id="stat-tickets">10</span>
+            </div>
+          </div>
+          <div class="flex flex-col items-center w-1/5 border-l border-stone-800 relative">
+            <span class="text-stone-500 text-[9px] md:text-[10px] uppercase font-bold mb-0.5 md:mb-1">โควตาหนี้</span>
+            <div id="stat-quota" class="text-sm md:text-lg font-black text-red-500">100</div>
+          </div>
+        </div>
+
+        <!-- DOOM Bar (666 Probability) -->
+        <div id="prob-panel" class="bg-stone-900 steam-border rounded-lg p-1.5 md:p-2 px-3 md:px-4 flex flex-col gap-1 relative overflow-hidden border-red-900 shadow-[0_0_10px_rgba(153,27,27,0.5)]">
+          <div class="flex justify-between text-[9px] md:text-[10px] font-bold text-red-500 uppercase">
+            <span class="flex items-center gap-1"><i data-lucide="skull" class="w-3 h-3"></i> โอกาสโดน 666 (ยึดทรัพย์)</span>
+            <span id="prob-text">1.0%</span>
+          </div>
+          <div class="h-1.5 md:h-2 w-full bg-stone-950 rounded-full overflow-hidden border border-red-900/50 relative">
+            <div id="prob-bar" class="h-full bg-gradient-to-r from-red-600 to-red-900 transition-all duration-500 w-[1%] shadow-[0_0_10px_rgba(220,38,38,0.8)]"></div>
+          </div>
+        </div>
+
+        <!-- Event Announcer -->
+        <div id="event-announcer" class="bg-stone-950 border border-stone-800 rounded-lg p-1.5 md:p-2 text-center text-[10px] md:text-xs font-medium text-stone-400 transition-colors duration-300 min-h-[30px] md:min-h-[36px] flex items-center justify-center z-20">
+          ระบบเครื่องจักรสภาพปกติ... พร้อมปั่น
+        </div>
+
+        <!-- Slot Machine -->
+        <div id="slot-wrapper" class="relative z-20 flex-1 min-h-[200px] sm:min-h-[250px] md:min-h-[300px]">
+          <div class="bg-[#1c1917] steam-border rounded-xl md:rounded-2xl p-2 md:p-3 relative h-full shadow-2xl overflow-hidden" id="slot-container">
+            
+            <div id="doom-overlay" class="absolute inset-0 bg-red-950/95 z-40 flex flex-col items-center justify-center hidden backdrop-blur-md border-4 border-red-800">
+              <i data-lucide="flame" class="w-16 h-16 md:w-20 md:h-20 text-red-500 mb-2 animate-bounce"></i>
+              <h2 class="text-3xl sm:text-4xl md:text-5xl font-black text-red-500 mb-2 drop-shadow-[0_0_10px_rgba(220,38,38,1)]">DOOM 666</h2>
+              <p class="text-red-300 text-center mb-4 text-sm sm:text-lg md:text-xl font-bold">ความดันทะลุเกจ ซาตานริบวิญญาณ!</p>
+            </div>
+
+            <div id="bankrupt-overlay" class="absolute inset-0 bg-stone-950/95 z-40 flex flex-col items-center justify-center hidden backdrop-blur-md border-4 border-stone-800">
+              <i data-lucide="ghost" class="w-16 h-16 md:w-20 md:h-20 text-stone-600 mb-2 animate-bounce"></i>
+              <h2 class="text-2xl sm:text-3xl md:text-4xl font-black text-stone-500 mb-2 uppercase tracking-widest">BANKRUPT</h2>
+              <p class="text-stone-400 text-center mb-4 text-sm md:text-lg">สิ้นไร้วิญญาณ ไร้ทางไปต่อ</p>
+            </div>
+
+            <div id="jackpot-overlay" class="absolute inset-0 z-40 flex flex-col items-center justify-center hidden pointer-events-none">
+              <h2 class="text-4xl sm:text-5xl md:text-7xl font-black text-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,1)] animate-bounce" style="-webkit-text-stroke: 2px #92400e;">JACKPOT!</h2>
+            </div>
+
+            <div id="slot-grid" class="w-full h-full flex justify-between gap-1 md:gap-2"></div>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div id="controls-panel" class="flex gap-2 mt-1 md:mt-2">
+          <button id="btn-spin" class="flex-[2] py-2.5 md:py-4 rounded-xl font-black text-base md:text-xl uppercase tracking-widest bg-gradient-to-b from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-stone-100 border-b-4 border-amber-950 active:border-b-0 active:translate-y-1 shadow-[0_0_15px_rgba(180,83,9,0.5)] transition-all flex items-center justify-center gap-2 relative overflow-hidden">
+            <i data-lucide="settings" class="w-4 h-4 md:w-5 md:h-5 animate-spin-slow"></i> สับสวิตช์
+            <span id="spin-cost-display" class="text-[9px] md:text-[10px] bg-stone-950/50 px-1.5 py-0.5 rounded ml-1 font-normal border border-stone-700 text-stone-300">-1 ตั๋ว</span>
+          </button>
+          <button id="btn-pay-quota" class="flex-1 py-2.5 md:py-4 rounded-xl font-bold text-[10px] md:text-sm bg-gradient-to-b from-red-800 to-red-950 hover:from-red-700 hover:to-red-900 text-stone-200 border-b-4 border-red-950 active:border-b-0 active:translate-y-1 shadow-lg transition-all flex flex-col items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed leading-tight">
+            จ่ายหนี้ผ่านด่าน
+          </button>
+        </div>
+      </div>
+
+      <!-- RIGHT: INVENTORY / TICKETS -->
+      <div id="right-panel" class="w-full lg:w-[28%] order-3 lg:order-3 flex flex-col gap-3 md:gap-4 lg:h-[650px]">
+        
+        <div class="bg-stone-900/90 steam-border rounded-xl p-2 md:p-3 flex flex-col shrink-0">
+          <div class="flex items-center gap-2 text-stone-400 font-bold mb-2 pb-2 border-b border-stone-800 uppercase text-[10px] md:text-xs">
+            <i data-lucide="ticket" class="w-3 h-3 md:w-4 md:h-4"></i> ตู้แลกตั๋วเถื่อน
+          </div>
+          <div class="flex gap-2">
+            <button id="btn-buy-1-ticket" class="flex-1 bg-stone-800 hover:bg-stone-700 disabled:opacity-50 border border-stone-700 text-white p-1.5 md:p-2 rounded-lg text-[9px] md:text-[10px] font-bold flex flex-col items-center transition-all">
+              <span>ตั๋ว 1 ใบ</span>
+              <span class="text-yellow-500 flex items-center gap-1 mt-0.5 md:mt-1" id="cost-t1">20 <div class="coin-icon" style="width:10px;height:10px;margin:0;"></div></span>
+            </button>
+            <button id="btn-buy-10-ticket" class="flex-1 bg-stone-800 hover:bg-stone-700 disabled:opacity-50 border border-stone-700 text-white p-1.5 md:p-2 rounded-lg text-[9px] md:text-[10px] font-bold flex flex-col items-center transition-all">
+              <span>ตั๋ว 10 ใบ</span>
+              <span class="text-yellow-500 flex items-center gap-1 mt-0.5 md:mt-1" id="cost-t10">190 <div class="coin-icon" style="width:10px;height:10px;margin:0;"></div></span>
+            </button>
+          </div>
+          <div id="active-buffs" class="space-y-1 text-[9px] md:text-[10px] mt-2 border-t border-stone-800 pt-2 min-h-[20px]"></div>
+        </div>
+
+        <div class="bg-stone-900/90 steam-border rounded-xl p-2 md:p-3 flex flex-col h-[180px] md:h-[200px] lg:flex-1 overflow-hidden">
+          <div class="flex items-center gap-2 text-stone-400 font-bold mb-2 pb-2 border-b border-stone-800 uppercase text-[10px] md:text-xs shrink-0">
+            <i data-lucide="backpack" class="w-3 h-3 md:w-4 md:h-4"></i> เครื่องรางที่มี (<span id="inv-count">0</span>)
+          </div>
+          <div id="inventory-container" class="flex-1 overflow-y-auto space-y-1 md:space-y-2 pr-1 pb-2">
+            <div class="text-stone-600 italic text-center text-[9px] md:text-[10px] mt-4">ยังไม่มีเครื่องรางในตัว...</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // ==========================================
+    // STEAMPUNK AUDIO SYNTHESIS SYSTEM
+    // ==========================================
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let audioInitialized = false;
+
+    function initAudio() {
+      if(!audioInitialized) {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        audioInitialized = true;
+      }
+    }
+
+    function playSound(type) {
+      if(!audioInitialized || audioCtx.state === 'suspended') return;
+      
+      const t = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      if(type === 'click') { 
+        // Mechanical switch click
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(150, t);
+        osc.frequency.exponentialRampToValueAtTime(40, t + 0.1);
+        gain.gain.setValueAtTime(0.1, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+        osc.start(t); osc.stop(t + 0.1);
+      } 
+      else if (type === 'spin') {
+        // Heavy gears grinding
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(60, t);
+        osc.frequency.linearRampToValueAtTime(40, t + 0.3);
+        gain.gain.setValueAtTime(0.1, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+        osc.start(t); osc.stop(t + 0.3);
+      }
+      else if (type === 'coin') {
+        // Brass coin clink
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(2000, t);
+        osc.frequency.exponentialRampToValueAtTime(1200, t + 0.1);
+        gain.gain.setValueAtTime(0.1, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+        osc.start(t); osc.stop(t + 0.3);
+      }
+      else if (type === 'coin-tally') {
+        // Mechanical counter tick
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(800, t);
+        osc.frequency.exponentialRampToValueAtTime(400, t + 0.05);
+        gain.gain.setValueAtTime(0.02, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+        osc.start(t); osc.stop(t + 0.05);
+      }
+      else if (type === 'doom') {
+        // Steam horn of death (dissonance)
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(100, t);
+        osc.frequency.exponentialRampToValueAtTime(40, t + 1.5);
+        
+        const osc2 = audioCtx.createOscillator();
+        osc2.type = 'square';
+        osc2.frequency.setValueAtTime(105, t);
+        osc2.frequency.exponentialRampToValueAtTime(42, t + 1.5);
+        osc2.connect(gain);
+        
+        gain.gain.setValueAtTime(0.3, t);
+        gain.gain.linearRampToValueAtTime(0, t + 2.0);
+        
+        osc.start(t); osc.stop(t + 2.0);
+        osc2.start(t); osc2.stop(t + 2.0);
+      }
+      else if (type === 'buy') {
+        // Steam hiss / mechanical clank
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(300, t);
+        osc.frequency.exponentialRampToValueAtTime(100, t + 0.15);
+        gain.gain.setValueAtTime(0.15, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+        osc.start(t); osc.stop(t + 0.2);
+      }
+    }
+
+    document.addEventListener('click', (e) => {
+      initAudio();
+      if(e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+        playSound('click');
+      }
+    });
+
+    // ==========================================
+    // DATA & CONFIGURATION
+    // ==========================================
+    const SYMBOLS_NORMAL = [
+      { id: 'skull', icon: '💀', name: 'กะโหลกคนงาน', payout: 50, weight: 20 },
+      { id: 'blood', icon: '🩸', name: 'หยดเลือด', payout: 100, weight: 15 },
+      { id: 'gear', icon: '⚙️', name: 'ฟันเฟือง', payout: 30, weight: 30 },
+      { id: 'lantern', icon: '🏮', name: 'ตะเกียง', payout: 150, weight: 10 },
+      { id: 'bone', icon: '🦴', name: 'เศษกระดูก', payout: 10, weight: 40 },
+    ];
+    const SAFE_NUMBERS = ['1','2','3','4','5','7','8','9'];
+
+    const ALL_CONSUMABLES = [
+      { id: 'c1', name: 'น้ำมันเครื่องจักร', desc: 'เงิน x2 ใน 3 สปินถัดไป', cost: 100, icon: 'droplet', type: 'buff', duration: 3, code: 'MULTIPLIER' },
+      { id: 'c2', name: 'แว่นตากันมาร', desc: 'กันการเสียเงินจาก 666 ได้ 1 ครั้ง', cost: 200, icon: 'glasses', type: 'buff', duration: -1, code: 'ANTI_666' },
+      { id: 'c3', name: 'เข็มฉีดอะดรีนาลีน', desc: 'รับ 300 ทันที แต่หนี้เพิ่ม 50%', cost: 50, icon: 'syringe', type: 'instant', action: () => { addCoins(300); spawnFloatingText("+300", "text-yellow-400 font-black", "stats-board"); quota = Math.floor(quota * 1.5); } },
+      { id: 'c4', name: 'วาล์วระบายไอน้ำ', desc: 'ลดหนี้ด่านนี้ลง 300', cost: 200, icon: 'wind', type: 'instant', action: () => { quota = Math.max(0, quota - 300); triggerQuotaShake(); } },
+      { id: 'c6', name: 'น้ำมนต์ล้างอาถรรพ์', desc: 'ลดโอกาสโดน 666 ลง 10%', cost: 150, icon: 'droplet', type: 'instant', action: () => { chance666 = Math.max(1, chance666 - 10); spawnFloatingText("-10% DOOM", "text-green-400 font-bold", "prob-panel"); updateUI(); } }
+    ];
+
+    // Reduced Trinket Prices by ~15-25%
+    const ALL_TRINKETS = [
+      { id: 't01', name: 'Lucky Coin', desc: '+10% เงินทุกครั้งที่ชนะ', cost: 150, icon: 'circle-dollar-sign', rarity: 'common' },
+      { id: 't02', name: 'Discount Badge', desc: 'ไอเทมลดราคา 20%', cost: 100, icon: 'tag', rarity: 'common' },
+      { id: 't03', name: 'Ticket Saver', desc: '15% หมุนไม่เสียตั๋ว', cost: 220, icon: 'ticket-minus', rarity: 'rare' },
+      { id: 't04', name: 'Combo Spark', desc: 'Combo ≥ 3 เงิน +20%', cost: 180, icon: 'zap', rarity: 'common' },
+      { id: 't06', name: 'Risky Bet', desc: 'เงิน +50% แต่โอกาส 20% ได้ 0', cost: 250, icon: 'dice-5', rarity: 'rare' },
+      { id: 't07', name: 'Combo Keeper', desc: 'แพ้แล้วโอกาส 15% Combo ไม่หาย', cost: 150, icon: 'shield-half', rarity: 'common' },
+      { id: 't08', name: 'Double Edge', desc: 'เงิน x1.5 แต่หนี้เพิ่มอีก 30%', cost: 300, icon: 'swords', rarity: 'rare' },
+      { id: 't10', name: 'Debt Pact', desc: 'เงิน x2 แต่หนี้เริ่มใหม่ x2 ตลอดกาล', cost: 450, icon: 'scroll-text', rarity: 'ultra' },
+      { id: 't16', name: 'Holy Relic', desc: 'อาถรรพ์ 666 ขึ้นช้าลงครึ่งนึง', cost: 380, icon: 'shield-check', rarity: 'ultra' }
+    ];
+
+    const EVENTS = [
+      { id: 'e1', name: 'หมอกควันบังตา', desc: 'ซื้อของไม่ได้ตานี้', color: 'text-stone-500' },
+      { id: 'e2', name: 'เครื่องจักรฝืด', desc: 'ใช้ตั๋ว +1 ใบตานี้', color: 'text-amber-600' },
+      { id: 'e3', name: 'ภาพหลอน', desc: 'หน้าจอสั่นไหว', color: 'text-purple-500' },
+      { id: 'e4', name: 'ตั๋วสนิม', desc: 'ตั๋วแพงขึ้น 2 เท่า', color: 'text-red-400' },
+      { id: 'e5', name: 'หนี้พอกพูน', desc: 'หนี้เพิ่ม 5% ทันที', color: 'text-red-500', action: () => { quota = Math.floor(quota * 1.05); triggerQuotaShake(); spawnFloatingText("หนี้พุ่ง!", "text-red-500", "stat-quota"); } },
+      { id: 'e6', name: 'ไฟรั่ว', desc: 'เสียเงินแบบสุ่ม', color: 'text-yellow-500', action: () => { let loss = Math.floor(Math.random()*15)+5; if(coins>=loss) { removeCoins(loss); spawnFloatingText(`-${loss}`, "text-red-500", "stat-coins"); } } },
+      { id: 'e7', name: 'แม่เหล็กเสื่อม', desc: 'คอมโบหาย', color: 'text-blue-400', action: () => { if(combo>0) { combo = 0; spawnFloatingText("Combo หาย!", "text-blue-500", "stat-combo"); } } },
+      { id: 'e8', name: 'หน้าปัดร้าว', desc: 'บดบังโอกาส 666', color: 'text-stone-600', uiAction: () => { document.getElementById('prob-text').innerText = "???%"; } },
+      { id: 'e9', name: 'วิญญาณเกื้อหนุน', desc: 'เงินคูณ 1.5 ตานี้', color: 'text-green-400' },
+      { id: 'e10', name: 'เสียงกระซิบซาตาน', desc: 'โอกาส 666 +2%', color: 'text-red-600', action: () => { chance666 += 2; } },
+      { id: 'normal', name: 'ปกติ', desc: '', color: 'text-stone-300' }
+    ];
+
+    const PAYLINES = [
+      [[0,0],[0,1],[0,2]], [[1,0],[1,1],[1,2]], [[2,0],[2,1],[2,2]], 
+      [[0,0],[1,0],[2,0]], [[0,1],[1,1],[2,1]], [[0,2],[1,2],[2,2]], 
+      [[0,0],[1,1],[2,2]], [[2,0],[1,1],[0,2]]  
+    ];
+
+    const ANTI_GAMBLING_QUOTES = [
+      "การพนันไม่เคยทำให้ใครรวยอย่างยั่งยืน นอกจากเจ้ามือ",
+      "จุดจบของผีพนัน คือการสูญเสียทุกสิ่งแม้กระทั่งวิญญาณของตัวเอง",
+      "ยิ่งพยายามเอาคืน ยิ่งจมลึกลงไปในขุมนรก",
+      "ความโลภชั่ววูบ แลกมาด้วยความพินาศชั่วชีวิต",
+      "อย่าปล่อยให้เครื่องจักรกลืนกินอนาคตของคุณ",
+      "หนี้สินจากการพนัน คือโซ่ตรวนที่มองไม่เห็น",
+      "ชัยชนะครั้งแรก คือเหยื่อล่อให้คุณตายใจ",
+      "ผู้ชนะที่แท้จริง คือผู้ที่รู้ว่าเมื่อไหร่ควรหยุด",
+      "หยาดเหงื่อแรงงานมีค่ากว่าโชคชะตาจอมปลอม",
+      "เมื่อคุณเดิมพันด้วยอนาคต คุณก็ไม่มีอนาคตเหลืออยู่เลย"
+    ];
+
+    // ==========================================
+    // GAME STATE
+    // ==========================================
+    let coins = 100; 
+    let tickets = 10;
+    let round = 1;
+    let quota = 100;
+    let chance666 = 1.0; 
+    let gameOver = false;
+    let isSpinning = false;
+    let isCountingCoins = false; // Flag for animation
+    
+    let combo = 0; let winStreak = 0;
+    let grid = Array(3).fill(null).map(() => Array(3).fill({type: 'normal', data: SYMBOLS_NORMAL[0]}));
+    
+    let currentConsumables = []; let currentTrinketShop = []; let ownedTrinkets = [];
+    let freeRerollAvailable = 1;
+    let activeBuffs = { 'MULTIPLIER': 0, 'ANTI_666': 0 };
+    let currentEvent = null;
+    let autoRestartInterval = null;
+
+    // DOM
+    const elCoins = document.getElementById('stat-coins');
+    const elTickets = document.getElementById('stat-tickets');
+    const elCombo = document.getElementById('stat-combo');
+    const elRound = document.getElementById('stat-round');
+    const elQuota = document.getElementById('stat-quota');
+    const probBar = document.getElementById('prob-bar');
+    const probText = document.getElementById('prob-text');
+    const eventAnnouncer = document.getElementById('event-announcer');
+    const slotGrid = document.getElementById('slot-grid');
+    const shopContainer = document.getElementById('shop-container');
+    const trinketShopContainer = document.getElementById('trinket-shop-container');
+    const inventoryContainer = document.getElementById('inventory-container');
+    const activeBuffsContainer = document.getElementById('active-buffs');
+
+    // ==========================================
+    // VISUAL EFFECTS
+    // ==========================================
+    function spawnFloatingText(htmlText, colorClass, targetId) {
+      const el = document.getElementById(targetId);
+      if(!el) return;
+      const rect = el.getBoundingClientRect();
+      const floatEl = document.createElement('div');
+      floatEl.className = `float-text ${colorClass}`;
+      floatEl.innerHTML = htmlText;
+      floatEl.style.left = `${rect.left + (rect.width/2) - 20 + (Math.random()*40-20)}px`;
+      floatEl.style.top = `${rect.top}px`;
+      document.body.appendChild(floatEl);
+      setTimeout(() => floatEl.remove(), 1500);
+    }
+
+    function spawnSmoke(x, y) {
+      const smoke = document.createElement('div');
+      smoke.className = 'smoke'; smoke.style.left = `${x}px`; smoke.style.top = `${y}px`;
+      document.body.appendChild(smoke); setTimeout(() => smoke.remove(), 1200);
+    }
+
+    function triggerSmokeMachine() {
+      const rect = document.getElementById('slot-container').getBoundingClientRect();
+      for (let i = 0; i < 6; i++) setTimeout(() => spawnSmoke(rect.left + (Math.random() * rect.width), rect.bottom - (Math.random() * 40)), i * 150);
+    }
+
+    function spawnSparks(x, y, count = 12, isBurst = false) {
+      for(let i=0; i<count; i++) {
+        const spark = document.createElement('div');
+        spark.className = 'spark'; spark.style.left = `${x}px`; spark.style.top = `${y}px`;
+        const distance = Math.random() * (isBurst ? 80 : 150) + 30;
+        const angle = isBurst ? (Math.random() * Math.PI * 2) : ((Math.random() * Math.PI) + Math.PI);
+        const tx = Math.cos(angle) * distance; const ty = Math.sin(angle) * distance;
+        spark.style.setProperty('--tx', `${tx}px`); spark.style.setProperty('--ty', `${ty}px`);
+        spark.style.transform = `rotate(${Math.atan2(ty, tx) + Math.PI/2}rad)`;
+        document.body.appendChild(spark); setTimeout(() => spark.remove(), 500);
+      }
+    }
+
+    function spawnCoinRain(amount) {
+      const count = Math.min(60, Math.ceil(amount / 10)); 
+      for(let i=0; i<count; i++) {
+        setTimeout(() => {
+          const coin = document.createElement('div'); coin.className = 'rain-coin';
+          coin.style.left = `${Math.random() * 95}vw`; coin.style.animationDuration = `${1 + Math.random() * 1.5}s`;
+          coin.style.transform = `scale(${0.8 + Math.random() * 0.5})`;
+          document.body.appendChild(coin); setTimeout(() => coin.remove(), 2500); 
+        }, Math.random() * 1000); 
+      }
+    }
+
+    function spawnCellCoins(c, r) {
+      const cell = document.getElementById(`cell-${c}-${r}`);
+      if(!cell) return;
+      const rect = cell.getBoundingClientRect();
+      for(let i=0; i<3; i++) {
+        setTimeout(() => {
+          const coin = document.createElement('div');
+          coin.className = 'pop-coin coin-icon';
+          coin.style.position = 'fixed';
+          coin.style.left = `${rect.left + rect.width/2 - 12}px`;
+          coin.style.top = `${rect.top + rect.height/2 - 12}px`;
+          coin.style.zIndex = '9999';
+          coin.style.width = '24px';
+          coin.style.height = '24px';
+          document.body.appendChild(coin);
+          playSound('coin');
+          setTimeout(() => coin.remove(), 600);
+        }, i * 150 + (Math.random() * 50));
+      }
+    }
+
+    function animateCoins(start, end, duration) {
+      isCountingCoins = true;
+      let startTimestamp = null;
+      const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        const current = Math.floor(progress * (end - start) + start);
+        elCoins.innerText = current;
+        
+        if (progress < 1) {
+          if (Math.random() > 0.6) playSound('coin-tally'); // sound effect while counting
+          window.requestAnimationFrame(step);
+        } else {
+          elCoins.innerText = end;
+          isCountingCoins = false;
+        }
+      };
+      window.requestAnimationFrame(step);
+    }
+
+    // ==========================================
+    // CORE LOGIC
+    // ==========================================
+    function init() {
+      lucide.createIcons();
+      refreshConsumableShop(); refreshTrinketShop(false);
+      renderGridColumns(); updateUI(); setupTabs();
+    }
+
+    function setupTabs() {
+      const tT=document.getElementById('tab-trinket'), tC=document.getElementById('tab-consumable'), vT=document.getElementById('view-trinket'), vC=document.getElementById('view-consumable');
+      tT.onclick = () => { tT.classList.add('active'); tC.classList.remove('active'); vT.classList.remove('hidden'); vC.classList.add('hidden'); }
+      tC.onclick = () => { tC.classList.add('active'); tT.classList.remove('active'); vC.classList.remove('hidden'); vT.classList.add('hidden'); }
+    }
+
+    function hasTrinket(id) { return ownedTrinkets.some(t => t.id === id); }
+    
+    function addCoins(amount) { 
+      const oldCoins = coins;
+      coins += amount; 
+      animateCoins(oldCoins, coins, 800);
+      updateUI(); 
+    }
+
+    function removeCoins(amount) {
+      coins -= amount;
+      if(coins < 0) coins = 0;
+      updateUI();
+    }
+
+    function spin(event) {
+      if(isSpinning || gameOver) return;
+      
+      let cost = (currentEvent && currentEvent.id === 'e2') ? 2 : 1;
+      if(tickets < cost) return showMsg("ตั๋วไม่พอปั่น!", "text-red-500");
+
+      isSpinning = true; 
+      if(event) spawnSparks(event.clientX, event.clientY, 20, false);
+
+      if(hasTrinket('t03') && Math.random() < 0.15) spawnFloatingText("🎟️ Ticket Saved!", "text-green-400", "ticket-container");
+      else tickets -= cost;
+
+      let doomIncrease = 0.5;
+      if(hasTrinket('t16')) doomIncrease = 0.25;
+      chance666 = Math.min(100, chance666 + doomIncrease);
+
+      triggerEvent(); updateUI(); triggerSmokeMachine(); 
+
+      const slotWrapper = document.getElementById('slot-wrapper');
+      if(currentEvent && currentEvent.id === 'e3') slotWrapper.classList.add('hallucination');
+      else slotWrapper.classList.add('shake-intense');
+      
+      let isForced666 = Math.random() * 100 < chance666;
+      let gridData = [];
+      
+      for(let r=0; r<3; r++) { 
+        let row=[]; 
+        for(let c=0; c<3; c++) {
+          if(isForced666) {
+             row.push({ type: 'number', val: '6' }); 
+          } else {
+             const normalChance = 15;
+             if (Math.random() * 100 < normalChance) {
+               row.push({ type: 'number', val: SAFE_NUMBERS[Math.floor(Math.random() * SAFE_NUMBERS.length)] });
+             } else {
+               const totalWeight = SYMBOLS_NORMAL.reduce((acc, s) => acc + s.weight, 0);
+               let rW = Math.random() * totalWeight; let rolled = SYMBOLS_NORMAL[0];
+               for (let s of SYMBOLS_NORMAL) { if (rW < s.weight) { rolled = s; break; } rW -= s.weight; }
+               row.push({ type: 'normal', data: rolled });
+             }
+          }
+        }
+        gridData.push(row); 
+      }
+      grid = gridData;
+
+      const colsDOM = document.querySelectorAll('.slot-col');
+      colsDOM.forEach(c => c.classList.add('anim-spin-col'));
+
+      let spinInterval = setInterval(() => playSound('spin'), 150);
+
+      setTimeout(() => { colsDOM[0].classList.remove('anim-spin-col'); renderGridColumn(0); }, 600);
+      setTimeout(() => { colsDOM[1].classList.remove('anim-spin-col'); renderGridColumn(1); }, 1200);
+      setTimeout(() => { 
+        clearInterval(spinInterval);
+        colsDOM[2].classList.remove('anim-spin-col'); renderGridColumn(2); 
+        slotWrapper.classList.remove('shake-intense', 'hallucination');
+        evaluateGrid(isForced666); 
+      }, 1800);
+    }
+
+    function evaluateGrid(isForced666) {
+      let winLines = []; let totalPayout = 0; let is777 = false;
+
+      if(isForced666) {
+         if(activeBuffs['ANTI_666'] > 0) {
+            activeBuffs['ANTI_666']--; 
+            showMsg("แว่นตากันมารปกป้องคุณ!", "text-green-500");
+            chance666 = 1.0; 
+         } else {
+            playSound('doom');
+            coins = 0; 
+            chance666 = 1.0; 
+            document.getElementById('doom-overlay').classList.remove('hidden');
+            document.getElementById('danger-overlay').classList.remove('hidden');
+            document.getElementById('danger-overlay').classList.add('flash-danger');
+            setTimeout(() => {
+              document.getElementById('doom-overlay').classList.add('hidden');
+              document.getElementById('danger-overlay').classList.add('hidden');
+              document.getElementById('danger-overlay').classList.remove('flash-danger');
+              checkBankruptcy();
+            }, 2000);
+         }
+      } else {
+        PAYLINES.forEach(line => {
+          const [p1, p2, p3] = line;
+          const s1 = grid[p1[0]][p1[1]]; const s2 = grid[p2[0]][p2[1]]; const s3 = grid[p3[0]][p3[1]];
+          let match = false; 
+
+          if(s1.type === 'normal' && s1.data.id === s2.data?.id && s2.data?.id === s3.data?.id) { match = true; totalPayout += s1.data.payout; }
+          else if (s1.type === 'number' && s1.val === s2.val && s2.val === s3.val) {
+             match = true; 
+             if(s1.val === '7') is777 = true; else totalPayout += parseInt(s1.val) * 100;
+          }
+          if(match) winLines.push(line);
+        });
+
+        if (is777) totalPayout += 7777;
+
+        if(totalPayout > 0) {
+          winStreak++; combo++; 
+          
+          let multi = 1;
+          if(activeBuffs['MULTIPLIER'] > 0) multi *= 2;
+          if(currentEvent && currentEvent.id === 'e9') multi *= 1.5;
+          if(hasTrinket('t01')) multi += 0.1; 
+          if(hasTrinket('t04') && combo >= 3) multi += 0.2; 
+          if(hasTrinket('t08')) multi *= 1.5; 
+          if(hasTrinket('t10')) multi *= 2.0; 
+          
+          if(hasTrinket('t06')) { 
+            if(Math.random() < 0.2) { totalPayout = 0; multi = 0; spawnFloatingText("Risky Bet Failed! 0💸", "text-red-500 font-bold", "slot-wrapper"); } 
+            else { multi += 0.5; }
+          }
+
+          totalPayout = Math.floor(totalPayout * multi);
+          
+          if(totalPayout > 0) {
+             addCoins(totalPayout); // Uses animateCoins internally
+             
+             // Pop coins from winning cells
+             let uniqueWinCells = new Set();
+             winLines.forEach(line => line.forEach(pos => uniqueWinCells.add(`${pos[1]}-${pos[0]}`)));
+             uniqueWinCells.forEach(posStr => { const [c, r] = posStr.split('-'); spawnCellCoins(c, r); });
+
+             showMsg(`ชนะ! ได้รับ ${totalPayout}`, "text-yellow-400");
+             spawnCoinRain(totalPayout);
+             spawnFloatingText(`+${totalPayout} <div class="coin-icon" style="width:1em; height:1em;"></div>`, "text-yellow-400 text-3xl font-black drop-shadow-md", "slot-container");
+             if(is777) {
+                document.getElementById('jackpot-overlay').classList.remove('hidden');
+                setTimeout(()=>document.getElementById('jackpot-overlay').classList.add('hidden'), 2000);
+             }
+          }
+        } else {
+          winStreak = 0;
+          if(hasTrinket('t07') && Math.random() < 0.15) spawnFloatingText("Combo Kept!", "text-blue-400", "stat-combo");
+          else combo = 0;
+          showMsg("ไม่ได้อะไรเลย...", "text-stone-500");
+        }
+      }
+
+      if(activeBuffs['MULTIPLIER'] > 0) activeBuffs['MULTIPLIER']--;
+      renderGridColumns(winLines);
+      isSpinning = false; updateUI();
+      if(!isForced666) setTimeout(checkBankruptcy, 500);
+    }
+
+    // ==========================================
+    // EVENTS & SHOPS
+    // ==========================================
+    function triggerEvent() {
+      if(Math.random() > 0.6) currentEvent = EVENTS.find(e => e.id === 'normal');
+      else currentEvent = EVENTS.filter(e => e.id !== 'normal')[Math.floor(Math.random() * 10)];
+      
+      eventAnnouncer.innerHTML = `<span class="${currentEvent.color}"><i data-lucide="alert-triangle" class="inline w-3 h-3 mr-1"></i> ${currentEvent.name}</span>`;
+      lucide.createIcons({root: eventAnnouncer});
+      
+      if(currentEvent.action) currentEvent.action();
+    }
+
+    document.getElementById('btn-reroll-trinket').addEventListener('click', () => {
+      if(freeRerollAvailable > 0 && !isSpinning && !gameOver) { freeRerollAvailable--; refreshTrinketShop(true); }
+    });
+
+    function refreshTrinketShop(isReroll = false) {
+      let available = ALL_TRINKETS.filter(t => !ownedTrinkets.some(own => own.id === t.id));
+      currentTrinketShop = available.sort(() => 0.5 - Math.random()).slice(0, 3).map(item => ({...item, bought: false}));
+      renderTrinketShop();
+      if(!isReroll) document.getElementById('reroll-count').innerText = freeRerollAvailable;
+    }
+
+    function renderTrinketShop() {
+      let html = '';
+      currentTrinketShop.forEach((item, idx) => {
+        const cantBuy = coins < item.cost || item.bought || isSpinning || gameOver;
+        let borderC = item.rarity === 'ultra' ? 'border-purple-500' : (item.rarity === 'rare' ? 'border-blue-500' : 'border-stone-600');
+        let textC = item.rarity === 'ultra' ? 'text-purple-400' : (item.rarity === 'rare' ? 'text-blue-400' : 'text-stone-300');
+        html += `
+          <div class="bg-stone-950 border ${borderC} ${item.bought ? 'opacity-30' : ''} rounded-lg p-2 md:p-2.5 flex flex-col gap-1 md:gap-1.5 transition-all">
+            <div class="flex items-start gap-2">
+              <div class="p-1 md:p-1.5 bg-stone-900 rounded border ${borderC} ${textC}"><i data-lucide="${item.icon}" class="w-3 h-3 md:w-4 md:h-4"></i></div>
+              <div class="flex-1">
+                <h4 class="text-[10px] md:text-xs font-bold ${textC}">${item.name}</h4>
+                <p class="text-[8px] md:text-[9px] text-stone-400 mt-0.5 leading-snug">${item.desc}</p>
+              </div>
+            </div>
+            <button onclick="buyTrinket(${idx}, event)" class="w-full py-1 rounded text-[9px] md:text-[10px] font-black uppercase border transition-all ${cantBuy ? 'bg-stone-900 text-stone-600 border-stone-800' : 'bg-stone-800 hover:bg-stone-700 text-amber-500 border-stone-600'}" ${cantBuy ? 'disabled' : ''}>
+              ${item.bought ? 'ขายแล้ว' : `ซื้อ (${item.cost})`}
+            </button>
+          </div>
+        `;
+      });
+      trinketShopContainer.innerHTML = html;
+      document.getElementById('btn-reroll-trinket').disabled = freeRerollAvailable <= 0;
+      document.getElementById('reroll-count').innerText = freeRerollAvailable;
+      lucide.createIcons({root: trinketShopContainer});
+    }
+
+    window.buyTrinket = function(idx, event) {
+      if(isSpinning || gameOver) return;
+      const item = currentTrinketShop[idx];
+      if(coins >= item.cost && !item.bought) {
+        removeCoins(item.cost); item.bought = true; ownedTrinkets.push({...item}); 
+        playSound('buy'); spawnSparks(event.clientX, event.clientY, 15, true);
+        const card = event.currentTarget.closest('.border');
+        if(card) { card.classList.remove('flash-buy'); void card.offsetWidth; card.classList.add('flash-buy'); }
+        showMsg(`ได้รับ ${item.name}!`, "text-green-400");
+        spawnFloatingText(`-${item.cost}`, "text-red-500 font-bold", "stat-coins");
+        renderTrinketShop(); renderInventory(); updateUI();
+      }
+    };
+
+    function renderInventory() {
+      document.getElementById('inv-count').innerText = ownedTrinkets.length;
+      if(ownedTrinkets.length === 0) { inventoryContainer.innerHTML = `<div class="text-stone-600 italic text-center text-[9px] md:text-[10px] mt-4">ยังไม่มีเครื่องรางในตัว...</div>`; return; }
+      let html = '';
+      ownedTrinkets.forEach(item => {
+        let textC = item.rarity === 'ultra' ? 'text-purple-400' : (item.rarity === 'rare' ? 'text-blue-400' : 'text-stone-300');
+        html += `<div class="flex items-center gap-1.5 md:gap-2 bg-stone-950 border border-stone-800 p-1.5 md:p-2 rounded"><div class="${textC}"><i data-lucide="${item.icon}" class="w-3 h-3 md:w-4 md:h-4"></i></div><div class="flex-1"><div class="text-[9px] md:text-[10px] font-bold ${textC}">${item.name}</div></div></div>`;
+      });
+      inventoryContainer.innerHTML = html; lucide.createIcons({root: inventoryContainer});
+    }
+
+    function refreshConsumableShop() {
+      currentConsumables = [...ALL_CONSUMABLES].sort(() => 0.5 - Math.random()).slice(0, 3).map(item => ({...item, bought: false}));
+      renderConsumableShop();
+    }
+
+    function renderConsumableShop() {
+      let html = '';
+      currentConsumables.forEach((item, idx) => {
+        let actualCost = hasTrinket('t02') ? Math.floor(item.cost * 0.8) : item.cost;
+        const cantBuy = (currentEvent && currentEvent.id === 'e1') || coins < actualCost || item.bought || isSpinning || gameOver;
+        html += `
+          <div class="bg-stone-950 border ${item.bought ? 'border-stone-800 opacity-50' : 'border-stone-700'} rounded-lg p-2 md:p-2.5 flex flex-col gap-1 md:gap-1.5">
+            <div class="flex items-start gap-2">
+              <div class="p-1 md:p-1.5 bg-stone-900 rounded border border-stone-700 text-amber-600"><i data-lucide="${item.icon}" class="w-3 h-3 md:w-4 md:h-4"></i></div>
+              <div class="flex-1">
+                <h4 class="text-[10px] md:text-xs font-bold text-stone-200">${item.name}</h4>
+                <p class="text-[8px] md:text-[9px] text-stone-500 mt-0.5 leading-snug">${item.desc}</p>
+              </div>
+            </div>
+            <button onclick="buyConsumable(${idx}, event)" class="w-full py-1 rounded text-[9px] md:text-[10px] font-black uppercase border transition-all ${cantBuy ? 'bg-stone-800 text-stone-600 border-stone-700' : 'bg-red-900 hover:bg-red-800 text-amber-500 border-red-700'}" ${cantBuy ? 'disabled' : ''}>
+              ${item.bought ? 'ขายแล้ว' : `ซื้อ (${actualCost})`}
+            </button>
+          </div>
+        `;
+      });
+      shopContainer.innerHTML = html; lucide.createIcons({root: shopContainer});
+    }
+
+    window.buyConsumable = function(idx, event) {
+      if(isSpinning || gameOver) return;
+      const item = currentConsumables[idx];
+      let actualCost = hasTrinket('t02') ? Math.floor(item.cost * 0.8) : item.cost;
+      
+      if(coins >= actualCost && !item.bought) {
+        removeCoins(actualCost); item.bought = true;
+        playSound('buy'); spawnSparks(event.clientX, event.clientY, 15, true);
+        const card = event.currentTarget.closest('.border');
+        if(card) { card.classList.remove('flash-buy'); void card.offsetWidth; card.classList.add('flash-buy'); }
+        
+        if(item.type === 'instant') item.action();
+        else if(item.type === 'buff') activeBuffs[item.code] = (activeBuffs[item.code] || 0) + item.duration;
+        
+        showMsg(`ใช้ ${item.name}!`, "text-amber-500");
+        spawnFloatingText(`-${actualCost}`, "text-red-500 font-bold", "stat-coins");
+        updateUI();
+      }
+    };
+
+    function buyTickets(amount, baseCost, event) {
+      if(isSpinning || gameOver) return;
+      let actualCost = (currentEvent && currentEvent.id === 'e4') ? baseCost * 2 : baseCost;
+      if(coins >= actualCost) { 
+        removeCoins(actualCost); tickets += amount; 
+        playSound('buy'); if(event) spawnSparks(event.clientX, event.clientY, 10);
+        spawnFloatingText(`-${actualCost}`, "text-red-500 font-bold", "stat-coins"); updateUI(); 
+      }
+    }
+
+    // ==========================================
+    // QUOTA & RENDER
+    // ==========================================
+    function payQuota(event) {
+      if(coins >= quota && !isSpinning && !gameOver) {
+        isSpinning = true; playSound('buy');
+        if(event) spawnSparks(event.clientX, event.clientY, 20);
+        
+        const drawer = document.getElementById('drawer-overlay');
+        drawer.classList.remove('-translate-y-full'); drawer.classList.add('translate-y-0');
+        
+        setTimeout(() => {
+          removeCoins(quota); round++; 
+          let nextQuotaBase = Math.floor(quota * 1.5 + 50);
+          if(hasTrinket('t08')) nextQuotaBase = Math.floor(nextQuotaBase * 1.3);
+          if(hasTrinket('t10')) nextQuotaBase = Math.floor(nextQuotaBase * 2.0); 
+          quota = nextQuotaBase;
+          
+          tickets = 5; freeRerollAvailable = 1; chance666 = 1.0;
+          grid = Array(3).fill(null).map(() => Array(3).fill({type: 'normal', data: SYMBOLS_NORMAL[0]}));
+          renderGridColumns(); activeBuffs = { 'MULTIPLIER': 0, 'ANTI_666': 0 }; currentEvent = null;
+          
+          updateUI(); 
+          drawer.classList.remove('translate-y-0'); drawer.classList.add('-translate-y-full');
+          triggerQuotaShake();
+          
+          setTimeout(() => {
+            isSpinning = false; refreshConsumableShop(); refreshTrinketShop(false); updateUI();         
+            showMsg(`เข้าสู่ชั้นนรก ${round}`, "text-amber-500");
+          }, 900); 
+        }, 1000); 
+      }
+    }
+
+    function renderGridColumn(c) {
+      const colDiv = document.getElementById(`col-${c}`); if (!colDiv) return;
+      let html = '';
+      for(let r=0; r<3; r++) {
+        const sym = grid[r][c];
+        let content = sym.type === 'normal' ? sym.data.icon : sym.val;
+        let extraClass = sym.type === 'number' ? 'sym-num text-4xl sm:text-5xl md:text-6xl' : 'text-4xl sm:text-5xl md:text-6xl drop-shadow-lg';
+        if(sym.type === 'number') { if(sym.val === '6') extraClass += ' sym-666'; if(sym.val === '7') extraClass += ' sym-777'; }
+        html += `<div id="cell-${c}-${r}" class="flex-1 flex items-center justify-center border-[2px] md:border-[3px] rounded-xl bg-[#292524] border-stone-800 relative"><span class="${extraClass}">${content}</span></div>`;
+      }
+      colDiv.innerHTML = html;
+    }
+
+    function renderGridColumns(winLines = []) {
+      let html = '';
+      for(let c=0; c<3; c++) {
+        html += `<div class="flex-1 flex flex-col gap-1 md:gap-2 slot-col h-full" id="col-${c}">`;
+        for(let r=0; r<3; r++) {
+          const sym = grid[r][c];
+          let content = sym.type === 'normal' ? sym.data.icon : sym.val;
+          let extraClass = sym.type === 'number' ? 'sym-num text-4xl sm:text-5xl md:text-6xl' : 'text-4xl sm:text-5xl md:text-6xl drop-shadow-lg';
+          if(sym.type === 'number') { if(sym.val === '6') extraClass += ' sym-666'; if(sym.val === '7') extraClass += ' sym-777'; }
+          let isWinCell = winLines.some(line => line.some(pos => pos[0]===r && pos[1]===c));
+          let winBg = isWinCell ? 'bg-amber-900/50 border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.5)] z-10 scale-105' : 'bg-[#292524] border-stone-800';
+          html += `<div id="cell-${c}-${r}" class="flex-1 flex items-center justify-center border-[2px] md:border-[3px] rounded-xl transition-all duration-300 ${winBg} relative"><span class="${extraClass}">${content}</span></div>`;
+        }
+        html += `</div>`;
+      }
+      slotGrid.innerHTML = html;
+    }
+
+    function triggerQuotaShake() {
+      const el = document.getElementById('stat-quota');
+      el.classList.remove('animate-pulse'); void el.offsetWidth; el.classList.add('animate-pulse');
+    }
+
+    function updateUI() {
+      if(!isCountingCoins) elCoins.innerText = coins; 
+      
+      elTickets.innerText = tickets; elRound.innerText = round; elQuota.innerText = quota; elCombo.innerText = combo;
+      if(combo >= 3) elCombo.classList.add('text-yellow-400'); else elCombo.classList.remove('text-yellow-400');
+
+      if(tickets <= 3) elTickets.parentElement.classList.add('animate-pulse', 'text-red-500');
+      else elTickets.parentElement.classList.remove('animate-pulse', 'text-red-500');
+
+      if(currentEvent && currentEvent.id === 'e8') {
+         if(currentEvent.uiAction) currentEvent.uiAction();
+      } else {
+         probText.innerText = `${chance666.toFixed(1)}%`; 
+         probBar.style.width = `${Math.min(100, chance666)}%`;
+      }
+
+      const cost1 = (currentEvent && currentEvent.id === 'e4') ? 40 : 20;
+      const cost10 = (currentEvent && currentEvent.id === 'e4') ? 380 : 190;
+      
+      document.getElementById('btn-buy-1-ticket').disabled = coins < cost1 || isSpinning || gameOver;
+      document.getElementById('btn-buy-10-ticket').disabled = coins < cost10 || isSpinning || gameOver;
+      
+      let spinCost = (currentEvent && currentEvent.id === 'e2') ? 2 : 1;
+      document.getElementById('spin-cost-display').innerText = `-${spinCost} ตั๋ว`;
+      document.getElementById('btn-spin').disabled = tickets < spinCost || isSpinning || gameOver;
+      document.getElementById('btn-pay-quota').disabled = coins < quota || isSpinning || gameOver;
+
+      let buffsHtml = '';
+      if(activeBuffs['MULTIPLIER'] > 0) buffsHtml += `<div class="text-amber-400">• x2 เงิน (${activeBuffs['MULTIPLIER']} สปิน)</div>`;
+      if(activeBuffs['ANTI_666'] > 0) buffsHtml += `<div class="text-green-400">• แว่นตากันมาร (1 ครั้ง)</div>`;
+      activeBuffsContainer.innerHTML = buffsHtml || '<div class="text-stone-600 italic">ไม่มีบัฟทำงาน</div>';
+
+      renderConsumableShop(); renderTrinketShop();
+    }
+
+    function showMsg(text, colorClass = "text-stone-400") { eventAnnouncer.innerHTML = `<span class="${colorClass} font-bold animate-pulse">${text}</span>`; }
+
+    // ==========================================
+    // CINEMATIC GAME OVER WITH MORAL QUOTE
+    // ==========================================
+    function triggerGameOver() {
+      gameOver = true; isSpinning = true; 
+      playSound('doom');
+      document.getElementById('master-container').classList.add('pointer-events-none');
+      document.getElementById('bankrupt-overlay').classList.remove('hidden');
+      
+      setTimeout(() => {
+        document.getElementById('game-content').classList.add('elevator-fall');
+        document.getElementById('main-header').classList.add('header-center-anim');
+        
+        const blackBg = document.getElementById('black-bg-overlay');
+        blackBg.classList.remove('opacity-0');
+        blackBg.classList.add('opacity-100');
+        
+        setTimeout(() => {
+          const btn = document.getElementById('btn-restart');
+          btn.classList.remove('opacity-0', 'pointer-events-none');
+          btn.classList.add('opacity-100');
+
+          setTimeout(() => {
+            const extras = document.getElementById('game-over-extras');
+            const quoteEl = document.getElementById('gambling-quote');
+            const timerEl = document.getElementById('timer-count');
+            
+            quoteEl.innerText = `"${ANTI_GAMBLING_QUOTES[Math.floor(Math.random() * ANTI_GAMBLING_QUOTES.length)]}"`;
+            
+            extras.classList.remove('opacity-0', 'pointer-events-none');
+            extras.classList.add('opacity-100');
+
+            let timeLeft = 10;
+            timerEl.innerText = timeLeft;
+
+            autoRestartInterval = setInterval(() => {
+              timeLeft--;
+              timerEl.innerText = timeLeft;
+              if (timeLeft <= 0) {
+                clearInterval(autoRestartInterval);
+                document.getElementById('btn-restart').click(); 
+              }
+            }, 1000);
+
+          }, 2000);
+
+        }, 2500); 
+
+      }, 1500);
+    }
+
+    function checkBankruptcy() {
+      let spinCost = (currentEvent && currentEvent.id === 'e2') ? 2 : 1;
+      const tCost = (currentEvent && currentEvent.id === 'e4') ? 40 : 20;
+      if (tickets < spinCost && coins < tCost && !gameOver && !isSpinning) triggerGameOver();
+    }
+
+    document.getElementById('btn-restart').addEventListener('click', () => {
+      if (autoRestartInterval) clearInterval(autoRestartInterval);
+      const extras = document.getElementById('game-over-extras');
+      extras.classList.remove('opacity-100');
+      extras.classList.add('opacity-0', 'pointer-events-none');
+
+      document.getElementById('master-container').classList.remove('pointer-events-none');
+      document.getElementById('game-content').classList.remove('elevator-fall');
+      document.getElementById('main-header').classList.remove('header-center-anim');
+      
+      const blackBg = document.getElementById('black-bg-overlay');
+      blackBg.classList.remove('opacity-100');
+      blackBg.classList.add('opacity-0');
+
+      const btn = document.getElementById('btn-restart');
+      btn.classList.remove('opacity-100');
+      btn.classList.add('opacity-0', 'pointer-events-none');
+
+      coins = 100; tickets = 10; round = 1; quota = 100; chance666 = 1.0; combo = 0; winStreak = 0;
+      gameOver = false; isSpinning = false; isCountingCoins = false;
+      
+      ownedTrinkets = []; activeBuffs = { 'MULTIPLIER': 0, 'ANTI_666': 0 }; currentEvent = null; freeRerollAvailable = 1;
+      grid = Array(3).fill(null).map(() => Array(3).fill({type: 'normal', data: SYMBOLS_NORMAL[0]}));
+      
+      ['doom-overlay', 'bankrupt-overlay', 'danger-overlay', 'jackpot-overlay'].forEach(id => document.getElementById(id).classList.add('hidden'));
+      document.getElementById('danger-overlay').classList.remove('flash-danger');
+      
+      renderInventory(); init();
+    });
+
+    document.getElementById('btn-spin').addEventListener('click', spin);
+    document.getElementById('btn-pay-quota').addEventListener('click', payQuota);
+    document.getElementById('btn-buy-1-ticket').addEventListener('click', (e) => buyTickets(1, 20, e));
+    document.getElementById('btn-buy-10-ticket').addEventListener('click', (e) => buyTickets(10, 190, e));
+
+    init();
+  </script>
+</body>
+</html>
